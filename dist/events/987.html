@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Графики status_det по event_type_id 987.">
+  <meta name="theme-color" content="#11251f">
+  <title>Событие 987 — динамика статусов</title>
+  <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body class="detail-page">
+  <aside class="sidebar">
+    <a class="brand brand--light" href="../index.html">
+      <span class="brand__mark"><i></i><i></i><i></i></span>
+      <span><b>Events</b><small>status monitor</small></span>
+    </a>
+    <nav>
+      <a href="../index.html"><span>⌂</span> Обзор</a>
+      <a class="active" href="#top"><span>⌁</span> Динамика</a>
+      <a href="#charts"><span>⌗</span> Статусы</a>
+    </nav>
+    <div class="sidebar-note"><span>Период данных</span><b>2026-01 — 2026-10</b><small>10 месяцев · 11 статусов</small></div>
+  </aside>
+  <main class="detail-main" id="top">
+    <div class="detail-topbar">
+      <a class="back-link" href="../index.html">← Все события</a>
+      <label class="event-jump"><span>Перейти к ID</span><select id="eventJump" aria-label="Перейти к другому event_type_id"></select></label>
+    </div>
+    <section class="event-hero">
+      <div>
+        <p class="eyebrow">EVENT_TYPE_ID</p>
+        <h1>987</h1>
+        <p>Детальная динамика обработки по каждому статусу.</p>
+      </div>
+      <div class="hero-stamp"><span>АКТУАЛЬНЫЙ ПЕРИОД</span><b>2026-10</b><small>10 673 событий</small></div>
+    </section>
+    <section class="kpi-grid" aria-label="Показатели события">
+      <article><span>Всего за 2026-10</span><b>10 673</b><small>сумма всех статусов</small></article>
+      <article><span>Изменение к 2026-09</span><b class="down">-59,6%</b><small>26 398 ранее</small></article>
+      <article><span>Коммуникации</span><b>2 217</b><small>20,8% от объёма</small></article>
+      <article><span>Активных статусов</span><b>11</b><small>за весь период</small></article>
+    </section>
+    <section class="chart-section" id="charts">
+      <div class="section-heading section-heading--charts"><div><p class="eyebrow">STATUS_DET</p><h2>Кривые изменения</h2></div><span>11 отдельных графиков</span></div>
+      <div class="chart-grid" id="chartGrid" aria-live="polite"></div>
+    </section>
+    <footer><span>event_type_id 987</span><span>Пропуски по месяцам отображаются как 0</span></footer>
+  </main>
+  <div class="chart-tooltip" id="chartTooltip" hidden></div>
+  <script>window.EVENT_DATA={"id":987,"months":["2026-01","2026-02","2026-03","2026-04","2026-05","2026-06","2026-07","2026-08","2026-09","2026-10"],"statuses":[{"code":0,"description":"По событию после всех проверок совершена коммуникация с клиентом","values":[0,0,0,878,6037,8288,8035,7229,4206,2217],"total":36890,"latest":2217},{"code":-1,"description":"За определённый срок не было взято в обработку и было удалено","values":[0,0,0,0,0,0,1568,0,0,0],"total":1568,"latest":0},{"code":1002,"description":"Интеграция со стоплистами массперс: Найден в стоплисте","values":[0,0,0,1200,8223,11701,13247,10334,4305,1699],"total":50709,"latest":1699},{"code":1004,"description":"Интеграция с ЕПК: Не найден в ЕПК","values":[0,0,0,15,67,78,111,80,4015,200],"total":4566,"latest":200},{"code":1006,"description":"Интеграция с ЕПК: Не соответствует сегменту","values":[0,0,0,2,4,6,1,0,0,0],"total":13,"latest":0},{"code":1011,"description":"Проверка УК по групповой политике: Недавно участвовал в опросе группы","values":[0,0,0,360,2433,2367,2095,2040,0,0],"total":9295,"latest":0},{"code":1020,"description":"Политика коммуникаций по группам не пройдена (SecondGroup)","values":[0,0,0,0,0,0,0,1916,9217,3777],"total":14910,"latest":3777},{"code":1021,"description":"Сегмент исключен (SecondGroup)","values":[0,0,0,0,0,0,0,0,2154,792],"total":2946,"latest":792},{"code":1023,"description":"Канал исключен (SecondGroup)","values":[0,0,0,0,0,0,0,2078,1260,1525],"total":4863,"latest":1525},{"code":1024,"description":"Не пройдена ПК по каналу коммуникации (FirstGroup)","values":[0,0,0,0,0,0,0,259,1241,463],"total":1963,"latest":463},{"code":9898,"description":"Описание не предоставлено в исходных данных","values":[0,0,0,0,0,0,516,0,0,0],"total":516,"latest":0}],"totals":[0,0,0,2455,16764,22440,25573,23936,26398,10673],"latest":10673,"previous":26398,"change":-59.56890673535874,"communicated":2217,"communicationShare":20.772041600299822};</script>
+  <script src="../assets/events-list.js"></script>
+  <script src="../assets/dashboard.js"></script>
+</body>
+</html>

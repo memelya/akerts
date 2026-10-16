@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Графики status_det по event_type_id 780.">
+  <meta name="theme-color" content="#11251f">
+  <title>Событие 780 — динамика статусов</title>
+  <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body class="detail-page">
+  <aside class="sidebar">
+    <a class="brand brand--light" href="../index.html">
+      <span class="brand__mark"><i></i><i></i><i></i></span>
+      <span><b>Events</b><small>status monitor</small></span>
+    </a>
+    <nav>
+      <a href="../index.html"><span>⌂</span> Обзор</a>
+      <a class="active" href="#top"><span>⌁</span> Динамика</a>
+      <a href="#charts"><span>⌗</span> Статусы</a>
+    </nav>
+    <div class="sidebar-note"><span>Период данных</span><b>2026-01 — 2026-10</b><small>10 месяцев · 7 статусов</small></div>
+  </aside>
+  <main class="detail-main" id="top">
+    <div class="detail-topbar">
+      <a class="back-link" href="../index.html">← Все события</a>
+      <label class="event-jump"><span>Перейти к ID</span><select id="eventJump" aria-label="Перейти к другому event_type_id"></select></label>
+    </div>
+    <section class="event-hero">
+      <div>
+        <p class="eyebrow">EVENT_TYPE_ID</p>
+        <h1>780</h1>
+        <p>Детальная динамика обработки по каждому статусу.</p>
+      </div>
+      <div class="hero-stamp"><span>АКТУАЛЬНЫЙ ПЕРИОД</span><b>2026-10</b><small>1 502 событий</small></div>
+    </section>
+    <section class="kpi-grid" aria-label="Показатели события">
+      <article><span>Всего за 2026-10</span><b>1 502</b><small>сумма всех статусов</small></article>
+      <article><span>Изменение к 2026-09</span><b class="down">-53,2%</b><small>3 211 ранее</small></article>
+      <article><span>Коммуникации</span><b>526</b><small>35,0% от объёма</small></article>
+      <article><span>Активных статусов</span><b>7</b><small>за весь период</small></article>
+    </section>
+    <section class="chart-section" id="charts">
+      <div class="section-heading section-heading--charts"><div><p class="eyebrow">STATUS_DET</p><h2>Кривые изменения</h2></div><span>7 отдельных графиков</span></div>
+      <div class="chart-grid" id="chartGrid" aria-live="polite"></div>
+    </section>
+    <footer><span>event_type_id 780</span><span>Пропуски по месяцам отображаются как 0</span></footer>
+  </main>
+  <div class="chart-tooltip" id="chartTooltip" hidden></div>
+  <script>window.EVENT_DATA={"id":780,"months":["2026-01","2026-02","2026-03","2026-04","2026-05","2026-06","2026-07","2026-08","2026-09","2026-10"],"statuses":[{"code":0,"description":"По событию после всех проверок совершена коммуникация с клиентом","values":[983,1102,1573,1258,908,927,1694,652,1194,526],"total":10817,"latest":526},{"code":-1,"description":"За определённый срок не было взято в обработку и было удалено","values":[0,0,0,0,0,0,416,0,0,0],"total":416,"latest":0},{"code":1002,"description":"Интеграция со стоплистами массперс: Найден в стоплисте","values":[654,856,1124,944,656,646,1348,571,1048,506],"total":8353,"latest":506},{"code":1004,"description":"Интеграция с ЕПК: Не найден в ЕПК","values":[21,20,31,22,20,17,35,13,19,7],"total":205,"latest":7},{"code":1006,"description":"Интеграция с ЕПК: Не соответствует сегменту","values":[162,188,166,151,127,123,199,101,149,61],"total":1427,"latest":61},{"code":1011,"description":"Проверка УК по групповой политике: Недавно участвовал в опросе группы","values":[431,727,880,683,542,543,969,500,801,402],"total":6478,"latest":402},{"code":9898,"description":"Описание не предоставлено в исходных данных","values":[0,0,0,0,0,0,176,0,0,0],"total":176,"latest":0}],"totals":[2251,2893,3774,3058,2253,2256,4837,1837,3211,1502],"latest":1502,"previous":3211,"change":-53.22329492369978,"communicated":526,"communicationShare":35.01997336884155};</script>
+  <script src="../assets/events-list.js"></script>
+  <script src="../assets/dashboard.js"></script>
+</body>
+</html>

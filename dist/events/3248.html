@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Графики status_det по event_type_id 3248.">
+  <meta name="theme-color" content="#11251f">
+  <title>Событие 3248 — динамика статусов</title>
+  <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body class="detail-page">
+  <aside class="sidebar">
+    <a class="brand brand--light" href="../index.html">
+      <span class="brand__mark"><i></i><i></i><i></i></span>
+      <span><b>Events</b><small>status monitor</small></span>
+    </a>
+    <nav>
+      <a href="../index.html"><span>⌂</span> Обзор</a>
+      <a class="active" href="#top"><span>⌁</span> Динамика</a>
+      <a href="#charts"><span>⌗</span> Статусы</a>
+    </nav>
+    <div class="sidebar-note"><span>Период данных</span><b>2026-01 — 2026-10</b><small>10 месяцев · 7 статусов</small></div>
+  </aside>
+  <main class="detail-main" id="top">
+    <div class="detail-topbar">
+      <a class="back-link" href="../index.html">← Все события</a>
+      <label class="event-jump"><span>Перейти к ID</span><select id="eventJump" aria-label="Перейти к другому event_type_id"></select></label>
+    </div>
+    <section class="event-hero">
+      <div>
+        <p class="eyebrow">EVENT_TYPE_ID</p>
+        <h1>3248</h1>
+        <p>Детальная динамика обработки по каждому статусу.</p>
+      </div>
+      <div class="hero-stamp"><span>АКТУАЛЬНЫЙ ПЕРИОД</span><b>2026-10</b><small>26 472 событий</small></div>
+    </section>
+    <section class="kpi-grid" aria-label="Показатели события">
+      <article><span>Всего за 2026-10</span><b>26 472</b><small>сумма всех статусов</small></article>
+      <article><span>Изменение к 2026-09</span><b class="down">-62,8%</b><small>71 067 ранее</small></article>
+      <article><span>Коммуникации</span><b>10 563</b><small>39,9% от объёма</small></article>
+      <article><span>Активных статусов</span><b>7</b><small>за весь период</small></article>
+    </section>
+    <section class="chart-section" id="charts">
+      <div class="section-heading section-heading--charts"><div><p class="eyebrow">STATUS_DET</p><h2>Кривые изменения</h2></div><span>7 отдельных графиков</span></div>
+      <div class="chart-grid" id="chartGrid" aria-live="polite"></div>
+    </section>
+    <footer><span>event_type_id 3248</span><span>Пропуски по месяцам отображаются как 0</span></footer>
+  </main>
+  <div class="chart-tooltip" id="chartTooltip" hidden></div>
+  <script>window.EVENT_DATA={"id":3248,"months":["2026-01","2026-02","2026-03","2026-04","2026-05","2026-06","2026-07","2026-08","2026-09","2026-10"],"statuses":[{"code":0,"description":"По событию после всех проверок совершена коммуникация с клиентом","values":[25460,27993,30716,31500,9736,15925,33570,22688,28655,10563],"total":236806,"latest":10563},{"code":-1,"description":"За определённый срок не было взято в обработку и было удалено","values":[0,0,0,0,0,0,3600,0,0,0],"total":3600,"latest":0},{"code":1002,"description":"Интеграция со стоплистами массперс: Найден в стоплисте","values":[20857,25131,31348,29723,9156,16099,35826,23656,32006,12161],"total":235963,"latest":12161},{"code":1004,"description":"Интеграция с ЕПК: Не найден в ЕПК","values":[803,1010,1173,1100,294,544,1200,795,952,363],"total":8234,"latest":363},{"code":1006,"description":"Интеграция с ЕПК: Не соответствует сегменту","values":[10,15,19,19,8,8,5,2,2,2],"total":90,"latest":2},{"code":1010,"description":"Проверка по УК внутри ППРБ: Недавно участвовал в опросе (spec)","values":[1237,0,1,1,2,1,7,4,14,1],"total":1268,"latest":1},{"code":1011,"description":"Проверка УК по групповой политике: Недавно участвовал в опросе группы","values":[2725,3381,4793,6038,2761,3663,6778,6499,9438,3382],"total":49458,"latest":3382}],"totals":[51092,57530,68050,68381,21957,36240,80986,53644,71067,26472],"latest":26472,"previous":71067,"change":-62.75064375870657,"communicated":10563,"communicationShare":39.90253853127833};</script>
+  <script src="../assets/events-list.js"></script>
+  <script src="../assets/dashboard.js"></script>
+</body>
+</html>

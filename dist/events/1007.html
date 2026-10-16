@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Графики status_det по event_type_id 1007.">
+  <meta name="theme-color" content="#11251f">
+  <title>Событие 1007 — динамика статусов</title>
+  <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body class="detail-page">
+  <aside class="sidebar">
+    <a class="brand brand--light" href="../index.html">
+      <span class="brand__mark"><i></i><i></i><i></i></span>
+      <span><b>Events</b><small>status monitor</small></span>
+    </a>
+    <nav>
+      <a href="../index.html"><span>⌂</span> Обзор</a>
+      <a class="active" href="#top"><span>⌁</span> Динамика</a>
+      <a href="#charts"><span>⌗</span> Статусы</a>
+    </nav>
+    <div class="sidebar-note"><span>Период данных</span><b>2026-01 — 2026-10</b><small>10 месяцев · 7 статусов</small></div>
+  </aside>
+  <main class="detail-main" id="top">
+    <div class="detail-topbar">
+      <a class="back-link" href="../index.html">← Все события</a>
+      <label class="event-jump"><span>Перейти к ID</span><select id="eventJump" aria-label="Перейти к другому event_type_id"></select></label>
+    </div>
+    <section class="event-hero">
+      <div>
+        <p class="eyebrow">EVENT_TYPE_ID</p>
+        <h1>1007</h1>
+        <p>Детальная динамика обработки по каждому статусу.</p>
+      </div>
+      <div class="hero-stamp"><span>АКТУАЛЬНЫЙ ПЕРИОД</span><b>2026-10</b><small>1 707 164 событий</small></div>
+    </section>
+    <section class="kpi-grid" aria-label="Показатели события">
+      <article><span>Всего за 2026-10</span><b>1 707 164</b><small>сумма всех статусов</small></article>
+      <article><span>Изменение к 2026-09</span><b class="down">-55,0%</b><small>3 792 435 ранее</small></article>
+      <article><span>Коммуникации</span><b>568 801</b><small>33,3% от объёма</small></article>
+      <article><span>Активных статусов</span><b>7</b><small>за весь период</small></article>
+    </section>
+    <section class="chart-section" id="charts">
+      <div class="section-heading section-heading--charts"><div><p class="eyebrow">STATUS_DET</p><h2>Кривые изменения</h2></div><span>7 отдельных графиков</span></div>
+      <div class="chart-grid" id="chartGrid" aria-live="polite"></div>
+    </section>
+    <footer><span>event_type_id 1007</span><span>Пропуски по месяцам отображаются как 0</span></footer>
+  </main>
+  <div class="chart-tooltip" id="chartTooltip" hidden></div>
+  <script>window.EVENT_DATA={"id":1007,"months":["2026-01","2026-02","2026-03","2026-04","2026-05","2026-06","2026-07","2026-08","2026-09","2026-10"],"statuses":[{"code":0,"description":"По событию после всех проверок совершена коммуникация с клиентом","values":[1396696,1826698,1947485,1982909,1694702,1868547,1918587,1477314,1265154,568801],"total":15946893,"latest":568801},{"code":-1,"description":"За определённый срок не было взято в обработку и было удалено","values":[0,500,584,0,0,0,152678,0,0,800],"total":154562,"latest":800},{"code":1002,"description":"Интеграция со стоплистами массперс: Найден в стоплисте","values":[987650,1360467,1633019,1633663,1394413,1598668,1768003,1378427,1243338,556001],"total":13553649,"latest":556001},{"code":1004,"description":"Интеграция с ЕПК: Не найден в ЕПК","values":[46601,59229,69945,67550,51275,56977,58709,43532,37462,15779],"total":507059,"latest":15779},{"code":1006,"description":"Интеграция с ЕПК: Не соответствует сегменту","values":[314,465,502,548,440,502,133,196,631,395],"total":4126,"latest":395},{"code":1011,"description":"Проверка УК по групповой политике: Недавно участвовал в опросе группы","values":[62846,85696,122658,173889,207687,175528,177074,730041,1245850,565388],"total":3546657,"latest":565388},{"code":9898,"description":"Описание не предоставлено в исходных данных","values":[0,0,0,0,0,0,12458,0,0,0],"total":12458,"latest":0}],"totals":[2494107,3333055,3774193,3858559,3348517,3700222,4087642,3629510,3792435,1707164],"latest":1707164,"previous":3792435,"change":-54.98501622308623,"communicated":568801,"communicationShare":33.3184743820746};</script>
+  <script src="../assets/events-list.js"></script>
+  <script src="../assets/dashboard.js"></script>
+</body>
+</html>

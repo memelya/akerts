@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Графики status_det по event_type_id 588.">
+  <meta name="theme-color" content="#11251f">
+  <title>Событие 588 — динамика статусов</title>
+  <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body class="detail-page">
+  <aside class="sidebar">
+    <a class="brand brand--light" href="../index.html">
+      <span class="brand__mark"><i></i><i></i><i></i></span>
+      <span><b>Events</b><small>status monitor</small></span>
+    </a>
+    <nav>
+      <a href="../index.html"><span>⌂</span> Обзор</a>
+      <a class="active" href="#top"><span>⌁</span> Динамика</a>
+      <a href="#charts"><span>⌗</span> Статусы</a>
+    </nav>
+    <div class="sidebar-note"><span>Период данных</span><b>2026-01 — 2026-10</b><small>10 месяцев · 7 статусов</small></div>
+  </aside>
+  <main class="detail-main" id="top">
+    <div class="detail-topbar">
+      <a class="back-link" href="../index.html">← Все события</a>
+      <label class="event-jump"><span>Перейти к ID</span><select id="eventJump" aria-label="Перейти к другому event_type_id"></select></label>
+    </div>
+    <section class="event-hero">
+      <div>
+        <p class="eyebrow">EVENT_TYPE_ID</p>
+        <h1>588</h1>
+        <p>Детальная динамика обработки по каждому статусу.</p>
+      </div>
+      <div class="hero-stamp"><span>АКТУАЛЬНЫЙ ПЕРИОД</span><b>2026-10</b><small>7 572 событий</small></div>
+    </section>
+    <section class="kpi-grid" aria-label="Показатели события">
+      <article><span>Всего за 2026-10</span><b>7 572</b><small>сумма всех статусов</small></article>
+      <article><span>Изменение к 2026-09</span><b class="down">-86,4%</b><small>55 695 ранее</small></article>
+      <article><span>Коммуникации</span><b>4 594</b><small>60,7% от объёма</small></article>
+      <article><span>Активных статусов</span><b>7</b><small>за весь период</small></article>
+    </section>
+    <section class="chart-section" id="charts">
+      <div class="section-heading section-heading--charts"><div><p class="eyebrow">STATUS_DET</p><h2>Кривые изменения</h2></div><span>7 отдельных графиков</span></div>
+      <div class="chart-grid" id="chartGrid" aria-live="polite"></div>
+    </section>
+    <footer><span>event_type_id 588</span><span>Пропуски по месяцам отображаются как 0</span></footer>
+  </main>
+  <div class="chart-tooltip" id="chartTooltip" hidden></div>
+  <script>window.EVENT_DATA={"id":588,"months":["2026-01","2026-02","2026-03","2026-04","2026-05","2026-06","2026-07","2026-08","2026-09","2026-10"],"statuses":[{"code":0,"description":"По событию после всех проверок совершена коммуникация с клиентом","values":[0,0,0,3049,3232,3166,29562,17264,33139,4594],"total":94006,"latest":4594},{"code":1002,"description":"Интеграция со стоплистами массперс: Найден в стоплисте","values":[0,0,0,901,1010,769,6999,4154,5020,757],"total":19610,"latest":757},{"code":1004,"description":"Интеграция с ЕПК: Не найден в ЕПК","values":[0,0,0,36,80,23,1077,611,326,58],"total":2211,"latest":58},{"code":1020,"description":"Политика коммуникаций по группам не пройдена (SecondGroup)","values":[0,0,0,926,884,1736,32289,15960,12740,1351],"total":65886,"latest":1351},{"code":1021,"description":"Сегмент исключен (SecondGroup)","values":[0,0,0,22,74,8,1542,1201,335,248],"total":3430,"latest":248},{"code":1023,"description":"Канал исключен (SecondGroup)","values":[0,0,0,31,175,73,680,612,495,101],"total":2167,"latest":101},{"code":1024,"description":"Не пройдена ПК по каналу коммуникации (FirstGroup)","values":[0,0,0,58,107,158,7655,5189,3640,463],"total":17270,"latest":463}],"totals":[0,0,0,5023,5562,5933,79804,44991,55695,7572],"latest":7572,"previous":55695,"change":-86.4045246431457,"communicated":4594,"communicationShare":60.67089276281036};</script>
+  <script src="../assets/events-list.js"></script>
+  <script src="../assets/dashboard.js"></script>
+</body>
+</html>

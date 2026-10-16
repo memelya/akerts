@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Графики status_det по event_type_id 187.">
+  <meta name="theme-color" content="#11251f">
+  <title>Событие 187 — динамика статусов</title>
+  <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body class="detail-page">
+  <aside class="sidebar">
+    <a class="brand brand--light" href="../index.html">
+      <span class="brand__mark"><i></i><i></i><i></i></span>
+      <span><b>Events</b><small>status monitor</small></span>
+    </a>
+    <nav>
+      <a href="../index.html"><span>⌂</span> Обзор</a>
+      <a class="active" href="#top"><span>⌁</span> Динамика</a>
+      <a href="#charts"><span>⌗</span> Статусы</a>
+    </nav>
+    <div class="sidebar-note"><span>Период данных</span><b>2026-01 — 2026-10</b><small>10 месяцев · 7 статусов</small></div>
+  </aside>
+  <main class="detail-main" id="top">
+    <div class="detail-topbar">
+      <a class="back-link" href="../index.html">← Все события</a>
+      <label class="event-jump"><span>Перейти к ID</span><select id="eventJump" aria-label="Перейти к другому event_type_id"></select></label>
+    </div>
+    <section class="event-hero">
+      <div>
+        <p class="eyebrow">EVENT_TYPE_ID</p>
+        <h1>187</h1>
+        <p>Детальная динамика обработки по каждому статусу.</p>
+      </div>
+      <div class="hero-stamp"><span>АКТУАЛЬНЫЙ ПЕРИОД</span><b>2026-10</b><small>3 454 событий</small></div>
+    </section>
+    <section class="kpi-grid" aria-label="Показатели события">
+      <article><span>Всего за 2026-10</span><b>3 454</b><small>сумма всех статусов</small></article>
+      <article><span>Изменение к 2026-09</span><b class="up">+302,1%</b><small>859 ранее</small></article>
+      <article><span>Коммуникации</span><b>1 193</b><small>34,5% от объёма</small></article>
+      <article><span>Активных статусов</span><b>7</b><small>за весь период</small></article>
+    </section>
+    <section class="chart-section" id="charts">
+      <div class="section-heading section-heading--charts"><div><p class="eyebrow">STATUS_DET</p><h2>Кривые изменения</h2></div><span>7 отдельных графиков</span></div>
+      <div class="chart-grid" id="chartGrid" aria-live="polite"></div>
+    </section>
+    <footer><span>event_type_id 187</span><span>Пропуски по месяцам отображаются как 0</span></footer>
+  </main>
+  <div class="chart-tooltip" id="chartTooltip" hidden></div>
+  <script>window.EVENT_DATA={"id":187,"months":["2026-01","2026-02","2026-03","2026-04","2026-05","2026-06","2026-07","2026-08","2026-09","2026-10"],"statuses":[{"code":0,"description":"По событию после всех проверок совершена коммуникация с клиентом","values":[6767,17101,21228,9649,8608,2690,149,319,164,1193],"total":67868,"latest":1193},{"code":-1,"description":"За определённый срок не было взято в обработку и было удалено","values":[0,0,0,0,0,0,65,0,0,0],"total":65,"latest":0},{"code":1002,"description":"Интеграция со стоплистами массперс: Найден в стоплисте","values":[6955,16257,21847,13325,11128,4063,478,767,428,1598],"total":76846,"latest":1598},{"code":1004,"description":"Интеграция с ЕПК: Не найден в ЕПК","values":[144,314,411,221,166,63,8,9,2,29],"total":1367,"latest":29},{"code":1008,"description":"Событие было не применимо на данный момент","values":[76,179,240,127,114,38,3,4,4,18],"total":803,"latest":18},{"code":1011,"description":"Проверка УК по групповой политике: Недавно участвовал в опросе группы","values":[4090,8950,10443,8943,9379,2367,259,485,261,616],"total":45793,"latest":616},{"code":9898,"description":"Описание не предоставлено в исходных данных","values":[0,0,0,0,0,0,20,0,0,0],"total":20,"latest":0}],"totals":[18032,42801,54169,32265,29395,9221,982,1584,859,3454],"latest":3454,"previous":859,"change":302.0954598370198,"communicated":1193,"communicationShare":34.53966415749855};</script>
+  <script src="../assets/events-list.js"></script>
+  <script src="../assets/dashboard.js"></script>
+</body>
+</html>
