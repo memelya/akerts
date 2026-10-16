@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Графики status_det по event_type_id 554.">
+  <meta name="theme-color" content="#11251f">
+  <title>Событие 554 — динамика статусов</title>
+  <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body class="detail-page">
+  <aside class="sidebar">
+    <a class="brand brand--light" href="../index.html">
+      <span class="brand__mark"><i></i><i></i><i></i></span>
+      <span><b>Events</b><small>status monitor</small></span>
+    </a>
+    <nav>
+      <a href="../index.html"><span>⌂</span> Обзор</a>
+      <a class="active" href="#top"><span>⌁</span> Динамика</a>
+      <a href="#charts"><span>⌗</span> Статусы</a>
+    </nav>
+    <div class="sidebar-note"><span>Период данных</span><b>2026-01 — 2026-10</b><small>10 месяцев · 11 статусов</small></div>
+  </aside>
+  <main class="detail-main" id="top">
+    <div class="detail-topbar">
+      <a class="back-link" href="../index.html">← Все события</a>
+      <label class="event-jump"><span>Перейти к ID</span><select id="eventJump" aria-label="Перейти к другому event_type_id"></select></label>
+    </div>
+    <section class="event-hero">
+      <div>
+        <p class="eyebrow">EVENT_TYPE_ID</p>
+        <h1>554</h1>
+        <p>Детальная динамика обработки по каждому статусу.</p>
+      </div>
+      <div class="hero-stamp"><span>АКТУАЛЬНЫЙ ПЕРИОД</span><b>2026-10</b><small>21 832 событий</small></div>
+    </section>
+    <section class="kpi-grid" aria-label="Показатели события">
+      <article><span>Всего за 2026-10</span><b>21 832</b><small>сумма всех статусов</small></article>
+      <article><span>Изменение к 2026-09</span><b class="up">+42,4%</b><small>15 334 ранее</small></article>
+      <article><span>Коммуникации</span><b>13 676</b><small>62,6% от объёма</small></article>
+      <article><span>Активных статусов</span><b>11</b><small>за весь период</small></article>
+    </section>
+    <section class="chart-section" id="charts">
+      <div class="section-heading section-heading--charts"><div><p class="eyebrow">STATUS_DET</p><h2>Кривые изменения</h2></div><span>11 отдельных графиков</span></div>
+      <div class="chart-grid" id="chartGrid" aria-live="polite"></div>
+    </section>
+    <footer><span>event_type_id 554</span><span>Пропуски по месяцам отображаются как 0</span></footer>
+  </main>
+  <div class="chart-tooltip" id="chartTooltip" hidden></div>
+  <script>window.EVENT_DATA={"id":554,"months":["2026-01","2026-02","2026-03","2026-04","2026-05","2026-06","2026-07","2026-08","2026-09","2026-10"],"statuses":[{"code":0,"description":"По событию после всех проверок совершена коммуникация с клиентом","values":[461,648,547,586,564,258,467,448,10590,13676],"total":28245,"latest":13676},{"code":-1,"description":"За определённый срок не было взято в обработку и было удалено","values":[0,0,0,0,0,0,60,0,0,1486],"total":1546,"latest":1486},{"code":1002,"description":"Интеграция со стоплистами массперс: Найден в стоплисте","values":[212,342,382,290,266,153,339,270,2693,3524],"total":8471,"latest":3524},{"code":1004,"description":"Интеграция с ЕПК: Не найден в ЕПК","values":[0,0,3,0,0,0,0,1,2,2],"total":8,"latest":2},{"code":1008,"description":"Событие было не применимо на данный момент","values":[16,22,23,20,10,6,22,19,145,178],"total":461,"latest":178},{"code":1015,"description":"Дубликат по epk id и event type id","values":[1,0,0,0,0,0,0,0,0,0],"total":1,"latest":0},{"code":1020,"description":"Политика коммуникаций по группам не пройдена (SecondGroup)","values":[59,30,119,54,69,27,111,23,1256,2185],"total":3933,"latest":2185},{"code":1021,"description":"Сегмент исключен (SecondGroup)","values":[0,6,0,5,3,7,4,1,0,3],"total":29,"latest":3},{"code":1023,"description":"Канал исключен (SecondGroup)","values":[10,39,0,23,0,6,0,3,2,0],"total":83,"latest":0},{"code":1024,"description":"Не пройдена ПК по каналу коммуникации (FirstGroup)","values":[35,47,43,37,34,19,43,38,646,778],"total":1720,"latest":778},{"code":9898,"description":"Описание не предоставлено в исходных данных","values":[0,0,0,0,0,0,26,0,0,0],"total":26,"latest":0}],"totals":[794,1134,1117,1015,946,476,1072,803,15334,21832],"latest":21832,"previous":15334,"change":42.37641841659058,"communicated":13676,"communicationShare":62.641993404177356};</script>
+  <script src="../assets/events-list.js"></script>
+  <script src="../assets/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Графики status_det по event_type_id 35.">
+  <meta name="theme-color" content="#11251f">
+  <title>Событие 35 — динамика статусов</title>
+  <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body class="detail-page">
+  <aside class="sidebar">
+    <a class="brand brand--light" href="../index.html">
+      <span class="brand__mark"><i></i><i></i><i></i></span>
+      <span><b>Events</b><small>status monitor</small></span>
+    </a>
+    <nav>
+      <a href="../index.html"><span>⌂</span> Обзор</a>
+      <a class="active" href="#top"><span>⌁</span> Динамика</a>
+      <a href="#charts"><span>⌗</span> Статусы</a>
+    </nav>
+    <div class="sidebar-note"><span>Период данных</span><b>2026-01 — 2026-10</b><small>10 месяцев · 12 статусов</small></div>
+  </aside>
+  <main class="detail-main" id="top">
+    <div class="detail-topbar">
+      <a class="back-link" href="../index.html">← Все события</a>
+      <label class="event-jump"><span>Перейти к ID</span><select id="eventJump" aria-label="Перейти к другому event_type_id"></select></label>
+    </div>
+    <section class="event-hero">
+      <div>
+        <p class="eyebrow">EVENT_TYPE_ID</p>
+        <h1>35</h1>
+        <p>Детальная динамика обработки по каждому статусу.</p>
+      </div>
+      <div class="hero-stamp"><span>АКТУАЛЬНЫЙ ПЕРИОД</span><b>2026-10</b><small>235 105 событий</small></div>
+    </section>
+    <section class="kpi-grid" aria-label="Показатели события">
+      <article><span>Всего за 2026-10</span><b>235 105</b><small>сумма всех статусов</small></article>
+      <article><span>Изменение к 2026-09</span><b class="down">-52,3%</b><small>493 107 ранее</small></article>
+      <article><span>Коммуникации</span><b>123 157</b><small>52,4% от объёма</small></article>
+      <article><span>Активных статусов</span><b>12</b><small>за весь период</small></article>
+    </section>
+    <section class="chart-section" id="charts">
+      <div class="section-heading section-heading--charts"><div><p class="eyebrow">STATUS_DET</p><h2>Кривые изменения</h2></div><span>12 отдельных графиков</span></div>
+      <div class="chart-grid" id="chartGrid" aria-live="polite"></div>
+    </section>
+    <footer><span>event_type_id 35</span><span>Пропуски по месяцам отображаются как 0</span></footer>
+  </main>
+  <div class="chart-tooltip" id="chartTooltip" hidden></div>
+  <script>window.EVENT_DATA={"id":35,"months":["2026-01","2026-02","2026-03","2026-04","2026-05","2026-06","2026-07","2026-08","2026-09","2026-10"],"statuses":[{"code":0,"description":"По событию после всех проверок совершена коммуникация с клиентом","values":[236706,255874,288090,288027,242891,238327,248542,241567,236201,123157],"total":2399382,"latest":123157},{"code":-1,"description":"За определённый срок не было взято в обработку и было удалено","values":[8,81,53,1,0,15,110,11,18,143],"total":440,"latest":143},{"code":900,"description":"Описание не предоставлено в исходных данных","values":[2056,2332,2534,2294,1831,1819,1832,1829,1822,1154],"total":19503,"latest":1154},{"code":1001,"description":"Время жизни события истекло","values":[0,0,0,0,0,0,0,0,0,49],"total":49,"latest":49},{"code":1002,"description":"Интеграция со стоплистами массперс: Найден в стоплисте","values":[180504,202650,228015,229160,217593,225294,245737,224123,223281,56780],"total":2033137,"latest":56780},{"code":1004,"description":"Интеграция с ЕПК: Не найден в ЕПК","values":[5573,6156,7023,6769,5194,5104,5282,4834,4792,2816],"total":53543,"latest":2816},{"code":1006,"description":"Интеграция с ЕПК: Не соответствует сегменту","values":[8648,8960,10427,11346,9131,9166,9697,9062,9469,3177],"total":89083,"latest":3177},{"code":1011,"description":"Проверка УК по групповой политике: Недавно участвовал в опросе группы","values":[16409,18216,20836,22034,18019,16031,16548,16384,17524,4220],"total":166221,"latest":4220},{"code":1015,"description":"Дубликат по epk id и event type id","values":[253,0,0,0,0,0,0,0,0,0],"total":253,"latest":0},{"code":1020,"description":"Политика коммуникаций по группам не пройдена (SecondGroup)","values":[0,0,0,0,0,0,0,0,0,1615],"total":1615,"latest":1615},{"code":1021,"description":"Сегмент исключен (SecondGroup)","values":[0,0,0,0,0,0,0,0,0,40037],"total":40037,"latest":40037},{"code":1023,"description":"Канал исключен (SecondGroup)","values":[0,0,0,0,0,0,0,0,0,1957],"total":1957,"latest":1957}],"totals":[450157,494269,556978,559631,494659,495756,527748,497810,493107,235105],"latest":235105,"previous":493107,"change":-52.3217070534387,"communicated":123157,"communicationShare":52.383828502158615};</script>
+  <script src="../assets/events-list.js"></script>
+  <script src="../assets/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Графики status_det по event_type_id 1912.">
+  <meta name="theme-color" content="#11251f">
+  <title>Событие 1912 — динамика статусов</title>
+  <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body class="detail-page">
+  <aside class="sidebar">
+    <a class="brand brand--light" href="../index.html">
+      <span class="brand__mark"><i></i><i></i><i></i></span>
+      <span><b>Events</b><small>status monitor</small></span>
+    </a>
+    <nav>
+      <a href="../index.html"><span>⌂</span> Обзор</a>
+      <a class="active" href="#top"><span>⌁</span> Динамика</a>
+      <a href="#charts"><span>⌗</span> Статусы</a>
+    </nav>
+    <div class="sidebar-note"><span>Период данных</span><b>2026-01 — 2026-10</b><small>10 месяцев · 7 статусов</small></div>
+  </aside>
+  <main class="detail-main" id="top">
+    <div class="detail-topbar">
+      <a class="back-link" href="../index.html">← Все события</a>
+      <label class="event-jump"><span>Перейти к ID</span><select id="eventJump" aria-label="Перейти к другому event_type_id"></select></label>
+    </div>
+    <section class="event-hero">
+      <div>
+        <p class="eyebrow">EVENT_TYPE_ID</p>
+        <h1>1912</h1>
+        <p>Детальная динамика обработки по каждому статусу.</p>
+      </div>
+      <div class="hero-stamp"><span>АКТУАЛЬНЫЙ ПЕРИОД</span><b>2026-10</b><small>292 867 событий</small></div>
+    </section>
+    <section class="kpi-grid" aria-label="Показатели события">
+      <article><span>Всего за 2026-10</span><b>292 867</b><small>сумма всех статусов</small></article>
+      <article><span>Изменение к 2026-09</span><b class="down">-51,2%</b><small>599 895 ранее</small></article>
+      <article><span>Коммуникации</span><b>39 011</b><small>13,3% от объёма</small></article>
+      <article><span>Активных статусов</span><b>7</b><small>за весь период</small></article>
+    </section>
+    <section class="chart-section" id="charts">
+      <div class="section-heading section-heading--charts"><div><p class="eyebrow">STATUS_DET</p><h2>Кривые изменения</h2></div><span>7 отдельных графиков</span></div>
+      <div class="chart-grid" id="chartGrid" aria-live="polite"></div>
+    </section>
+    <footer><span>event_type_id 1912</span><span>Пропуски по месяцам отображаются как 0</span></footer>
+  </main>
+  <div class="chart-tooltip" id="chartTooltip" hidden></div>
+  <script>window.EVENT_DATA={"id":1912,"months":["2026-01","2026-02","2026-03","2026-04","2026-05","2026-06","2026-07","2026-08","2026-09","2026-10"],"statuses":[{"code":0,"description":"По событию после всех проверок совершена коммуникация с клиентом","values":[44171,46538,43761,27327,28830,29942,18855,91546,81808,39011],"total":451789,"latest":39011},{"code":-1,"description":"За определённый срок не было взято в обработку и было удалено","values":[0,0,0,0,0,0,479,0,0,319],"total":798,"latest":319},{"code":1002,"description":"Интеграция со стоплистами массперс: Найден в стоплисте","values":[56728,73696,83262,41602,43309,47521,34516,195318,216802,108292],"total":901046,"latest":108292},{"code":1004,"description":"Интеграция с ЕПК: Не найден в ЕПК","values":[2593,3321,3783,1743,1556,1618,1064,5520,5679,2713],"total":29590,"latest":2713},{"code":1006,"description":"Интеграция с ЕПК: Не соответствует сегменту","values":[571,262,26,586,1122,1242,857,4831,4875,2207],"total":16579,"latest":2207},{"code":1011,"description":"Проверка УК по групповой политике: Недавно участвовал в опросе группы","values":[32680,20338,10395,41723,69611,69256,46865,263921,290731,140325],"total":985845,"latest":140325},{"code":1015,"description":"Дубликат по epk id и event type id","values":[1,0,0,0,0,0,0,0,0,0],"total":1,"latest":0}],"totals":[136744,144155,141227,112981,144428,149579,102636,561136,599895,292867],"latest":292867,"previous":599895,"change":-51.18028988406304,"communicated":39011,"communicationShare":13.32038092376403};</script>
+  <script src="../assets/events-list.js"></script>
+  <script src="../assets/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Графики status_det по event_type_id 81908.">
+  <meta name="theme-color" content="#11251f">
+  <title>Событие 81908 — динамика статусов</title>
+  <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body class="detail-page">
+  <aside class="sidebar">
+    <a class="brand brand--light" href="../index.html">
+      <span class="brand__mark"><i></i><i></i><i></i></span>
+      <span><b>Events</b><small>status monitor</small></span>
+    </a>
+    <nav>
+      <a href="../index.html"><span>⌂</span> Обзор</a>
+      <a class="active" href="#top"><span>⌁</span> Динамика</a>
+      <a href="#charts"><span>⌗</span> Статусы</a>
+    </nav>
+    <div class="sidebar-note"><span>Период данных</span><b>2026-01 — 2026-10</b><small>10 месяцев · 6 статусов</small></div>
+  </aside>
+  <main class="detail-main" id="top">
+    <div class="detail-topbar">
+      <a class="back-link" href="../index.html">← Все события</a>
+      <label class="event-jump"><span>Перейти к ID</span><select id="eventJump" aria-label="Перейти к другому event_type_id"></select></label>
+    </div>
+    <section class="event-hero">
+      <div>
+        <p class="eyebrow">EVENT_TYPE_ID</p>
+        <h1>81908</h1>
+        <p>Детальная динамика обработки по каждому статусу.</p>
+      </div>
+      <div class="hero-stamp"><span>АКТУАЛЬНЫЙ ПЕРИОД</span><b>2026-10</b><small>211 237 событий</small></div>
+    </section>
+    <section class="kpi-grid" aria-label="Показатели события">
+      <article><span>Всего за 2026-10</span><b>211 237</b><small>сумма всех статусов</small></article>
+      <article><span>Изменение к 2026-09</span><b class="down">-44,0%</b><small>377 499 ранее</small></article>
+      <article><span>Коммуникации</span><b>44 462</b><small>21,0% от объёма</small></article>
+      <article><span>Активных статусов</span><b>6</b><small>за весь период</small></article>
+    </section>
+    <section class="chart-section" id="charts">
+      <div class="section-heading section-heading--charts"><div><p class="eyebrow">STATUS_DET</p><h2>Кривые изменения</h2></div><span>6 отдельных графиков</span></div>
+      <div class="chart-grid" id="chartGrid" aria-live="polite"></div>
+    </section>
+    <footer><span>event_type_id 81908</span><span>Пропуски по месяцам отображаются как 0</span></footer>
+  </main>
+  <div class="chart-tooltip" id="chartTooltip" hidden></div>
+  <script>window.EVENT_DATA={"id":81908,"months":["2026-01","2026-02","2026-03","2026-04","2026-05","2026-06","2026-07","2026-08","2026-09","2026-10"],"statuses":[{"code":0,"description":"По событию после всех проверок совершена коммуникация с клиентом","values":[7067,25318,21943,24172,23501,38614,47300,61174,79344,44462],"total":372895,"latest":44462},{"code":-1,"description":"За определённый срок не было взято в обработку и было удалено","values":[0,0,0,0,0,0,239,0,0,164],"total":403,"latest":164},{"code":1002,"description":"Интеграция со стоплистами массперс: Найден в стоплисте","values":[6161,26143,30029,29905,30672,50213,70765,91554,116120,65946],"total":517508,"latest":65946},{"code":1004,"description":"Интеграция с ЕПК: Не найден в ЕПК","values":[182,844,944,863,873,1395,1923,2417,3184,1765],"total":14390,"latest":1765},{"code":1006,"description":"Интеграция с ЕПК: Не соответствует сегменту","values":[703,3195,2991,2470,2991,4762,6303,7600,8037,3826],"total":42878,"latest":3826},{"code":1011,"description":"Проверка УК по групповой политике: Недавно участвовал в опросе группы","values":[9948,45621,56374,52360,53147,81840,111520,136603,170814,95074],"total":813301,"latest":95074}],"totals":[24061,101121,112281,109770,111184,176824,238050,299348,377499,211237],"latest":211237,"previous":377499,"change":-44.043030577564444,"communicated":44462,"communicationShare":21.048395877616137};</script>
+  <script src="../assets/events-list.js"></script>
+  <script src="../assets/dashboard.js"></script>
+</body>
+</html>
