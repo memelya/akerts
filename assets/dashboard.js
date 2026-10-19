@@ -14,13 +14,14 @@ function niceMax(value){if(value<=0)return 1;const power=10**Math.floor(Math.log
 function renderChart(status){
   const width=720,height=270,pad={top:45,right:20,bottom:38,left:62};
   const plotW=width-pad.left-pad.right,plotH=height-pad.top-pad.bottom;
-  const max=niceMax(Math.max(...status.values));
+  const isCsi=status.isCsi===true;
+  const max=isCsi?5:niceMax(Math.max(...status.values));
   const points=status.values.map((value,index)=>[pad.left+(index/(status.values.length-1))*plotW,pad.top+plotH-(value/max)*plotH]);
   const line=smoothPath(points),area=line+' L'+points.at(-1)[0]+','+(pad.top+plotH)+' L'+points[0][0]+','+(pad.top+plotH)+' Z';
   const isQaResponse=status.isQaResponse===true;
   const displayCode=status.displayCode??status.code;
   const displayDescription=status.displayDescription??status.description;
-  const color=isQaResponse?'#16a34a':colorFor(status.code);
+  const color=isCsi?'#8a6fe8':isQaResponse?'#16a34a':colorFor(status.code);
   const hasQa=status.code===0&&Array.isArray(status.qaValues);
   const ticks=[0,.25,.5,.75,1].map(f=>{const y=pad.top+plotH-f*plotH;return '<line class="grid-line" x1="'+pad.left+'" y1="'+y+'" x2="'+(width-pad.right)+'" y2="'+y+'"/><text class="axis-label" x="'+(pad.left-10)+'" y="'+(y+3)+'" text-anchor="end">'+compact.format(max*f)+'</text>'}).join('');
   const months=data.months.map((month,index)=>'<text class="axis-label" x="'+points[index][0]+'" y="'+(height-10)+'" text-anchor="middle">'+monthLabel(month)+'</text>').join('');
@@ -30,10 +31,11 @@ function renderChart(status){
     const responses=communicationStatus.qaValues?.map(value=>value??0)||Array(data.months.length).fill(0);
     return '<g class="comparison-overlay"><g class="comparison-legend"><line class="comparison-send" x1="'+pad.left+'" y1="24" x2="'+(pad.left+22)+'" y2="24"/><text x="'+(pad.left+28)+'" y="27">Отправки</text><line class="comparison-response" x1="'+(pad.left+105)+'" y1="24" x2="'+(pad.left+127)+'" y2="24"/><text x="'+(pad.left+133)+'" y="27">Ответы</text><text class="comparison-note" x="'+(width-pad.right)+'" y="27" text-anchor="end">сравнительный фон · нормировано</text></g><path class="comparison-send" d="'+overlayPath(communicationStatus.values)+'"/><path class="comparison-response" d="'+overlayPath(responses)+'"/></g>';
   })():'';
-  const pointEls=points.map((point,index)=>{const labelY=Math.max(point[1]-(isQaResponse?20:12),16);const rate=isQaResponse&&status.rates[index]!==null?status.rates[index].toFixed(1).replace('.',',')+'%':null;return '<g><circle class="chart-point" data-index="'+index+'" cx="'+point[0]+'" cy="'+point[1]+'" r="4" fill="'+color+'"/><text class="point-label" x="'+point[0]+'" y="'+labelY+'" text-anchor="middle"><tspan x="'+point[0]+'">'+compact.format(status.values[index])+'</tspan>'+(rate?'<tspan class="point-label__rate" x="'+point[0]+'" dy="11">'+rate+'</tspan>':'')+'</text></g>'}).join('');
-  const rows=data.months.map((month,index)=>'<tr><td>'+month+'</td><td>'+nf.format(status.values[index])+'</td>'+(hasQa?'<td>'+(status.qaValues[index]===null?'—':nf.format(status.qaValues[index]))+'</td><td>'+(status.qaValues[index]===null||!status.values[index]?'—':(status.qaValues[index]/status.values[index]*100).toFixed(1).replace('.',',')+'%')+'</td>':'')+'</tr>').join('');
+  const valueLabel=value=>isCsi?value.toFixed(2).replace('.',','):compact.format(value);
+  const pointEls=points.map((point,index)=>{const labelY=Math.max(point[1]-(isQaResponse?20:12),16);const rate=isQaResponse&&status.rates[index]!==null?status.rates[index].toFixed(1).replace('.',',')+'%':null;return '<g><circle class="chart-point" data-index="'+index+'" cx="'+point[0]+'" cy="'+point[1]+'" r="4" fill="'+color+'"/><text class="point-label" x="'+point[0]+'" y="'+labelY+'" text-anchor="middle"><tspan x="'+point[0]+'">'+valueLabel(status.values[index])+'</tspan>'+(rate?'<tspan class="point-label__rate" x="'+point[0]+'" dy="11">'+rate+'</tspan>':'')+'</text></g>'}).join('');
+  const rows=data.months.map((month,index)=>'<tr><td>'+month+'</td><td>'+(isCsi&&status.sourceValues?.[index]===null?'—':isCsi?status.values[index].toFixed(3).replace('.',','):nf.format(status.values[index]))+'</td>'+(hasQa?'<td>'+(status.qaValues[index]===null?'—':nf.format(status.qaValues[index]))+'</td><td>'+(status.qaValues[index]===null||!status.values[index]?'—':(status.qaValues[index]/status.values[index]*100).toFixed(1).replace('.',',')+'%')+'</td>':'')+'</tr>').join('');
   const card=document.createElement('article');card.className='chart-card';
-  card.innerHTML='<header class="chart-card__header"><span class="status-chip">'+displayCode+'</span><div class="chart-card__title"><h3>'+displayDescription+'</h3><p>'+(isQaResponse?'Количество полученных ответов · подпись точки содержит отклик':hasQa?'Линия — отправки · столбцы — ответы и отклик':'Статус '+status.code+' · сравнение с основными бизнес-метриками')+'</p></div><div class="chart-card__actions"><div class="chart-card__latest"><b>'+nf.format(status.latest)+'</b><small>'+data.months.at(-1)+'</small></div><button class="chart-card__expand" type="button" aria-label="Развернуть график на весь экран" title="Развернуть на весь экран">⛶ <span>Развернуть</span></button></div></header><div class="chart-wrap"><svg class="status-chart" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="Динамика: '+displayDescription+'">'+ticks+months+qaBars+'<path class="chart-area" d="'+area+'" fill="'+color+'"/><path class="chart-line" d="'+line+'" stroke="'+color+'"/>'+comparisonOverlay+pointEls+'</svg></div><details class="data-table"><summary>Показать таблицу значений</summary><table><thead><tr><th>Месяц</th><th>'+(isQaResponse?'Ответы':'Отправки')+'</th>'+(hasQa?'<th>Ответы</th><th>Отклик</th>':'')+'</tr></thead><tbody>'+rows+'</tbody></table></details>';
+  card.innerHTML='<header class="chart-card__header"><span class="status-chip">'+displayCode+'</span><div class="chart-card__title"><h3>'+displayDescription+'</h3><p>'+(isCsi?'Средняя оценка клиентской удовлетворённости · шкала 1–5':isQaResponse?'Количество полученных ответов · подпись точки содержит отклик':hasQa?'Линия — отправки · столбцы — ответы и отклик':'Статус '+status.code+' · сравнение с основными бизнес-метриками')+'</p></div><div class="chart-card__actions"><div class="chart-card__latest"><b>'+(isCsi?status.latest.toFixed(2).replace('.',','):nf.format(status.latest))+'</b><small>'+data.months.at(-1)+'</small></div><button class="chart-card__expand" type="button" aria-label="Развернуть график на весь экран" title="Развернуть на весь экран">⛶ <span>Развернуть</span></button></div></header><div class="chart-wrap"><svg class="status-chart" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="Динамика: '+displayDescription+'">'+ticks+months+qaBars+'<path class="chart-area" d="'+area+'" fill="'+color+'"/><path class="chart-line" d="'+line+'" stroke="'+color+'"/>'+comparisonOverlay+pointEls+'</svg></div><details class="data-table"><summary>Показать таблицу значений</summary><table><thead><tr><th>Месяц</th><th>'+(isCsi?'CSI':isQaResponse?'Ответы':'Отправки')+'</th>'+(hasQa?'<th>Ответы</th><th>Отклик</th>':'')+'</tr></thead><tbody>'+rows+'</tbody></table></details>';
   const expandButton=card.querySelector('.chart-card__expand');
   expandButton.addEventListener('click',async()=>{
     if(document.fullscreenElement===card){await document.exitFullscreen();return}
@@ -54,6 +56,12 @@ if(primaryStatus){
     const values=primaryStatus.qaValues.map(value=>value??0);
     const rates=values.map((value,index)=>primaryStatus.values[index]?value/primaryStatus.values[index]*100:null);
     chartGrid.append(renderChart({code:0,displayCode:'QA',displayDescription:'Динамика ответов на коммуникации',values,rates,latest:values.at(-1),isQaResponse:true,qaValues:null}));
+  }
+  if(Array.isArray(primaryStatus.csiValues)&&primaryStatus.csiValues.some(value=>value!==null)){
+    const sourceValues=primaryStatus.csiValues;
+    const first=sourceValues.find(value=>value!==null)??0;
+    const values=sourceValues.map((value,index)=>value??sourceValues.slice(0,index).reverse().find(item=>item!==null)??first);
+    chartGrid.append(renderChart({code:0,displayCode:'CSI',displayDescription:'Динамика CSI',values,sourceValues,latest:sourceValues.at(-1)??values.at(-1),isCsi:true,qaValues:null}));
   }
 }
 data.statuses
