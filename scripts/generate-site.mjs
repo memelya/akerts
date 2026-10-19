@@ -569,7 +569,7 @@ function businessFunnel(group, width = 960, compact = false) {
   </div>`;
 }
 
-function baseHead(title, description, relative = '') {
+function baseHead(title, description, relative = '', styleVersion = '7') {
   return `<!doctype html>
 <html lang="ru">
 <head>
@@ -578,7 +578,7 @@ function baseHead(title, description, relative = '') {
   <meta name="description" content="${esc(description)}">
   <meta name="theme-color" content="#11251f">
   <title>${esc(title)}</title>
-  <link rel="stylesheet" href="${relative}assets/styles.css?v=20261019-7">
+  <link rel="stylesheet" href="${relative}assets/styles.css?v=20261019-${styleVersion}">
 </head>`;
 }
 
@@ -602,13 +602,20 @@ function renderEventCard(event) {
   const requiredDailySends = remainingBusinessDays > 0 ? Math.ceil(requiredSendsRemaining / remainingBusinessDays) : requiredSendsRemaining;
   const sendsIncrease = Math.max(0, requiredDailySends - currentDailySends);
   const sendsIncreasePercent = currentDailySends > 0 ? (sendsIncrease / currentDailySends) * 100 : 0;
-  const planRisk = sendsIncrease > 0;
+  const planRisk = responsesRemaining > 0 && (currentResponseRate <= 0 || sendsIncrease > 0);
+  const latestCsi = communicationStatus?.csiValues?.at(-1) ?? null;
+  const latestResponseRatePercent = latestSends > 0 ? (primaryLatest / latestSends) * 100 : 0;
   const planStatus = monitorsResponses ? `<div class="plan-status"><div class="plan-rings"><div class="plan-ring plan-ring--period" style="--progress:${Math.min(periodPlanProgress, 100).toFixed(1)}%" title="${numberFormat.format(primaryLatest)} ответов из ${numberFormat.format(Math.round(periodPlanTarget))} по плану за прошедшие ${elapsedBusinessDays} ${businessDayWord(elapsedBusinessDays)}"><div><b>${periodPlanProgress.toFixed(1).replace('.', ',')}%</b><span>план за<br>период</span></div></div><div class="plan-ring" style="--progress:${Math.min(planProgress, 100).toFixed(1)}%"><div><b>${planProgress.toFixed(1).replace('.', ',')}%</b><span>план<br>месяца</span></div></div></div><div class="plan-status__message ${planRisk ? 'is-risk' : 'is-ok'}"><b>${planRisk ? '⚠ План в риске' : '✓ План выполняется'}</b><span>${planRisk ? `Нужно увеличить темп отправок на ${sendsIncreasePercent.toFixed(1).replace('.', ',')}%, чтобы выполнить план.` : 'Текущего темпа отправок достаточно для выполнения плана.'}</span></div></div>` : '';
   const sendPace = responsesRemaining > 0 && remainingBusinessDays > 0
     ? `<div class="send-pace"><div class="send-pace__card"><span class="send-pace__label">Текущий темп</span><b class="send-pace__value">${numberFormat.format(currentDailySends)}</b><span class="send-pace__unit">отправок в день</span><small class="send-pace__note">Отклик — ${(currentResponseRate * 100).toLocaleString('ru-RU', { maximumFractionDigits: 1 })}%</small></div><div class="send-pace__card ${sendsIncrease > 0 ? 'is-risk' : 'is-ok'}"><span class="send-pace__label">Нужный темп</span><b class="send-pace__value">${numberFormat.format(requiredDailySends)}</b><span class="send-pace__unit">отправок в день</span><small class="send-pace__note">${sendsIncrease > 0 ? `↑ на ${numberFormat.format(sendsIncrease)} в день · +${sendsIncreasePercent.toFixed(1).replace('.', ',')}%` : 'Текущего темпа достаточно'}</small></div></div>`
     : '';
+  const monthEndDay = new Date(Number(latestMonth.slice(0, 4)), Number(latestMonth.slice(5)), 0).getDate();
   const planPace = monitorsResponses
-    ? `<div class="plan-metrics"><div class="plan-metric"><span>Осталось</span><b>${numberFormat.format(responsesRemaining)}</b><small>ответов</small></div><div class="plan-metric ${remainingBusinessDays <= 0 && responsesRemaining > 0 ? 'is-risk' : ''}"><span>Нужно</span><b>${numberFormat.format(responsesRemaining === 0 ? 0 : dailyResponsesNeeded)}</b><small>${remainingBusinessDays > 0 || responsesRemaining === 0 ? 'ответов в день' : 'рабочих дней не осталось'}</small></div></div>${responsesRemaining > 0 ? sendPace : '<div class="plan-complete">✓ План выполнен</div>'}`
+    ? responsesRemaining > 0 && currentResponseRate <= 0
+      ? '<div class="action-recommendation action-recommendation--warning"><span class="action-recommendation__label">Недостаточно данных для расчёта</span><p>Нет отправок или ответов за текущий период. Проверьте загрузку данных, затем система рассчитает необходимый темп коммуникаций.</p></div>'
+      : responsesRemaining > 0
+      ? `<div class="action-recommendation"><span class="action-recommendation__label">Рекомендуемое действие</span><p>Чтобы выполнить план, необходимо отправлять <b>${numberFormat.format(requiredDailySends)} коммуникаций в день</b> — на <b>${numberFormat.format(sendsIncrease)} больше текущего темпа</b>. При сохранении отклика <b>${latestResponseRatePercent.toFixed(1).replace('.', ',')}%</b> план будет выполнен ${monthEndDay} ${monthName(latestMonth, 'genitive')}.</p></div>${sendPace}`
+      : '<div class="plan-complete">✓ План выполнен — дополнительное увеличение отправок не требуется</div>'
     : '';
   const changeClass = event.change === null ? 'neutral' : event.change >= 0 ? 'up' : 'down';
   const eventAlerts = buildEventAlerts(event);
@@ -637,12 +644,13 @@ function renderEventCard(event) {
       return `<div class="event-funnel__step event-funnel__step--${index + 1}"><span>${metric.label}<small>${shareLabel}</small></span><b>${compactNumber(metric.current)}</b><em class="${direction}">${changeLabel}</em></div>`;
     }).join('')}
   </div>` : '';
-  return `<a class="event-card${event.isTop ? ' is-top' : ''}${event.hasData ? '' : ' is-missing'}" href="events/${event.id}.html" data-id="${event.id}" data-top="${event.isTop}" data-rank="${event.topRank}" data-has-data="${event.hasData}" data-latest="${primaryLatest}" data-change="${event.change ?? -999999}" data-search="${esc(searchText.toLowerCase())}">
+  return `<a class="event-card${event.isTop ? ' is-top' : ''}${event.hasData ? '' : ' is-missing'}" href="events/${event.id}.html" data-id="${event.id}" data-top="${event.isTop}" data-rank="${event.topRank}" data-has-data="${event.hasData}" data-latest="${primaryLatest}" data-change="${event.change ?? -999999}" data-events="${event.totals.at(-1) || 0}" data-sends="${latestSends}" data-responses="${primaryLatest}" data-rate="${latestResponseRatePercent.toFixed(2)}" data-csi="${latestCsi ?? ''}" data-plan-progress="${planProgress ?? ''}" data-search="${esc(searchText.toLowerCase())}">
     <div class="event-card__top"><span class="event-id">${event.isTop ? '<small class="top-badge">ТОП</small>' : ''}#${event.id}${planMeta ? `<span class="survey-inline"><b>${esc(planMeta.name)}</b><i>${esc(planMeta.type)}</i></span>` : ''}</span><span class="card-actions">${monitorsResponses ? '<button class="card-expand" type="button" aria-label="Открыть карточку крупнее" title="Открыть крупнее">⛶</button>' : `<span class="trend-block">${cardTrend}</span>`}</span></div>
     ${planMeta ? `<div class="survey-identity"><span>Текущий период</span><strong>1.${latestMonthNumber} — ${currentDataDay}.${latestMonthNumber}</strong></div>` : ''}
 ${monitorsResponses ? '' : miniSpark(primaryValues, months, 180, 66, 'событий')}
-    ${monitorsResponses ? `${planStatus}<div class="response-plan-head"><div><span>План ответов на месяц</span><b>${numberFormat.format(planMeta.plan)}</b><small>целевой объём</small></div><div><span>Получено ответов</span><b>${numberFormat.format(primaryLatest)}</b><small>за ${monthName(latestMonth, 'long')}</small></div><div class="is-deficit"><span>Осталось собрать</span><b>${numberFormat.format(responsesRemaining)}</b><small>ответов</small></div></div><div class="plan-progress"><div class="action-title">Что необходимо сделать</div>${planPace}</div>` : `<div class="event-card__value${!event.hasData ? ' event-card__value--missing' : ''}">${!event.hasData ? 'Нет данных' : numberFormat.format(primaryLatest)}</div>${event.hasData ? `<div class="event-card__value-label">Сумма событий за ${latestMonth}</div>` : ''}`}
+    ${monitorsResponses ? `${planStatus}<div class="response-plan-head"><div><span>План ответов на месяц</span><b>${numberFormat.format(planMeta.plan)}</b><small>целевой объём</small></div><div><span>Получено ответов</span><b>${numberFormat.format(primaryLatest)}</b><small>за ${monthName(latestMonth, 'long')}</small></div><div class="is-deficit"><span>Осталось собрать</span><b>${numberFormat.format(responsesRemaining)}</b><small>ответов</small></div></div><div class="plan-progress"><div class="action-title">Рекомендации, выраженные в действиях</div>${planPace}</div>` : `<div class="event-card__value${!event.hasData ? ' event-card__value--missing' : ''}">${!event.hasData ? 'Нет данных' : numberFormat.format(primaryLatest)}</div>${event.hasData ? `<div class="event-card__value-label">Сумма событий за ${latestMonth}</div>` : ''}`}
     ${funnel}
+    <button class="compare-pick" type="button" aria-label="Добавить опрос ${event.id} к сравнению" aria-pressed="false">＋ Сравнить</button>
     <div class="event-card__meta"><span>${event.hasData ? `${eventAlerts.length} алертов · ↓${alertDowns} ↑${alertUps}` : 'алертов нет'}</span><span>${event.hasData ? latestMonth : '—'}</span></div>
   </a>`;
 }
@@ -664,9 +672,48 @@ const otherPeriodTotal = otherTotals.reduce((sum, value) => sum + value, 0);
 const topAlertCount = topEvents.reduce((sum, event) => sum + buildEventAlerts(event).length, 0);
 const otherAlertCount = otherEvents.reduce((sum, event) => sum + buildEventAlerts(event).length, 0);
 
+function buildCriticalIssues(event) {
+  const issues = [];
+  const lastFullMonthIndex = months.findIndex((month) => month === excludedComparisonToMonth) - 1;
+  const planMeta = surveyPlans.get(event.id);
+  const status = event.statuses.find((item) => item.code === 0);
+  const latestResponses = status?.qaValues?.at(-1) || 0;
+  const latestSends = status?.values?.at(-1) || 0;
+  const responseRate = latestSends ? (latestResponses / latestSends) * 100 : 0;
+  const previousFullResponses = status?.qaValues?.[lastFullMonthIndex] || 0;
+  const previousFullSends = status?.values?.[lastFullMonthIndex] || 0;
+  const priorResponses = status?.qaValues?.[lastFullMonthIndex - 1] || 0;
+  const priorSends = status?.values?.[lastFullMonthIndex - 1] || 0;
+  const fullRate = previousFullSends ? (previousFullResponses / previousFullSends) * 100 : 0;
+  const priorRate = priorSends ? (priorResponses / priorSends) * 100 : 0;
+  const rateDrop = priorRate ? ((priorRate - fullRate) / priorRate) * 100 : 0;
+  const currentCsi = status?.csiValues?.[lastFullMonthIndex] ?? null;
+  const priorCsi = status?.csiValues?.[lastFullMonthIndex - 1] ?? null;
+  const csiDrop = currentCsi !== null && priorCsi !== null ? priorCsi - currentCsi : 0;
+  const currentEvents = event.totals[lastFullMonthIndex] || 0;
+  const priorEvents = event.totals[lastFullMonthIndex - 1] || 0;
+  const eventsDrop = priorEvents ? ((priorEvents - currentEvents) / priorEvents) * 100 : 0;
+  const planPeriod = planMeta ? planMeta.plan * (elapsedBusinessDays / (elapsedBusinessDays + remainingBusinessDays)) : 0;
+  const planPeriodProgress = planPeriod ? (latestResponses / planPeriod) * 100 : null;
+  if (!event.hasData || !latestSends) issues.push({ type: 'Нет данных', severity: 100, detail: 'Актуальные данные отсутствуют или поток коммуникаций равен нулю.' });
+  if (planPeriodProgress !== null && planPeriodProgress < 90) issues.push({ type: 'Дефицит к плану', severity: 90 + Math.max(0, 90 - planPeriodProgress), detail: `План за период выполнен на ${planPeriodProgress.toFixed(1).replace('.', ',')}%.` });
+  if (csiDrop > 0.2) issues.push({ type: 'Падение CSI', severity: 75 + csiDrop * 10, detail: `CSI снизился на ${csiDrop.toFixed(2).replace('.', ',')}: ${priorCsi.toFixed(2).replace('.', ',')} → ${currentCsi.toFixed(2).replace('.', ',')}.` });
+  if (rateDrop > 15) issues.push({ type: 'Снижение отклика', severity: 70 + rateDrop, detail: `Отклик снизился на ${rateDrop.toFixed(1).replace('.', ',')}%.` });
+  if (eventsDrop > 20) issues.push({ type: 'Сокращение событий', severity: 65 + eventsDrop, detail: `Объём событий снизился на ${eventsDrop.toFixed(1).replace('.', ',')}%.` });
+  if (previousFullResponses > 0 && previousFullResponses < 30) issues.push({ type: 'Маленькая выборка', severity: 45, detail: `Только ${numberFormat.format(previousFullResponses)} ответов в последнем полном месяце.` });
+  return issues.map((issue) => ({ ...issue, event, responseRate, planPeriodProgress, csiDrop, rateDrop, eventsDrop, sample: previousFullResponses }));
+}
+
+const criticalIssues = catalogueEvents.flatMap(buildCriticalIssues).sort((a, b) => b.severity - a.severity);
+const criticalIssueRows = criticalIssues.map((issue, index) => {
+  const meta = surveyPlans.get(issue.event.id);
+  const level = issue.severity >= 100 ? 'critical' : issue.severity >= 80 ? 'high' : 'medium';
+  return `<article class="attention-item attention-item--${level}" data-type="${esc(issue.type)}" data-plan="${issue.planPeriodProgress ?? 999}" data-csi-drop="${issue.csiDrop}" data-rate-drop="${issue.rateDrop}" data-events-drop="${issue.eventsDrop}" data-sample="${issue.sample}"><span class="attention-rank">${index + 1}</span><div class="attention-copy"><small>${esc(issue.type)}</small><h3>#${issue.event.id}${meta ? ` · ${esc(meta.name)}` : ''}</h3><p>${esc(issue.detail)}</p></div><a href="events/${issue.event.id}.html">Открыть опрос →</a></article>`;
+}).join('');
+
 function segmentDashboard({ file, eyebrow, title, description, group, totals }) {
   const segmentCards = group.map(renderEventCard).join('\n');
-  return `${baseHead(`${title} — дашборд`, description)}
+  return `${baseHead(`${title} — дашборд`, description, '', '8')}
 <body class="overview-page segment-page">
   <header class="site-header">
     <a class="brand" href="index.html" aria-label="Главная"><span class="brand__mark"><i></i><i></i><i></i></span><span><b>Events</b><small>status monitor</small></span></a>
@@ -688,14 +735,14 @@ function segmentDashboard({ file, eyebrow, title, description, group, totals }) 
 </body></html>`;
 }
 
-const indexHtml = `${baseHead('Дашборд статусов событий', 'Помесячная аналитика событий по event_type_id и status_det.')}
+const indexHtml = `${baseHead('Дашборд статусов событий', 'Помесячная аналитика событий по event_type_id и status_det.', '', '8')}
 <body class="overview-page">
   <header class="site-header">
     <a class="brand" href="index.html" aria-label="Главная">
       <span class="brand__mark"><i></i><i></i><i></i></span>
       <span><b>Events</b><small>status monitor</small></span>
     </a>
-    <span class="period-pill">${months[0]} — ${months.at(-1)}</span>
+    <div class="header-actions"><a class="attention-link" href="attention.html">⚑ Требуют внимания <b>${criticalIssues.length}</b></a><span class="period-pill">${months[0]} — ${months.at(-1)}</span></div>
   </header>
   <main>
     <section class="overview-hero overview-hero--main">
@@ -738,18 +785,34 @@ const indexHtml = `${baseHead('Дашборд статусов событий', 
       <div class="catalogue-tools">
         <label class="search-box"><span>⌕</span><input id="eventSearch" type="search" placeholder="Найти ID или статус…" autocomplete="off"></label>
         <label class="sort-box"><span>Сортировка</span><select id="eventSort"><option value="latest" selected>По объёму</option><option value="top">По списку</option><option value="id">По ID</option><option value="change">По динамике</option></select></label>
+        <button class="compare-toggle" id="compareToggle" type="button">⇄ Сравнить опросы</button>
       </div>
       <div class="event-grid" id="eventGrid">${cards}</div>
       <div class="empty-state" id="emptyState" hidden><b>Ничего не найдено</b><span>Попробуйте другой ID или код статуса.</span></div>
     </section>
   </main>
   <dialog class="chart-dialog" id="chartDialog"><div class="chart-dialog__head"><div><span class="eyebrow"></span><strong></strong></div><button type="button" aria-label="Закрыть увеличенные графики">×</button></div><div class="chart-dialog__body"></div></dialog>
+  <div class="compare-bar" id="compareBar" hidden><span>Выбрано: <b id="compareCount">0</b></span><button id="compareOpen" type="button" disabled>Сравнить показатели</button><button id="compareClear" type="button">Очистить</button></div>
+  <dialog class="compare-dialog" id="compareDialog"><header><div><span class="eyebrow">СРАВНЕНИЕ</span><h2>Опросы и подразделения</h2></div><button type="button" data-compare-close aria-label="Закрыть">×</button></header><div class="compare-table-wrap"><table><thead><tr><th>Опрос</th><th>События</th><th>Отправки</th><th>Ответы</th><th>Отклик</th><th>CSI</th><th>План</th><th>Динамика</th></tr></thead><tbody id="compareTable"></tbody></table></div></dialog>
   <footer><span>Источник: предоставленная агрегированная выборка</span><span>Пропуски по месяцам отображаются как 0</span></footer>
-  <script src="assets/index.js?v=20261019-1"></script>
+  <script src="assets/index.js?v=20261019-2"></script>
 </body>
 </html>`;
 
 fs.writeFileSync(path.join(dist, 'index.html'), indexHtml);
+
+const attentionHtml = `${baseHead('Требуют внимания — Events', 'Центр критических отклонений и управленческих уведомлений.', '', '8')}
+<body class="overview-page attention-page">
+  <header class="site-header"><a class="brand" href="index.html"><span><b>Events</b><small>status monitor</small></span></a><a class="period-pill" href="index.html">← Все опросы</a></header>
+  <main>
+    <section class="attention-hero"><div><p class="eyebrow">ЦЕНТР КРИТИЧЕСКИХ ОТКЛОНЕНИЙ</p><h1>Требуют внимания</h1><p>Приоритетная очередь проблем: от максимального влияния к минимальному.</p></div><div class="attention-total"><b id="attentionCount">${criticalIssues.length}</b><span>активных сигналов</span></div></section>
+    <section class="notification-rules"><div><p class="eyebrow">УВЕДОМЛЕНИЯ И ЭСКАЛАЦИИ</p><h2>Правила контроля</h2></div><div class="rule-grid"><label>План за период ниже, %<input id="rulePlan" type="number" min="1" max="100" value="90"></label><label>Падение CSI больше<input id="ruleCsi" type="number" min="0" step="0.1" value="0.2"></label><label>Падение отклика больше, %<input id="ruleRate" type="number" min="0" value="15"></label><label>Маленькая выборка, менее<input id="ruleSample" type="number" min="1" value="30"></label></div><div class="rule-actions"><button id="applyRules" type="button">Применить правила</button><button id="exportAlerts" type="button">↓ Выгрузить список CSV</button><span id="rulesSaved">Пороговые значения сохраняются в этом браузере</span></div></section>
+    <section class="attention-list" id="attentionList">${criticalIssueRows || '<p class="empty-state">Критических отклонений не найдено.</p>'}</section>
+  </main>
+  <footer><span>Сигналы рассчитаны по последнему полному периоду и текущему плану</span><a href="index.html">Вернуться к каталогу →</a></footer>
+  <script src="assets/attention.js?v=20261019-1"></script>
+</body></html>`;
+fs.writeFileSync(path.join(dist, 'attention.html'), attentionHtml);
 fs.writeFileSync(path.join(dist, 'top.html'), segmentDashboard({
   file: 'top.html', eyebrow: 'ТОП‑ТРИГГЕРЫ', title: 'Топ‑триггеры',
   description: 'Агрегированная динамика и карточки опросов из зафиксированного списка топ‑триггеров.', group: topEvents, totals: topTotals
@@ -899,9 +962,12 @@ body{background:radial-gradient(circle at 8% 7%,rgba(33,160,56,.16),transparent 
 .search-box,.sort-box{background:rgba(255,255,255,.64);border-color:rgba(255,255,255,.9);box-shadow:0 10px 30px rgba(8,79,47,.06);backdrop-filter:blur(18px)}
 .scope-toggle{background:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.75)}.scope-toggle button.active{background:linear-gradient(135deg,#168b43,#007c60)}
 .alert-panel,.sidebar{background:linear-gradient(155deg,#063c25,#06291f 60%,#006c52)}.kpi-grid,.chart-card,.missing-survey{background:rgba(255,255,255,.67);border-color:rgba(255,255,255,.85);box-shadow:0 16px 48px rgba(8,79,47,.09)}
+.header-actions{display:flex;align-items:center;gap:10px}.attention-link{display:flex;align-items:center;gap:7px;padding:9px 13px;border:1px solid rgba(195,34,57,.16);border-radius:99px;background:rgba(255,241,243,.76);color:#a82034;font-size:11px;font-weight:800;text-decoration:none}.attention-link b{display:grid;place-items:center;min-width:21px;height:21px;padding:0 5px;border-radius:99px;background:#c32239;color:#fff;font-size:9px}.compare-toggle{border:1px solid rgba(8,118,72,.14);border-radius:14px;background:rgba(255,255,255,.68);color:#0b5338;font-weight:800;padding:0 18px;cursor:pointer}.compare-toggle.active{background:#0b5338;color:#fff}.compare-pick{display:none;position:absolute;z-index:3;right:14px;bottom:12px;border:1px solid rgba(8,118,72,.18);border-radius:99px;background:#fff;color:#0b6843;font-size:9px;font-weight:800;padding:7px 10px;cursor:pointer}.compare-mode .compare-pick{display:block}.compare-pick[aria-pressed="true"]{background:#0b6843;color:#fff}.compare-mode .event-card{padding-bottom:48px}.compare-bar{position:fixed;z-index:20;left:50%;bottom:22px;transform:translateX(-50%);display:flex;align-items:center;gap:12px;padding:10px 12px 10px 18px;border-radius:16px;background:#082f22;color:#fff;box-shadow:0 18px 60px rgba(0,38,25,.32)}.compare-bar[hidden]{display:none}.compare-bar button{border:0;border-radius:10px;padding:10px 13px;font-weight:800;cursor:pointer}.compare-bar #compareOpen{background:var(--lime);color:#123a2c}.compare-bar #compareOpen:disabled{opacity:.45}.compare-bar #compareClear{background:rgba(255,255,255,.09);color:#fff}.compare-dialog{width:min(1100px,94vw);border:0;border-radius:24px;padding:0;box-shadow:0 32px 110px rgba(0,38,25,.4)}.compare-dialog::backdrop{background:rgba(3,23,16,.65);backdrop-filter:blur(7px)}.compare-dialog>header{display:flex;justify-content:space-between;align-items:center;padding:24px 28px;background:#083c2a;color:#fff}.compare-dialog h2{margin:4px 0 0;font-size:30px}.compare-dialog header button{width:38px;height:38px;border:1px solid rgba(255,255,255,.2);border-radius:50%;background:transparent;color:#fff;font-size:24px}.compare-table-wrap{overflow:auto;padding:20px}.compare-dialog table{width:100%;border-collapse:collapse;white-space:nowrap}.compare-dialog th,.compare-dialog td{text-align:left;padding:13px 12px;border-bottom:1px solid #dce9e2}.compare-dialog th{color:#657b72;font-size:10px;text-transform:uppercase}.compare-dialog td{font-size:13px}.compare-dialog td:first-child{font-weight:850;color:#0b5338}.action-recommendation{padding:10px 11px;border-radius:10px;background:linear-gradient(135deg,rgba(14,139,88,.09),rgba(0,168,143,.06));border-left:3px solid #00a88f}.action-recommendation__label{display:block;color:#0b7a52;font-size:7px;font-weight:850;text-transform:uppercase;letter-spacing:.08em}.action-recommendation p{margin:5px 0 0;color:#304f43;font-size:8px;line-height:1.45}.action-recommendation b{color:#073b25}.attention-page main{max-width:1260px;padding:54px 36px 90px}.attention-hero{display:flex;align-items:flex-end;justify-content:space-between;gap:30px;margin-bottom:28px}.attention-hero h1{margin:6px 0 12px;font-size:clamp(46px,7vw,88px);letter-spacing:-.06em;line-height:.95;color:#073b25}.attention-hero p{color:#61776e}.attention-total{display:flex;flex-direction:column;align-items:flex-end}.attention-total b{font-size:54px;line-height:1;color:#c32239}.attention-total span{margin-top:6px;color:#657b72;font-size:11px}.notification-rules{padding:26px;border:1px solid rgba(255,255,255,.9);border-radius:24px;background:rgba(255,255,255,.65);box-shadow:0 16px 50px rgba(8,79,47,.08)}.notification-rules h2{margin:5px 0 20px;font-size:28px}.rule-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.rule-grid label{display:flex;flex-direction:column;gap:7px;color:#5d746a;font-size:10px;font-weight:700}.rule-grid input{width:100%;padding:11px;border:1px solid #d4e4dc;border-radius:10px;background:#f8fcfa;color:#0c3828;font-weight:800}.rule-actions{display:flex;align-items:center;gap:10px;margin-top:16px}.rule-actions button{border:0;border-radius:10px;padding:11px 14px;background:#0b6843;color:#fff;font-weight:800;cursor:pointer}.rule-actions button+button{background:#e6f3ec;color:#0b6843}.rule-actions span{margin-left:auto;color:#70847c;font-size:10px}.attention-list{display:grid;gap:10px;margin-top:22px}.attention-item{display:grid;grid-template-columns:46px 1fr auto;align-items:center;gap:16px;padding:18px 20px;border:1px solid #dce9e2;border-left:5px solid #e39a32;border-radius:16px;background:rgba(255,255,255,.72)}.attention-item--critical{border-left-color:#c32239}.attention-item--high{border-left-color:#e05c4d}.attention-rank{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#eef5f1;color:#567067;font-size:11px;font-weight:850}.attention-copy small{color:#b04438;font-size:9px;font-weight:850;text-transform:uppercase;letter-spacing:.08em}.attention-copy h3{margin:3px 0 4px;font-size:16px}.attention-copy p{margin:0;color:#61776e;font-size:11px}.attention-item>a{color:#0b6843;font-size:11px;font-weight:850;text-decoration:none}.attention-item[hidden]{display:none}
 @supports (animation-timeline:view()){.group-dashboard,.event-card{animation:glass-reveal linear both;animation-timeline:view();animation-range:entry 5% cover 24%}@keyframes glass-reveal{from{opacity:.25;transform:translateY(24px) scale(.98)}to{opacity:1;transform:none}}}
 @container (max-width:360px){.event-card__value{font-size:22px}.spark__label{font-size:6px}}
 @media(max-width:800px){.overview-hero--main{padding-top:40px}.overview-hero--main .overview-hero__pulse{padding:28px 20px;border-radius:28px}.overview-hero--main .overview-hero__copy{text-align:left}.overview-hero--main .lede{margin-left:0}.overview-hero--main h1{font-size:clamp(40px,11vw,56px);white-space:normal}.dashboard-links{grid-template-columns:1fr}}
+@media(max-width:760px){.attention-link{font-size:0;padding:8px}.attention-link b{font-size:9px}.attention-page main{padding:34px 16px 70px}.attention-hero{align-items:flex-start;flex-direction:column}.attention-total{align-items:flex-start}.rule-grid{grid-template-columns:1fr 1fr}.rule-actions{align-items:stretch;flex-direction:column}.rule-actions span{margin:4px 0 0}.attention-item{grid-template-columns:34px 1fr}.attention-item>a{grid-column:2}.catalogue-tools .compare-toggle{min-height:50px}.compare-bar{width:calc(100% - 24px);bottom:12px;justify-content:center}.compare-bar span{display:none}}
+@media(max-width:460px){.rule-grid{grid-template-columns:1fr}.attention-item{padding:15px 14px}.header-actions{gap:5px}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 `;
 fs.writeFileSync(path.join(assetsDir, 'styles.css'), styles.trim() + '\n');
@@ -955,8 +1021,49 @@ if(chartDialog){
   chartDialog.querySelector('.chart-dialog__head button').addEventListener('click',()=>chartDialog.close());
   chartDialog.addEventListener('click',event=>{if(event.target===chartDialog)chartDialog.close()});
 }
+const compareToggle=document.getElementById('compareToggle');
+const compareBar=document.getElementById('compareBar');
+const compareCount=document.getElementById('compareCount');
+const compareOpen=document.getElementById('compareOpen');
+const compareClear=document.getElementById('compareClear');
+const compareDialog=document.getElementById('compareDialog');
+const compareTable=document.getElementById('compareTable');
+const selected=new Set();
+const fmt=value=>new Intl.NumberFormat('ru-RU').format(Number(value)||0);
+function syncCompare(){
+  document.body.classList.toggle('compare-mode',compareToggle?.classList.contains('active'));
+  compareBar.hidden=selected.size===0;
+  compareCount.textContent=selected.size;
+  compareOpen.disabled=selected.size<2;
+  document.querySelectorAll('.compare-pick').forEach(button=>{const active=selected.has(button.closest('.event-card').dataset.id);button.setAttribute('aria-pressed',active);button.textContent=active?'✓ Выбран':'＋ Сравнить'});
+}
+compareToggle?.addEventListener('click',()=>{compareToggle.classList.toggle('active');syncCompare()});
+document.querySelectorAll('.compare-pick').forEach(button=>button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();const id=button.closest('.event-card').dataset.id;if(selected.has(id))selected.delete(id);else if(selected.size<5)selected.add(id);syncCompare()}));
+compareClear?.addEventListener('click',()=>{selected.clear();syncCompare()});
+compareOpen?.addEventListener('click',()=>{
+  const rows=cards.filter(card=>selected.has(card.dataset.id)).map(card=>'<tr><td>#'+card.dataset.id+'</td><td>'+fmt(card.dataset.events)+'</td><td>'+fmt(card.dataset.sends)+'</td><td>'+fmt(card.dataset.responses)+'</td><td>'+Number(card.dataset.rate||0).toFixed(1).replace('.',',')+'%</td><td>'+(card.dataset.csi?Number(card.dataset.csi).toFixed(2).replace('.',','):'—')+'</td><td>'+(card.dataset.planProgress?Number(card.dataset.planProgress).toFixed(1).replace('.',',')+'%':'—')+'</td><td>'+(Number(card.dataset.change)>-999999?(Number(card.dataset.change)>=0?'↑ ':'↓ ')+Math.abs(Number(card.dataset.change)).toFixed(1).replace('.',',')+'%':'—')+'</td></tr>').join('');
+  compareTable.innerHTML=rows;compareDialog.showModal();
+});
+compareDialog?.querySelector('[data-compare-close]')?.addEventListener('click',()=>compareDialog.close());
+compareDialog?.addEventListener('click',event=>{if(event.target===compareDialog)compareDialog.close()});
 `;
 fs.writeFileSync(path.join(assetsDir, 'index.js'), indexJs.trim() + '\n');
+
+const attentionJs = `
+const items=[...document.querySelectorAll('.attention-item')];
+const fields={plan:document.getElementById('rulePlan'),csi:document.getElementById('ruleCsi'),rate:document.getElementById('ruleRate'),sample:document.getElementById('ruleSample')};
+const saved=JSON.parse(localStorage.getItem('events-alert-rules')||'{}');
+Object.entries(fields).forEach(([key,input])=>{if(saved[key]!==undefined)input.value=saved[key]});
+function apply(){
+  const rules=Object.fromEntries(Object.entries(fields).map(([key,input])=>[key,Number(input.value)]));
+  localStorage.setItem('events-alert-rules',JSON.stringify(rules));let visible=0;
+  items.forEach(item=>{const type=item.dataset.type;const show=type==='Нет данных'||(type==='Дефицит к плану'&&Number(item.dataset.plan)<rules.plan)||(type==='Падение CSI'&&Number(item.dataset.csiDrop)>rules.csi)||(type==='Снижение отклика'&&Number(item.dataset.rateDrop)>rules.rate)||(type==='Сокращение событий')||(type==='Маленькая выборка'&&Number(item.dataset.sample)<rules.sample);item.hidden=!show;if(show)visible++});
+  document.getElementById('attentionCount').textContent=visible;document.getElementById('rulesSaved').textContent='Правила сохранены · показано '+visible+' сигналов';
+}
+document.getElementById('applyRules').addEventListener('click',apply);apply();
+document.getElementById('exportAlerts').addEventListener('click',()=>{const rows=[['Приоритет','Тип','Опрос','Описание']];items.filter(item=>!item.hidden).forEach(item=>rows.push([item.querySelector('.attention-rank').textContent,item.dataset.type,item.querySelector('h3').textContent,item.querySelector('p').textContent]));const csv='\\uFEFF'+rows.map(row=>row.map(value=>'"'+String(value).replaceAll('"','""')+'"').join(';')).join('\\n');const link=document.createElement('a');link.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));link.download='critical-alerts-${latestMonth}.csv';link.click();URL.revokeObjectURL(link.href)});
+`;
+fs.writeFileSync(path.join(assetsDir, 'attention.js'), attentionJs.trim() + '\n');
 
 const dashboardJs = `
 const data=window.EVENT_DATA;

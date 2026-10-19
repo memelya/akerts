@@ -46,3 +46,28 @@ if(chartDialog){
   chartDialog.querySelector('.chart-dialog__head button').addEventListener('click',()=>chartDialog.close());
   chartDialog.addEventListener('click',event=>{if(event.target===chartDialog)chartDialog.close()});
 }
+const compareToggle=document.getElementById('compareToggle');
+const compareBar=document.getElementById('compareBar');
+const compareCount=document.getElementById('compareCount');
+const compareOpen=document.getElementById('compareOpen');
+const compareClear=document.getElementById('compareClear');
+const compareDialog=document.getElementById('compareDialog');
+const compareTable=document.getElementById('compareTable');
+const selected=new Set();
+const fmt=value=>new Intl.NumberFormat('ru-RU').format(Number(value)||0);
+function syncCompare(){
+  document.body.classList.toggle('compare-mode',compareToggle?.classList.contains('active'));
+  compareBar.hidden=selected.size===0;
+  compareCount.textContent=selected.size;
+  compareOpen.disabled=selected.size<2;
+  document.querySelectorAll('.compare-pick').forEach(button=>{const active=selected.has(button.closest('.event-card').dataset.id);button.setAttribute('aria-pressed',active);button.textContent=active?'✓ Выбран':'＋ Сравнить'});
+}
+compareToggle?.addEventListener('click',()=>{compareToggle.classList.toggle('active');syncCompare()});
+document.querySelectorAll('.compare-pick').forEach(button=>button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();const id=button.closest('.event-card').dataset.id;if(selected.has(id))selected.delete(id);else if(selected.size<5)selected.add(id);syncCompare()}));
+compareClear?.addEventListener('click',()=>{selected.clear();syncCompare()});
+compareOpen?.addEventListener('click',()=>{
+  const rows=cards.filter(card=>selected.has(card.dataset.id)).map(card=>'<tr><td>#'+card.dataset.id+'</td><td>'+fmt(card.dataset.events)+'</td><td>'+fmt(card.dataset.sends)+'</td><td>'+fmt(card.dataset.responses)+'</td><td>'+Number(card.dataset.rate||0).toFixed(1).replace('.',',')+'%</td><td>'+(card.dataset.csi?Number(card.dataset.csi).toFixed(2).replace('.',','):'—')+'</td><td>'+(card.dataset.planProgress?Number(card.dataset.planProgress).toFixed(1).replace('.',',')+'%':'—')+'</td><td>'+(Number(card.dataset.change)>-999999?(Number(card.dataset.change)>=0?'↑ ':'↓ ')+Math.abs(Number(card.dataset.change)).toFixed(1).replace('.',',')+'%':'—')+'</td></tr>').join('');
+  compareTable.innerHTML=rows;compareDialog.showModal();
+});
+compareDialog?.querySelector('[data-compare-close]')?.addEventListener('click',()=>compareDialog.close());
+compareDialog?.addEventListener('click',event=>{if(event.target===compareDialog)compareDialog.close()});
