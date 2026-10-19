@@ -582,7 +582,7 @@ function renderEventCard(event) {
     ? responsesRemaining === 0
       ? '<div class="plan-pace plan-pace--done"><b>✓ План выполнен</b><span>Дополнительный объём не требуется</span></div>'
       : remainingBusinessDays > 0
-        ? `<div class="plan-pace"><span>Осталось <b>${numberFormat.format(responsesRemaining)}</b> ответов · ${remainingBusinessDays} ${businessDayWord(remainingBusinessDays)}</span><strong>Нужно ≈ ${numberFormat.format(dailyResponsesNeeded)} ответов/день</strong></div>${sendPace}`
+        ? `<div class="plan-pace"><span>Осталось <b>${numberFormat.format(responsesRemaining)}</b> ответов</span><strong>Нужно ≈ ${numberFormat.format(dailyResponsesNeeded)} ответов/день</strong></div>${sendPace}`
         : `<div class="plan-pace plan-pace--risk"><span>Осталось <b>${numberFormat.format(responsesRemaining)}</b> ответов</span><strong>Рабочих дней не осталось</strong></div>`
     : '';
   const changeClass = event.change === null ? 'neutral' : event.change >= 0 ? 'up' : 'down';
@@ -617,7 +617,7 @@ function renderEventCard(event) {
     ${planMeta ? `<div class="survey-identity"><strong>${esc(planMeta.name)}</strong><span>${esc(planMeta.type)}</span></div>` : ''}
     ${miniSpark(primaryValues, months, 180, 66, monitorsResponses ? 'ответов' : 'событий')}
     <div class="event-card__value${!event.hasData && !monitorsResponses ? ' event-card__value--missing' : ''}">${!event.hasData && !monitorsResponses ? 'Нет данных' : numberFormat.format(primaryLatest)}</div>
-    ${monitorsResponses ? `<div class="event-card__value-label">Ответов за ${latestMonth}</div><div class="plan-progress"><div><span>План месяца</span><b>${numberFormat.format(planMeta.plan)}</b></div><strong class="${planProgress >= 100 ? 'is-complete' : ''}">${planProgress.toFixed(1).replace('.', ',')}%</strong><i style="--progress:${Math.min(planProgress, 100).toFixed(1)}%"><span></span></i>${planPace}</div>` : event.hasData ? `<div class="event-card__value-label">Сумма событий за ${latestMonth}</div>` : ''}
+    ${monitorsResponses ? `<div class="event-card__value-label">Получено ответов за ${monthName(latestMonth, 'long')}</div><div class="plan-progress"><div><span>→ План</span><b>${numberFormat.format(planMeta.plan)}</b><span class="plan-progress__unit">ответов в месяц</span></div><strong class="${planProgress >= 100 ? 'is-complete' : ''}">${planProgress.toFixed(1).replace('.', ',')}%</strong><i style="--progress:${Math.min(planProgress, 100).toFixed(1)}%"><span></span></i>${planPace}</div>` : event.hasData ? `<div class="event-card__value-label">Сумма событий за ${latestMonth}</div>` : ''}
     ${funnel}
     <div class="event-card__meta"><span>${event.hasData ? `${eventAlerts.length} алертов · ↓${alertDowns} ↑${alertUps}` : 'алертов нет'}</span><span>${event.hasData ? latestMonth : '—'}</span></div>
   </a>`;
