@@ -496,6 +496,49 @@ function responseChart(values, labels, width = 560, height = 126) {
   return `<div class="response-chart-block"><div class="response-chart-title"><b>Динамика ответов</b><span>Количество полученных ответов по месяцам</span></div><svg class="response-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Динамика количества ответов по месяцам"><title>Динамика ответов</title>${ticks}${monthLabels}<path class="response-chart-line" d="${line}"/>${dots}</svg></div>`;
 }
 
+function funnelStageChart({ label, kicker, values, labels, colorClass, width = 960, height = 138 }) {
+  const pad = { top: 28, right: 18, bottom: 28, left: 18 };
+  const plotW = width - pad.left - pad.right;
+  const plotH = height - pad.top - pad.bottom;
+  const max = Math.max(...values, 1);
+  const points = values.map((value, index) => [
+    pad.left + (index / Math.max(values.length - 1, 1)) * plotW,
+    pad.top + plotH - (value / max) * plotH
+  ]);
+  const line = points.map(([x, y], index) => `${index ? 'L' : 'M'} ${x.toFixed(1)} ${y.toFixed(1)}`).join(' ');
+  const area = `${line} L ${points.at(-1)[0].toFixed(1)} ${(pad.top + plotH).toFixed(1)} L ${points[0][0].toFixed(1)} ${(pad.top + plotH).toFixed(1)} Z`;
+  const monthLabels = labels.map((month, index) => `<text class="funnel-stage__month" x="${points[index][0]}" y="${height - 6}" text-anchor="middle">${monthNamesShort[Number(month.slice(5)) - 1]}</text>`).join('');
+  const dots = points.map(([x, y], index) => {
+    const labelY = y < pad.top + 13 ? y + 16 : y - 8;
+    const anchor = index === 0 ? 'start' : index === points.length - 1 ? 'end' : 'middle';
+    return `<g><circle class="funnel-stage__point" cx="${x}" cy="${y}" r="3.4"><title>${label}, ${monthName(labels[index])}: ${numberFormat.format(values[index])}</title></circle><text class="funnel-stage__value" x="${x}" y="${labelY}" text-anchor="${anchor}">${compactNumber(values[index])}</text></g>`;
+  }).join('');
+  const periodTotal = values.reduce((sum, value) => sum + value, 0);
+  return `<section class="funnel-stage funnel-stage--${colorClass}">
+    <div class="funnel-stage__head"><div><span>${kicker}</span><h3>${label}</h3></div><strong>${numberFormat.format(periodTotal)}<small>за период</small></strong></div>
+    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${label}: динамика по месяцам"><line class="funnel-stage__grid" x1="${pad.left}" y1="${pad.top + plotH}" x2="${width - pad.right}" y2="${pad.top + plotH}"/><path class="funnel-stage__area" d="${area}"/><path class="funnel-stage__line" d="${line}"/>${monthLabels}${dots}</svg>
+  </section>`;
+}
+
+function businessFunnel(group, width = 960, compact = false) {
+  const eventValues = sumGroup(group);
+  const sendValues = sumStatusZero(group);
+  const responseValues = sumResponses(group);
+  const eventTotal = eventValues.reduce((sum, value) => sum + value, 0);
+  const sendTotal = sendValues.reduce((sum, value) => sum + value, 0);
+  const responseTotal = responseValues.reduce((sum, value) => sum + value, 0);
+  const sendRate = eventTotal ? (sendTotal / eventTotal) * 100 : 0;
+  const responseRate = sendTotal ? (responseTotal / sendTotal) * 100 : 0;
+  const stageHeight = compact ? 118 : 148;
+  return `<div class="business-funnel${compact ? ' business-funnel--compact' : ''}" aria-label="Бизнес-воронка: события, коммуникации и ответы">
+    ${funnelStageChart({ label: 'Полученные события', kicker: '01 · Входящий поток', values: eventValues, labels: months, colorClass: 'events', width, height: stageHeight })}
+    <div class="funnel-connector"><span>↓</span><b>${sendRate.toFixed(1).replace('.', ',')}%</b><small>событий перешли в коммуникацию</small></div>
+    ${funnelStageChart({ label: 'Отправленные коммуникации', kicker: '02 · Доставка ценности', values: sendValues, labels: months, colorClass: 'sends', width, height: stageHeight })}
+    <div class="funnel-connector"><span>↓</span><b>${responseRate.toFixed(1).replace('.', ',')}%</b><small>отправок получили ответ</small></div>
+    ${funnelStageChart({ label: 'Полученные ответы', kicker: '03 · Результат контакта', values: responseValues, labels: months, colorClass: 'responses', width, height: stageHeight })}
+  </div>`;
+}
+
 function baseHead(title, description, relative = '') {
   return `<!doctype html>
 <html lang="ru">
@@ -595,7 +638,7 @@ function segmentDashboard({ file, eyebrow, title, description, group, totals }) 
       <div class="overview-hero__pulse">
         <div class="pulse-header"><span>Сумма событий группы по месяцам</span><span class="trend neutral">сентябрь → октябрь не сравнивается: октябрь неполный</span></div>
         <strong>${numberFormat.format(totals.at(-1))}</strong><span class="pulse-current-label">событий за ${monthName(latestMonth, 'long')}</span>
-        ${overviewChart(totals, months, 560, 210, overviewSeries(group))}
+        ${businessFunnel(group, 560, true)}
       </div>
     </section>
     <section class="metric-strip" aria-label="Сводные показатели"><div><span>Опросов в группе</span><b>${group.length}</b></div><div><span>Месяцев</span><b>${months.length}</b></div></section>
@@ -625,8 +668,7 @@ const indexHtml = `${baseHead('Дашборд статусов событий', 
         <div class="pulse-header"><span>Сумма всех полученных событий</span><span class="trend neutral">сравнение с ${monthName(months.at(-2))} отключено: октябрь неполный</span></div>
         <strong>${numberFormat.format(overallPeriodTotal)}</strong>
         <span class="pulse-current-label">событий за весь период · ${months[0]} — ${months.at(-1)}</span>
-        ${overviewChart(overallTotals, months, 1040, 360, overviewSeries(events))}
-        ${responseChart(sumResponses(events), months, 1040, 150)}
+        ${businessFunnel(events, 1040)}
       </div>
     </section>
 
@@ -634,16 +676,14 @@ const indexHtml = `${baseHead('Дашборд статусов событий', 
       <article class="group-dashboard">
         <header><span class="eyebrow">ТОП‑ТРИГГЕРЫ</span><a href="top.html">Открыть полный обзор →</a></header>
         <div class="group-dashboard__kpi"><b>${numberFormat.format(topPeriodTotal)}</b><small>получено событий за период: ${months[0]} — ${months.at(-1)}</small></div>
-        <div class="group-dashboard__charts">${overviewChart(topTotals, months, 560, 190, overviewSeries(topEvents))}
-        ${responseChart(sumResponses(topEvents), months, 560, 126)}</div>
+        <div class="group-dashboard__charts">${businessFunnel(topEvents, 560, true)}</div>
         <button class="chart-expand" type="button" aria-label="Открыть графики топ-триггеров крупнее">⛶ Развернуть графики</button>
         <footer><span>${topEvents.length} опросов</span><span>${topAlertCount} алертов за завершённые месяцы</span></footer>
       </article>
       <article class="group-dashboard">
         <header><span class="eyebrow">ВСЕ ОСТАЛЬНЫЕ</span><a href="others.html">Открыть полный обзор →</a></header>
         <div class="group-dashboard__kpi"><b>${numberFormat.format(otherPeriodTotal)}</b><small>получено событий за период: ${months[0]} — ${months.at(-1)}</small></div>
-        <div class="group-dashboard__charts">${overviewChart(otherTotals, months, 560, 190, overviewSeries(otherEvents))}
-        ${responseChart(sumResponses(otherEvents), months, 560, 126)}</div>
+        <div class="group-dashboard__charts">${businessFunnel(otherEvents, 560, true)}</div>
         <button class="chart-expand" type="button" aria-label="Открыть графики остальных опросов крупнее">⛶ Развернуть графики</button>
         <footer><span>${otherEvents.length} опросов</span><span>${otherAlertCount} алертов за завершённые месяцы</span></footer>
       </article>
@@ -785,6 +825,7 @@ footer{display:flex;justify-content:space-between;gap:20px;border-top:1px solid 
 .qa-bar{fill:#16a34a;opacity:.32;stroke:#0b7a3b;stroke-width:1}.qa-label{fill:#087044;font-size:7px;font-weight:800;paint-order:stroke;stroke:rgba(255,255,255,.9);stroke-width:3px;stroke-linejoin:round}
 .overview-secondary-line{fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}.overview-secondary-line--0{stroke:#31d8b0}.overview-secondary-line--1{stroke:#68b8ff;stroke-dasharray:5 4}.overview-secondary-point{stroke:var(--ink);stroke-width:1.5}.overview-secondary-point--0{fill:#31d8b0}.overview-secondary-point--1{fill:#68b8ff}.overview-secondary-label{fill:#9af0d9;font-size:7px;font-weight:800;paint-order:stroke;stroke:#10382c;stroke-width:3px;stroke-linejoin:round}.overview-legend text{fill:#d9e7e2;font-size:9px;font-weight:700}.overview-legend line{stroke-width:3}.overview-response-axis{fill:#68b8ff;font-size:8px;font-weight:700}
 .response-chart-block{margin-top:18px;padding-top:16px;border-top:1px solid rgba(255,255,255,.14)}.response-chart-title{display:flex;align-items:baseline;justify-content:space-between;gap:16px;color:#fff}.response-chart-title b{font-size:13px}.response-chart-title span{font-size:9px;color:#9db4ab}.response-chart{display:block;width:100%;height:auto;margin-top:6px;overflow:visible}.response-grid-line{stroke:rgba(143,162,155,.18);stroke-width:1}.response-axis-label{fill:#8fb9ad;font-size:8px}.response-chart-line{fill:none;stroke:#68b8ff;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}.response-chart-point{fill:#68b8ff;stroke:var(--ink);stroke-width:1.5}.response-point-label{fill:#b9dcff;font-size:7px;font-weight:800;paint-order:stroke;stroke:#10382c;stroke-width:3px;stroke-linejoin:round}
+.business-funnel{display:grid;gap:0;margin-top:30px;position:relative;z-index:1}.funnel-stage{--stage:#c9ff57;--stage-soft:rgba(201,255,87,.11);border:1px solid rgba(255,255,255,.14);border-radius:22px;padding:18px 22px 12px;background:linear-gradient(120deg,rgba(255,255,255,.075),rgba(255,255,255,.025));box-shadow:inset 0 1px rgba(255,255,255,.08)}.funnel-stage--sends{--stage:#39d7c0;--stage-soft:rgba(57,215,192,.11)}.funnel-stage--responses{--stage:#67b8ff;--stage-soft:rgba(103,184,255,.12)}.funnel-stage__head{display:flex;align-items:flex-start;justify-content:space-between;gap:22px}.funnel-stage__head span{display:block;color:var(--stage);font-size:9px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}.funnel-stage__head h3{margin:5px 0 0;color:#fff;font-size:19px;line-height:1.1}.funnel-stage__head>strong{color:#fff;font-size:27px;line-height:1;text-align:right;letter-spacing:-.035em}.funnel-stage__head>strong small{display:block;margin-top:6px;color:#91a79f;font-size:8px;font-weight:500;letter-spacing:.08em;text-transform:uppercase}.funnel-stage svg{display:block;width:100%;height:auto;margin-top:3px;overflow:visible}.funnel-stage__grid{stroke:rgba(255,255,255,.12)}.funnel-stage__area{fill:var(--stage-soft)}.funnel-stage__line{fill:none;stroke:var(--stage);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.funnel-stage__point{fill:var(--stage);stroke:#0d2b22;stroke-width:2}.funnel-stage__month{fill:#89a097;font-size:8px}.funnel-stage__value{fill:#fff;font-size:8px;font-weight:800;paint-order:stroke;stroke:#12352a;stroke-width:3px;stroke-linejoin:round}.funnel-connector{height:56px;display:grid;grid-template-columns:34px auto 1fr;align-items:center;gap:10px;padding:0 22px;color:#fff}.funnel-connector span{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.1);color:var(--lime);font-size:18px}.funnel-connector b{font-size:20px}.funnel-connector small{color:#9db0a9;font-size:10px}.business-funnel--compact{margin-top:14px}.business-funnel--compact .funnel-stage{padding:12px 14px 8px;border-radius:16px}.business-funnel--compact .funnel-stage__head h3{font-size:13px}.business-funnel--compact .funnel-stage__head>strong{font-size:18px}.business-funnel--compact .funnel-stage__head span{font-size:7px}.business-funnel--compact .funnel-stage__value{font-size:7px}.business-funnel--compact .funnel-stage__month{font-size:7px}.business-funnel--compact .funnel-connector{height:42px;padding:0 14px;grid-template-columns:24px auto 1fr;gap:7px}.business-funnel--compact .funnel-connector span{width:22px;height:22px;font-size:13px}.business-funnel--compact .funnel-connector b{font-size:14px}.business-funnel--compact .funnel-connector small{font-size:8px}.group-dashboard{position:relative}.group-dashboard__charts{position:relative;z-index:1}
 .alert-filter-group{display:flex;gap:6px}.alert-filter-group--period{margin-left:8px;padding-left:14px;border-left:1px solid rgba(255,255,255,.15)}.alert-filter-group--period button{color:#c7d5d0;background:rgba(255,255,255,.06)}.alert-filter-group--period button.active{color:#fff;background:rgba(104,184,255,.2);border-color:rgba(104,184,255,.45)}.comparison-overlay path{fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;opacity:.88}.comparison-send{stroke:#16a37a}.comparison-response{stroke:#419ee8;stroke-dasharray:6 4}.comparison-legend text{fill:#55766b;font-size:8px;font-weight:800}.comparison-legend line{stroke-width:3}.comparison-legend .comparison-note{fill:#7e918a;font-weight:600}
 .event-card:not(.is-missing){min-height:386px}.event-funnel{margin:14px 0 13px;padding-top:10px;border-top:1px solid rgba(8,82,50,.1)}.event-funnel__caption{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;color:#315f52;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.09em}.event-funnel__caption small{color:var(--muted);font-size:7px}.event-funnel__step{min-height:36px;margin:0 auto 4px;padding:6px 9px;display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:7px;color:#063722;background:linear-gradient(90deg,rgba(33,160,56,.14),rgba(0,168,143,.07));border:1px solid rgba(33,160,56,.14);clip-path:polygon(3% 0,97% 0,93% 100%,7% 100%)}.event-funnel__step--1{width:100%}.event-funnel__step--2{width:88%}.event-funnel__step--3{width:76%;margin-bottom:0}.event-funnel__step>span{font-size:9px;font-weight:800;line-height:1.1}.event-funnel__step>span small{display:block;margin-top:2px;font-size:6px;font-weight:600;color:#638276}.event-funnel__step>b{font-size:11px;white-space:nowrap}.event-funnel__step>em{min-width:48px;text-align:right;font-size:8px;font-style:normal;font-weight:900;white-space:nowrap}.event-funnel__step>em.up{color:#087c46}.event-funnel__step>em.down{color:#c94b43}.event-funnel__step>em.neutral{color:#71847b}
 .event-card:not(.is-missing){min-height:430px}.event-funnel{margin:15px 0 14px;padding-top:12px}.event-funnel__caption{margin-bottom:10px;font-size:9px;letter-spacing:.08em}.event-funnel__caption small{padding:3px 7px;border-radius:999px;background:rgba(8,82,50,.06);font-size:8px}.event-funnel__step{position:relative;min-height:43px;margin-bottom:9px;padding:7px 10px;grid-template-columns:minmax(72px,1fr) minmax(54px,auto) minmax(53px,auto);gap:9px;clip-path:none;border-radius:12px;background:rgba(255,255,255,.62);border:1px solid rgba(8,118,72,.14);box-shadow:0 5px 14px rgba(8,79,47,.055)}.event-funnel__step:before{content:"";position:absolute;inset:7px auto 7px 5px;width:3px;border-radius:5px;background:#3aad7a}.event-funnel__step:not(:last-child):after{content:"↓";position:absolute;left:50%;bottom:-11px;transform:translateX(-50%);z-index:2;width:15px;height:15px;display:grid;place-items:center;border-radius:50%;background:#e8f7ee;color:#188754;font-size:8px;font-weight:900}.event-funnel__step--1{width:100%}.event-funnel__step--2{width:94%}.event-funnel__step--3{width:88%;margin-bottom:0}.event-funnel__step>span{padding-left:5px;font-size:10px;line-height:1.15}.event-funnel__step>span small{margin-top:3px;font-size:7px}.event-funnel__step>b{font-size:12px;text-align:right}.event-funnel__step>em{min-width:53px;padding:4px 6px;border-radius:999px;text-align:center;font-size:8px;background:rgba(8,82,50,.045)}.event-funnel__step>em.up{background:rgba(22,163,74,.09)}.event-funnel__step>em.down{background:rgba(201,75,67,.08)}
