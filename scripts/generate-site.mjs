@@ -68,6 +68,7 @@ const topSurveyRank = new Map(topSurveyIds.map((id, index) => [id, index]));
 const sourceText = fs.readFileSync(inputPath, 'utf8');
 const isQaSupplement = /month,event_type_id,status_det,cnt,qa_cnt/i.test(sourceText);
 const qaByKey = new Map();
+const csiByKey = new Map();
 let rows = [];
 
 if (isQaSupplement) {
@@ -79,12 +80,13 @@ if (isQaSupplement) {
   const baseSourcePath = path.join(dataDir, 'source.tsv');
   if (!fs.existsSync(baseSourcePath)) throw new Error('Для дополнения qa_cnt не найден базовый data/source.tsv');
   for (const line of fs.readFileSync(baseSourcePath, 'utf8').split(/\r?\n/)) {
-    const match = line.trim().match(/^(\d{4}-\d{2})\t(\d+)\t(-?\d+)\t(\d+)(?:\t(\d*))?$/);
+    const match = line.trim().match(/^(\d{4}-\d{2})\t(\d+)\t(-?\d+)\t(\d+)(?:\t(\d*))?(?:\t([\d.]*))?$/);
     if (!match) continue;
     const status = Number(match[3]);
     rows.push({
       month: match[1], eventTypeId: Number(match[2]), status, count: Number(match[4]),
-      qaCount: status === 0 ? (qaByKey.get(`${match[1]}|${match[2]}|0`) ?? (match[5] ? Number(match[5]) : null)) : null
+      qaCount: status === 0 ? (qaByKey.get(`${match[1]}|${match[2]}|0`) ?? (match[5] ? Number(match[5]) : null)) : null,
+      csi: status === 0 && match[6] ? Number(match[6]) : null
     });
   }
 } else {
@@ -93,11 +95,27 @@ if (isQaSupplement) {
   for (const line of sourceText.slice(marker).split(/\r?\n/)) {
     const match = line.trim().match(/^(\d{4}-\d{2})\s+(\d+)\s+(-?\d+)\s+(\d+)$/);
     if (!match) continue;
-    rows.push({ month: match[1], eventTypeId: Number(match[2]), status: Number(match[3]), count: Number(match[4]), qaCount: null });
+    rows.push({ month: match[1], eventTypeId: Number(match[2]), status: Number(match[3]), count: Number(match[4]), qaCount: null, csi: null });
   }
 }
 
 if (!rows.length) throw new Error('Строки данных не найдены');
+
+// CSI поставляется отдельно и обогащает строки коммуникаций (status_det = 0).
+// Валидной считаем только оценку в шкале 1–5: так служебные числа из выгрузки не искажают график.
+const csiSourcePath = path.join(dataDir, 'csi.csv');
+if (fs.existsSync(csiSourcePath)) {
+  for (const line of fs.readFileSync(csiSourcePath, 'utf8').split(/\r?\n/)) {
+    const match = line.trim().match(/^(\d{4}-\d{2}),(\d+),(-?\d+),(\d+),(\d+),(?:"([\d]+,[\d]+)"|([^,]*))$/);
+    if (!match || Number(match[3]) !== 0) continue;
+    const raw = match[6] ? match[6].replace(',', '.') : match[7];
+    const value = Number(raw);
+    if (Number.isFinite(value) && value >= 1 && value <= 5) csiByKey.set(`${match[1]}|${match[2]}|0`, value);
+  }
+}
+for (const row of rows) {
+  row.csi = row.status === 0 ? (csiByKey.get(`${row.month}|${row.eventTypeId}|0`) ?? row.csi ?? null) : null;
+}
 
 const months = [...new Set(rows.map((row) => row.month))].sort();
 // Октябрь 2026 ещё не завершён, поэтому сравнения, где он является
@@ -107,6 +125,7 @@ const isLatestComparisonExcluded = months.at(-1) === excludedComparisonToMonth;
 const monthIndex = new Map(months.map((month, index) => [month, index]));
 const grouped = new Map();
 const qaGrouped = new Map();
+const csiGrouped = new Map();
 
 for (const row of rows) {
   if (!grouped.has(row.eventTypeId)) grouped.set(row.eventTypeId, new Map());
@@ -116,6 +135,10 @@ for (const row of rows) {
   if (row.status === 0 && row.qaCount !== null) {
     if (!qaGrouped.has(row.eventTypeId)) qaGrouped.set(row.eventTypeId, Array(months.length).fill(null));
     qaGrouped.get(row.eventTypeId)[monthIndex.get(row.month)] = row.qaCount;
+  }
+  if (row.status === 0 && row.csi !== null) {
+    if (!csiGrouped.has(row.eventTypeId)) csiGrouped.set(row.eventTypeId, Array(months.length).fill(null));
+    csiGrouped.get(row.eventTypeId)[monthIndex.get(row.month)] = row.csi;
   }
 }
 
@@ -127,6 +150,7 @@ const events = [...grouped.entries()]
         description: statusDescriptions[String(code)] || 'Описание не предоставлено в исходных данных',
         values,
         qaValues: code === 0 ? (qaGrouped.get(id) || Array(months.length).fill(null)) : null,
+        csiValues: code === 0 ? (csiGrouped.get(id) || Array(months.length).fill(null)) : null,
         total: values.reduce((sum, value) => sum + value, 0),
         latest: values.at(-1) || 0
       }))
@@ -181,7 +205,7 @@ const dataset = {
 fs.writeFileSync(path.join(dataDir, 'events.json'), JSON.stringify(dataset));
 fs.writeFileSync(
   path.join(dataDir, 'source.tsv'),
-  ['month\tevent_type_id\tstatus_det\tcnt\tqa_cnt', ...rows.map((row) => `${row.month}\t${row.eventTypeId}\t${row.status}\t${row.count}\t${row.qaCount ?? ''}`)].join('\n') + '\n'
+  ['month\tevent_type_id\tstatus_det\tcnt\tqa_cnt\tcsi', ...rows.map((row) => `${row.month}\t${row.eventTypeId}\t${row.status}\t${row.count}\t${row.qaCount ?? ''}\t${row.csi ?? ''}`)].join('\n') + '\n'
 );
 
 const numberFormat = new Intl.NumberFormat('ru-RU');
@@ -784,10 +808,11 @@ for (const event of catalogueEvents) {
       <article><span>Сумма событий за ${latestMonth}</span><b>${numberFormat.format(event.latest)}</b><small>сумма всех событий</small></article>
       <article><span>Изменение суммы событий к ${months.at(-2)}</span><b class="neutral">Не считается</b><small>${latestMonth} — неполный месяц</small></article>
       <article><span>Коммуникации</span><b>${numberFormat.format(event.communicated)}</b><small>${event.communicationShare.toFixed(1).replace('.', ',')}% от объёма</small></article>
+      <article><span>CSI</span><b>${event.statuses.find((status) => status.code === 0)?.csiValues?.at(-1)?.toFixed(2).replace('.', ',') ?? '—'}</b><small>средняя оценка за ${latestMonth}</small></article>
     </section>` : ''}
     ${renderAlertPanel(event)}
     ${event.hasData ? `<section class="chart-section" id="charts">
-      <div class="section-heading section-heading--charts"><div><p class="eyebrow">STATUS_DET</p><h2>Кривые изменения</h2></div><span>${event.statuses.length + (event.statuses.some((status) => status.code === 0 && status.qaValues?.some((value) => value !== null)) ? 1 : 0)} отдельных графиков</span></div>
+      <div class="section-heading section-heading--charts"><div><p class="eyebrow">STATUS_DET</p><h2>Кривые изменения</h2></div><span>${event.statuses.length + (event.statuses.some((status) => status.code === 0 && status.qaValues?.some((value) => value !== null)) ? 1 : 0) + (event.statuses.some((status) => status.code === 0 && status.csiValues?.some((value) => value !== null)) ? 1 : 0)} отдельных графиков</span></div>
       <div class="chart-grid" id="chartGrid" aria-live="polite"></div>
     </section>` : `<section class="missing-survey" id="charts">
       <span class="missing-survey__mark">#${event.id}</span>
@@ -944,13 +969,14 @@ function niceMax(value){if(value<=0)return 1;const power=10**Math.floor(Math.log
 function renderChart(status){
   const width=720,height=270,pad={top:45,right:20,bottom:38,left:62};
   const plotW=width-pad.left-pad.right,plotH=height-pad.top-pad.bottom;
-  const max=niceMax(Math.max(...status.values));
+  const isCsi=status.isCsi===true;
+  const max=isCsi?5:niceMax(Math.max(...status.values));
   const points=status.values.map((value,index)=>[pad.left+(index/(status.values.length-1))*plotW,pad.top+plotH-(value/max)*plotH]);
   const line=smoothPath(points),area=line+' L'+points.at(-1)[0]+','+(pad.top+plotH)+' L'+points[0][0]+','+(pad.top+plotH)+' Z';
   const isQaResponse=status.isQaResponse===true;
   const displayCode=status.displayCode??status.code;
   const displayDescription=status.displayDescription??status.description;
-  const color=isQaResponse?'#16a34a':colorFor(status.code);
+  const color=isCsi?'#8a6fe8':isQaResponse?'#16a34a':colorFor(status.code);
   const hasQa=status.code===0&&Array.isArray(status.qaValues);
   const ticks=[0,.25,.5,.75,1].map(f=>{const y=pad.top+plotH-f*plotH;return '<line class="grid-line" x1="'+pad.left+'" y1="'+y+'" x2="'+(width-pad.right)+'" y2="'+y+'"/><text class="axis-label" x="'+(pad.left-10)+'" y="'+(y+3)+'" text-anchor="end">'+compact.format(max*f)+'</text>'}).join('');
   const months=data.months.map((month,index)=>'<text class="axis-label" x="'+points[index][0]+'" y="'+(height-10)+'" text-anchor="middle">'+monthLabel(month)+'</text>').join('');
@@ -960,10 +986,11 @@ function renderChart(status){
     const responses=communicationStatus.qaValues?.map(value=>value??0)||Array(data.months.length).fill(0);
     return '<g class="comparison-overlay"><g class="comparison-legend"><line class="comparison-send" x1="'+pad.left+'" y1="24" x2="'+(pad.left+22)+'" y2="24"/><text x="'+(pad.left+28)+'" y="27">Отправки</text><line class="comparison-response" x1="'+(pad.left+105)+'" y1="24" x2="'+(pad.left+127)+'" y2="24"/><text x="'+(pad.left+133)+'" y="27">Ответы</text><text class="comparison-note" x="'+(width-pad.right)+'" y="27" text-anchor="end">сравнительный фон · нормировано</text></g><path class="comparison-send" d="'+overlayPath(communicationStatus.values)+'"/><path class="comparison-response" d="'+overlayPath(responses)+'"/></g>';
   })():'';
-  const pointEls=points.map((point,index)=>{const labelY=Math.max(point[1]-(isQaResponse?20:12),16);const rate=isQaResponse&&status.rates[index]!==null?status.rates[index].toFixed(1).replace('.',',')+'%':null;return '<g><circle class="chart-point" data-index="'+index+'" cx="'+point[0]+'" cy="'+point[1]+'" r="4" fill="'+color+'"/><text class="point-label" x="'+point[0]+'" y="'+labelY+'" text-anchor="middle"><tspan x="'+point[0]+'">'+compact.format(status.values[index])+'</tspan>'+(rate?'<tspan class="point-label__rate" x="'+point[0]+'" dy="11">'+rate+'</tspan>':'')+'</text></g>'}).join('');
-  const rows=data.months.map((month,index)=>'<tr><td>'+month+'</td><td>'+nf.format(status.values[index])+'</td>'+(hasQa?'<td>'+(status.qaValues[index]===null?'—':nf.format(status.qaValues[index]))+'</td><td>'+(status.qaValues[index]===null||!status.values[index]?'—':(status.qaValues[index]/status.values[index]*100).toFixed(1).replace('.',',')+'%')+'</td>':'')+'</tr>').join('');
+  const valueLabel=value=>isCsi?value.toFixed(2).replace('.',','):compact.format(value);
+  const pointEls=points.map((point,index)=>{const labelY=Math.max(point[1]-(isQaResponse?20:12),16);const rate=isQaResponse&&status.rates[index]!==null?status.rates[index].toFixed(1).replace('.',',')+'%':null;return '<g><circle class="chart-point" data-index="'+index+'" cx="'+point[0]+'" cy="'+point[1]+'" r="4" fill="'+color+'"/><text class="point-label" x="'+point[0]+'" y="'+labelY+'" text-anchor="middle"><tspan x="'+point[0]+'">'+valueLabel(status.values[index])+'</tspan>'+(rate?'<tspan class="point-label__rate" x="'+point[0]+'" dy="11">'+rate+'</tspan>':'')+'</text></g>'}).join('');
+  const rows=data.months.map((month,index)=>'<tr><td>'+month+'</td><td>'+(isCsi&&status.sourceValues?.[index]===null?'—':isCsi?status.values[index].toFixed(3).replace('.',','):nf.format(status.values[index]))+'</td>'+(hasQa?'<td>'+(status.qaValues[index]===null?'—':nf.format(status.qaValues[index]))+'</td><td>'+(status.qaValues[index]===null||!status.values[index]?'—':(status.qaValues[index]/status.values[index]*100).toFixed(1).replace('.',',')+'%')+'</td>':'')+'</tr>').join('');
   const card=document.createElement('article');card.className='chart-card';
-  card.innerHTML='<header class="chart-card__header"><span class="status-chip">'+displayCode+'</span><div class="chart-card__title"><h3>'+displayDescription+'</h3><p>'+(isQaResponse?'Количество полученных ответов · подпись точки содержит отклик':hasQa?'Линия — отправки · столбцы — ответы и отклик':'Статус '+status.code+' · сравнение с основными бизнес-метриками')+'</p></div><div class="chart-card__actions"><div class="chart-card__latest"><b>'+nf.format(status.latest)+'</b><small>'+data.months.at(-1)+'</small></div><button class="chart-card__expand" type="button" aria-label="Развернуть график на весь экран" title="Развернуть на весь экран">⛶ <span>Развернуть</span></button></div></header><div class="chart-wrap"><svg class="status-chart" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="Динамика: '+displayDescription+'">'+ticks+months+qaBars+'<path class="chart-area" d="'+area+'" fill="'+color+'"/><path class="chart-line" d="'+line+'" stroke="'+color+'"/>'+comparisonOverlay+pointEls+'</svg></div><details class="data-table"><summary>Показать таблицу значений</summary><table><thead><tr><th>Месяц</th><th>'+(isQaResponse?'Ответы':'Отправки')+'</th>'+(hasQa?'<th>Ответы</th><th>Отклик</th>':'')+'</tr></thead><tbody>'+rows+'</tbody></table></details>';
+  card.innerHTML='<header class="chart-card__header"><span class="status-chip">'+displayCode+'</span><div class="chart-card__title"><h3>'+displayDescription+'</h3><p>'+(isCsi?'Средняя оценка клиентской удовлетворённости · шкала 1–5':isQaResponse?'Количество полученных ответов · подпись точки содержит отклик':hasQa?'Линия — отправки · столбцы — ответы и отклик':'Статус '+status.code+' · сравнение с основными бизнес-метриками')+'</p></div><div class="chart-card__actions"><div class="chart-card__latest"><b>'+(isCsi?status.latest.toFixed(2).replace('.',','):nf.format(status.latest))+'</b><small>'+data.months.at(-1)+'</small></div><button class="chart-card__expand" type="button" aria-label="Развернуть график на весь экран" title="Развернуть на весь экран">⛶ <span>Развернуть</span></button></div></header><div class="chart-wrap"><svg class="status-chart" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="Динамика: '+displayDescription+'">'+ticks+months+qaBars+'<path class="chart-area" d="'+area+'" fill="'+color+'"/><path class="chart-line" d="'+line+'" stroke="'+color+'"/>'+comparisonOverlay+pointEls+'</svg></div><details class="data-table"><summary>Показать таблицу значений</summary><table><thead><tr><th>Месяц</th><th>'+(isCsi?'CSI':isQaResponse?'Ответы':'Отправки')+'</th>'+(hasQa?'<th>Ответы</th><th>Отклик</th>':'')+'</tr></thead><tbody>'+rows+'</tbody></table></details>';
   const expandButton=card.querySelector('.chart-card__expand');
   expandButton.addEventListener('click',async()=>{
     if(document.fullscreenElement===card){await document.exitFullscreen();return}
@@ -984,6 +1011,12 @@ if(primaryStatus){
     const values=primaryStatus.qaValues.map(value=>value??0);
     const rates=values.map((value,index)=>primaryStatus.values[index]?value/primaryStatus.values[index]*100:null);
     chartGrid.append(renderChart({code:0,displayCode:'QA',displayDescription:'Динамика ответов на коммуникации',values,rates,latest:values.at(-1),isQaResponse:true,qaValues:null}));
+  }
+  if(Array.isArray(primaryStatus.csiValues)&&primaryStatus.csiValues.some(value=>value!==null)){
+    const sourceValues=primaryStatus.csiValues;
+    const first=sourceValues.find(value=>value!==null)??0;
+    const values=sourceValues.map((value,index)=>value??sourceValues.slice(0,index).reverse().find(item=>item!==null)??first);
+    chartGrid.append(renderChart({code:0,displayCode:'CSI',displayDescription:'Динамика CSI',values,sourceValues,latest:sourceValues.at(-1)??values.at(-1),isCsi:true,qaValues:null}));
   }
 }
 data.statuses
