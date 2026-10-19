@@ -2,6 +2,7 @@ const grid=document.getElementById('eventGrid');
 const cards=[...grid.querySelectorAll('.event-card')];
 const search=document.getElementById('eventSearch');
 const sort=document.getElementById('eventSort');
+const planFilter=document.getElementById('planFilter');
 const count=document.getElementById('resultCount');
 const empty=document.getElementById('emptyState');
 const scopeButtons=[...document.querySelectorAll('[data-scope]')];
@@ -9,7 +10,7 @@ let scope='top';
 const plural=n=>{const d=n%10,h=n%100;return h>=11&&h<=14?'опросов':d===1?'опрос':d>=2&&d<=4?'опроса':'опросов'};
 function update(){
   const query=search.value.trim().toLowerCase();
-  let visible=cards.filter(card=>(scope==='top'?card.dataset.top==='true':card.dataset.hasData==='true')&&(!query||card.dataset.search.includes(query)));
+  let visible=cards.filter(card=>(scope==='top'?card.dataset.top==='true':card.dataset.hasData==='true')&&(!query||card.dataset.search.includes(query))&&(planFilter.value==='all'||card.dataset.planStatus===planFilter.value));
   const key=sort.value;
   visible.sort((a,b)=>key==='top'?Number(a.dataset.rank)-Number(b.dataset.rank):key==='id'?Number(a.dataset.id)-Number(b.dataset.id):key==='change'?Number(b.dataset.change)-Number(a.dataset.change):Number(b.dataset.latest)-Number(a.dataset.latest));
   cards.forEach(card=>card.hidden=true);
@@ -18,7 +19,7 @@ function update(){
   empty.hidden=visible.length!==0;
 }
 scopeButtons.forEach(button=>button.addEventListener('click',()=>{scope=button.dataset.scope;scopeButtons.forEach(item=>item.classList.toggle('active',item===button));sort.value='latest';update()}));
-search.addEventListener('input',update);sort.addEventListener('change',update);update();
+search.addEventListener('input',update);sort.addEventListener('change',update);planFilter.addEventListener('change',update);update();
 const chartDialog=document.getElementById('chartDialog');
 if(chartDialog){
   const dialogBody=chartDialog.querySelector('.chart-dialog__body');
