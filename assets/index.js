@@ -26,9 +26,21 @@ if(chartDialog){
   const dialogTitle=chartDialog.querySelector('.chart-dialog__head strong');
   document.querySelectorAll('.chart-expand').forEach(button=>button.addEventListener('click',()=>{
     const dashboard=button.closest('.group-dashboard');
+    chartDialog.classList.remove('is-card-view');
     dialogEyebrow.textContent=dashboard.querySelector('.eyebrow').textContent;
     dialogTitle.textContent='Динамика событий, отправок и ответов';
     dialogBody.replaceChildren(dashboard.querySelector('.group-dashboard__charts').cloneNode(true));
+    chartDialog.showModal();
+  }));
+  document.querySelectorAll('.card-expand').forEach(button=>button.addEventListener('click',event=>{
+    event.preventDefault();event.stopPropagation();
+    const card=button.closest('.event-card');
+    const clone=card.cloneNode(true);
+    clone.removeAttribute('href');clone.removeAttribute('hidden');
+    chartDialog.classList.add('is-card-view');
+    dialogEyebrow.textContent='ОПРОС '+card.dataset.id;
+    dialogTitle.textContent='План и динамика ответов';
+    dialogBody.replaceChildren(clone);
     chartDialog.showModal();
   }));
   chartDialog.querySelector('.chart-dialog__head button').addEventListener('click',()=>chartDialog.close());
