@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Графики status_det по event_type_id 544.">
+  <meta name="theme-color" content="#11251f">
+  <title>Событие 544 — динамика статусов</title>
+  <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body class="detail-page">
+  <aside class="sidebar">
+    <a class="brand brand--light" href="../index.html">
+      <span class="brand__mark"><i></i><i></i><i></i></span>
+      <span><b>Events</b><small>status monitor</small></span>
+    </a>
+    <nav>
+      <a href="../index.html"><span>⌂</span> Обзор</a>
+      <a class="active" href="#top"><span>⌁</span> Динамика</a>
+      <a href="#alerts"><span>⚑</span> Алерты</a>
+      <a href="#charts"><span>⌗</span> Статусы</a>
+    </nav>
+    <div class="sidebar-note"><span>Статус данных</span><b>Нет наблюдений</b><small>опрос есть в топ-списке</small></div>
+  </aside>
+  <main class="detail-main" id="top">
+    <div class="detail-topbar">
+      <a class="back-link" href="../index.html">← Все события</a>
+      <label class="event-jump"><span>Перейти к ID</span><select id="eventJump" aria-label="Перейти к другому event_type_id"></select></label>
+    </div>
+    <section class="event-hero">
+      <div>
+        <p class="eyebrow">EVENT_TYPE_ID <span class="top-survey-label">ТОП ОПРОС</span></p>
+        <h1>544</h1>
+        <p>Отдельная страница приоритетного опроса.</p>
+      </div>
+      <div class="hero-stamp"><span>СТАТУС ДАННЫХ</span><b>Нет строк</b><small>в исходной выборке</small></div>
+    </section>
+    
+    <section class="alert-panel alert-panel--empty" id="alerts" aria-labelledby="alerts-title">
+    <header class="alert-panel__header">
+      <div><p class="eyebrow">ПАНЕЛЬ АЛЕРТОВ</p><h2 id="alerts-title">Изменения больше 10%</h2></div>
+      <span class="alert-count">нет данных</span>
+    </header>
+    <div class="alert-panel__message">Алерты появятся после добавления строк по этому опросу в исходные данные.</div>
+  </section>
+    <section class="missing-survey" id="charts">
+      <span class="missing-survey__mark">#544</span>
+      <p class="eyebrow">НЕТ ДАННЫХ ДЛЯ ГРАФИКОВ</p>
+      <h2>В источнике нет наблюдений по этому опросу</h2>
+      <p>Номер включён в список топ-опросов, поэтому для него создана отдельная страница. Графики появятся после добавления строк с этим <code>event_type_id</code> в исходные данные.</p>
+      <a href="../index.html#catalogue">← Вернуться к списку опросов</a>
+      <div id="chartGrid" hidden></div>
+    </section>
+    <footer><span>event_type_id 544</span><span>Пропуски по месяцам отображаются как 0</span></footer>
+  </main>
+  <div class="chart-tooltip" id="chartTooltip" hidden></div>
+  <script>window.EVENT_DATA={"id":544,"hasData":false,"isTop":true,"months":["2026-01","2026-02","2026-03","2026-04","2026-05","2026-06","2026-07","2026-08","2026-09","2026-10"],"statuses":[],"totals":[0,0,0,0,0,0,0,0,0,0],"latest":0,"previous":0,"change":null,"communicated":0,"communicationShare":0};</script>
+  <script src="../assets/events-list.js"></script>
+  <script src="../assets/dashboard.js"></script>
+</body>
+</html>
