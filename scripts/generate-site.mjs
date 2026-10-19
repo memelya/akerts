@@ -805,7 +805,7 @@ for (const event of catalogueEvents) {
   <div class="chart-tooltip" id="chartTooltip" hidden></div>
   <script>window.EVENT_DATA=${JSON.stringify(eventPayload)};</script>
   <script src="../assets/events-list.js"></script>
-  <script src="../assets/dashboard.js?v=20261019-5"></script>
+  <script src="../assets/dashboard.js?v=20261019-6"></script>
 </body>
 </html>`;
   fs.writeFileSync(path.join(eventsDir, `${event.id}.html`), page);
@@ -964,14 +964,19 @@ function renderChart(status){
   return card;
 }
 const chartGrid=document.getElementById('chartGrid');
-data.statuses.forEach(status=>{
-  chartGrid.append(renderChart(status));
-  if(status.code===0&&Array.isArray(status.qaValues)){
-    const values=status.qaValues.map(value=>value??0);
-    const rates=values.map((value,index)=>status.values[index]?value/status.values[index]*100:null);
+const primaryStatus=data.statuses.find(status=>status.code===0);
+if(primaryStatus){
+  chartGrid.append(renderChart(primaryStatus));
+  if(Array.isArray(primaryStatus.qaValues)){
+    const values=primaryStatus.qaValues.map(value=>value??0);
+    const rates=values.map((value,index)=>primaryStatus.values[index]?value/primaryStatus.values[index]*100:null);
     chartGrid.append(renderChart({code:0,displayCode:'QA',displayDescription:'Динамика ответов на коммуникации',values,rates,latest:values.at(-1),isQaResponse:true,qaValues:null}));
   }
-});
+}
+data.statuses
+  .filter(status=>status.code!==0)
+  .sort((a,b)=>b.values.reduce((sum,value)=>sum+(value||0),0)-a.values.reduce((sum,value)=>sum+(value||0),0))
+  .forEach(status=>chartGrid.append(renderChart(status)));
 const alertFilterButtons=[...document.querySelectorAll('[data-alert-filter]')];
 const alertPeriodButtons=[...document.querySelectorAll('[data-alert-period-filter]')];
 const alertItems=[...document.querySelectorAll('.alert-item')];
