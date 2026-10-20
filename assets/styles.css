@@ -70,7 +70,14 @@ body{background:radial-gradient(circle at 8% 7%,rgba(33,160,56,.16),transparent 
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 
 /* Three compact gauges and a full-width status; historical baseline uses complete months. */
-.event-card.is-top{height:840px;min-height:840px}
+.event-card.is-top{height:900px;min-height:900px}
+.historical-csi{grid-column:1/-1;display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid rgba(8,118,72,.14);border-radius:10px;background:rgba(255,255,255,.62)}
+.historical-csi>span{font-size:10px;font-weight:800}.historical-csi>span small{font-weight:400;color:#638276}
+.event-card.is-top .event-funnel{grid-template-columns:repeat(3,minmax(0,1fr));min-width:0}
+.event-card.is-top .event-funnel__step{min-width:0;padding-inline:7px}
+.historical-csi{min-width:0;flex-wrap:wrap}.historical-csi>small{white-space:normal}
+.historical-csi>b{font-size:17px;color:#287d98}.historical-csi>small{margin-left:auto;font-size:8px;color:#60796f;text-align:right}
+.event-card.is-top .event-funnel__step:nth-last-child(2):after{display:none}
 .plan-status,.chart-dialog.is-card-view .plan-status{grid-template-columns:minmax(0,1fr);gap:8px}
 .plan-rings{flex-direction:row;justify-content:space-around;align-items:center;gap:8px}
 .plan-rings .plan-ring{width:72px;flex:0 0 72px}
