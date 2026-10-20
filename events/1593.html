@@ -20,7 +20,7 @@
       <a href="#alerts"><span>⚑</span> Алерты</a>
       <a href="#charts"><span>⌗</span> Статусы</a>
     </nav>
-    <div class="sidebar-note"><span>Статус данных</span><b>Нет наблюдений</b><small>опрос есть в топ-списке</small></div>
+    <div class="sidebar-note"><span>Период данных</span><b>2026-01 — 2026-10</b><small>10 месяцев · 9 статусов</small></div>
   </aside>
   <main class="detail-main" id="top">
     <div class="detail-topbar">
@@ -31,31 +31,327 @@
       <div>
         <p class="eyebrow">EVENT_TYPE_ID <span class="top-survey-label">ТОП ОПРОС</span></p>
         <h1>1593</h1>
-        <p>Отдельная страница приоритетного опроса.</p>
+        <p>ЭУ — экран успеха · баннер со звёздами в UI приложений и сайтов. Статусная модель mp_status.</p>
       </div>
-      <div class="hero-stamp"><span>СТАТУС ДАННЫХ</span><b>Нет строк</b><small>в исходной выборке</small></div>
+      <div class="hero-stamp"><span>АКТУАЛЬНЫЙ ПЕРИОД</span><b>2026-10</b><small>180 834 событий</small></div>
     </section>
-    
-    <section class="alert-panel alert-panel--empty" id="alerts" aria-labelledby="alerts-title">
+    <section class="kpi-grid" aria-label="Показатели события">
+      <article><span>Сумма событий за 2026-10</span><b>180 834</b><small>сумма всех событий</small></article>
+      <article><span>Изменение суммы событий к 2026-09</span><b class="neutral">Не считается</b><small>2026-10 — неполный месяц</small></article>
+      <article><span>Ответы ЭУ</span><b>1 111</b><small>сумма qa_cnt по всем mp_status</small></article>
+      <article><span>CSI</span><b>5,00</b><small>среднее по cnt · без нулевых оценок</small></article>
+    </section>
+    <section class="alert-panel" id="alerts" aria-labelledby="alerts-title">
     <header class="alert-panel__header">
       <div><p class="eyebrow">ПАНЕЛЬ АЛЕРТОВ</p><h2 id="alerts-title">Изменения больше 10%</h2></div>
-      <span class="alert-count">нет данных</span>
+      <span class="alert-count">42 алертов</span>
     </header>
-    <div class="alert-panel__message">Алерты появятся после добавления строк по этому опросу в исходные данные.</div>
+    <div class="alert-summary"><div class="alert-filter-group" aria-label="Направление изменения"><button class="alert-summary__down active" type="button" data-alert-filter="down" aria-pressed="true">↓ 34 снижений</button><button class="alert-summary__up active" type="button" data-alert-filter="up" aria-pressed="true">↑ 8 ростов</button></div><div class="alert-filter-group alert-filter-group--period" aria-label="Период сравнения"><button class="active" type="button" data-alert-period-filter="latest" aria-pressed="true">Последний полный месяц</button><button type="button" data-alert-period-filter="other" aria-pressed="false">Остальное</button></div><small>Последний полный месяц: август → сентябрь</small></div>
+    <div class="alert-list"><article class="alert-item alert-item--down" data-alert-period="latest">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>IN_PROGRESS</b><strong>-35,7%</strong></div>
+        <p>Снижение на 35,7%: с августа 2026 года к сентябрю 2026 года.</p>
+        <small>56 → 36 событий · статус IN_PROGRESS</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="latest">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>CLOSE_FORM</b><strong>-18,2%</strong></div>
+        <p>Снижение на 18,2%: с августа 2026 года к сентябрю 2026 года.</p>
+        <small>198 → 162 событий · статус CLOSE_FORM</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="latest">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>close_widget</b><strong>+13,7%</strong></div>
+        <p>Рост на 13,7%: с августа 2026 года к сентябрю 2026 года.</p>
+        <small>313 → 356 событий · статус close_widget</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>ENTERED</b><strong>+198,5%</strong></div>
+        <p>Рост на 198,5%: с июля 2026 года к августу 2026 года.</p>
+        <small>16 633 → 49 652 событий · статус ENTERED</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>IN_PROGRESS</b><strong>-69,4%</strong></div>
+        <p>Снижение на 69,4%: с июля 2026 года к августу 2026 года.</p>
+        <small>183 → 56 событий · статус IN_PROGRESS</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>SENDED</b><strong>-25,0%</strong></div>
+        <p>Снижение на 25,0%: с июля 2026 года к августу 2026 года.</p>
+        <small>193 714 → 145 382 событий · статус SENDED</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>CLOSE_FORM</b><strong>+16,5%</strong></div>
+        <p>Рост на 16,5%: с июля 2026 года к августу 2026 года.</p>
+        <small>170 → 198 событий · статус CLOSE_FORM</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>close_widget</b><strong>-12,8%</strong></div>
+        <p>Снижение на 12,8%: с июля 2026 года к августу 2026 года.</p>
+        <small>359 → 313 событий · статус close_widget</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>IN_PROGRESS</b><strong>+34,6%</strong></div>
+        <p>Рост на 34,6%: с июня 2026 года к июлю 2026 года.</p>
+        <small>136 → 183 событий · статус IN_PROGRESS</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>PREVIEW</b><strong>-23,6%</strong></div>
+        <p>Снижение на 23,6%: с июня 2026 года к июлю 2026 года.</p>
+        <small>35 946 → 27 457 событий · статус PREVIEW</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>CLOSE_FORM</b><strong>-19,8%</strong></div>
+        <p>Снижение на 19,8%: с июня 2026 года к июлю 2026 года.</p>
+        <small>212 → 170 событий · статус CLOSE_FORM</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>CLOSE_WIDGET</b><strong>-14,5%</strong></div>
+        <p>Снижение на 14,5%: с июня 2026 года к июлю 2026 года.</p>
+        <small>2 763 → 2 362 событий · статус CLOSE_WIDGET</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>close_widget</b><strong>-12,7%</strong></div>
+        <p>Снижение на 12,7%: с июня 2026 года к июлю 2026 года.</p>
+        <small>411 → 359 событий · статус close_widget</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>VIEW</b><strong>-10,7%</strong></div>
+        <p>Снижение на 10,7%: с июня 2026 года к июлю 2026 года.</p>
+        <small>64 526 → 57 652 событий · статус VIEW</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>SUCCEEDED</b><strong>-21,6%</strong></div>
+        <p>Снижение на 21,6%: с мая 2026 года к июню 2026 года.</p>
+        <small>2 614 → 2 049 событий · статус SUCCEEDED</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>CLOSE_WIDGET</b><strong>-20,4%</strong></div>
+        <p>Снижение на 20,4%: с мая 2026 года к июню 2026 года.</p>
+        <small>3 471 → 2 763 событий · статус CLOSE_WIDGET</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>VIEW</b><strong>-13,8%</strong></div>
+        <p>Снижение на 13,8%: с мая 2026 года к июню 2026 года.</p>
+        <small>74 833 → 64 526 событий · статус VIEW</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Сумма всех событий</b><strong>-12,0%</strong></div>
+        <p>Снижение на 12,0%: с мая 2026 года к июню 2026 года.</p>
+        <small>332 597 → 292 716 событий · общий объём</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>CLOSE_FORM</b><strong>-11,7%</strong></div>
+        <p>Снижение на 11,7%: с мая 2026 года к июню 2026 года.</p>
+        <small>240 → 212 событий · статус CLOSE_FORM</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>PREVIEW</b><strong>-11,4%</strong></div>
+        <p>Снижение на 11,4%: с мая 2026 года к июню 2026 года.</p>
+        <small>40 579 → 35 946 событий · статус PREVIEW</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>SENDED</b><strong>-11,2%</strong></div>
+        <p>Снижение на 11,2%: с мая 2026 года к июню 2026 года.</p>
+        <small>210 296 → 186 673 событий · статус SENDED</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>IN_PROGRESS</b><strong>-33,0%</strong></div>
+        <p>Снижение на 33,0%: с апреля 2026 года к маю 2026 года.</p>
+        <small>191 → 128 событий · статус IN_PROGRESS</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>CLOSE_WIDGET</b><strong>-28,3%</strong></div>
+        <p>Снижение на 28,3%: с апреля 2026 года к маю 2026 года.</p>
+        <small>4 841 → 3 471 событий · статус CLOSE_WIDGET</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>CLOSE_FORM</b><strong>-27,5%</strong></div>
+        <p>Снижение на 27,5%: с апреля 2026 года к маю 2026 года.</p>
+        <small>331 → 240 событий · статус CLOSE_FORM</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>VIEW</b><strong>-24,5%</strong></div>
+        <p>Снижение на 24,5%: с апреля 2026 года к маю 2026 года.</p>
+        <small>99 097 → 74 833 событий · статус VIEW</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>SUCCEEDED</b><strong>-24,5%</strong></div>
+        <p>Снижение на 24,5%: с апреля 2026 года к маю 2026 года.</p>
+        <small>3 460 → 2 614 событий · статус SUCCEEDED</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>PREVIEW</b><strong>-23,6%</strong></div>
+        <p>Снижение на 23,6%: с апреля 2026 года к маю 2026 года.</p>
+        <small>53 147 → 40 579 событий · статус PREVIEW</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Сумма всех событий</b><strong>-18,5%</strong></div>
+        <p>Снижение на 18,5%: с апреля 2026 года к маю 2026 года.</p>
+        <small>407 963 → 332 597 событий · общий объём</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>SENDED</b><strong>-14,7%</strong></div>
+        <p>Снижение на 14,7%: с апреля 2026 года к маю 2026 года.</p>
+        <small>246 413 → 210 296 событий · статус SENDED</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>IN_PROGRESS</b><strong>+39,4%</strong></div>
+        <p>Рост на 39,4%: с марта 2026 года к апрелю 2026 года.</p>
+        <small>137 → 191 событий · статус IN_PROGRESS</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>SUCCEEDED</b><strong>+37,0%</strong></div>
+        <p>Рост на 37,0%: с марта 2026 года к апрелю 2026 года.</p>
+        <small>2 526 → 3 460 событий · статус SUCCEEDED</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>CLOSE_FORM</b><strong>+32,4%</strong></div>
+        <p>Рост на 32,4%: с марта 2026 года к апрелю 2026 года.</p>
+        <small>250 → 331 событий · статус CLOSE_FORM</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>IN_PROGRESS</b><strong>-18,9%</strong></div>
+        <p>Снижение на 18,9%: с февраля 2026 года к марту 2026 года.</p>
+        <small>169 → 137 событий · статус IN_PROGRESS</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>CLOSE_WIDGET</b><strong>-10,8%</strong></div>
+        <p>Снижение на 10,8%: с февраля 2026 года к марту 2026 года.</p>
+        <small>5 648 → 5 040 событий · статус CLOSE_WIDGET</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>SUCCEEDED</b><strong>+10,3%</strong></div>
+        <p>Рост на 10,3%: с февраля 2026 года к марту 2026 года.</p>
+        <small>2 291 → 2 526 событий · статус SUCCEEDED</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>SUCCEEDED</b><strong>-56,2%</strong></div>
+        <p>Снижение на 56,2%: с января 2026 года к февралю 2026 года.</p>
+        <small>5 227 → 2 291 событий · статус SUCCEEDED</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>CLOSE_FORM</b><strong>-48,6%</strong></div>
+        <p>Снижение на 48,6%: с января 2026 года к февралю 2026 года.</p>
+        <small>504 → 259 событий · статус CLOSE_FORM</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>CLOSE_WIDGET</b><strong>-42,3%</strong></div>
+        <p>Снижение на 42,3%: с января 2026 года к февралю 2026 года.</p>
+        <small>9 782 → 5 648 событий · статус CLOSE_WIDGET</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>IN_PROGRESS</b><strong>-40,7%</strong></div>
+        <p>Снижение на 40,7%: с января 2026 года к февралю 2026 года.</p>
+        <small>285 → 169 событий · статус IN_PROGRESS</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>PREVIEW</b><strong>-27,6%</strong></div>
+        <p>Снижение на 27,6%: с января 2026 года к февралю 2026 года.</p>
+        <small>72 044 → 52 145 событий · статус PREVIEW</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>VIEW</b><strong>-25,3%</strong></div>
+        <p>Снижение на 25,3%: с января 2026 года к февралю 2026 года.</p>
+        <small>130 051 → 97 191 событий · статус VIEW</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Сумма всех событий</b><strong>-16,1%</strong></div>
+        <p>Снижение на 16,1%: с января 2026 года к февралю 2026 года.</p>
+        <small>509 165 → 427 217 событий · общий объём</small>
+      </div>
+    </article></div>
   </section>
-    <section class="missing-survey" id="charts">
-      <span class="missing-survey__mark">#1593</span>
-      <p class="eyebrow">НЕТ ДАННЫХ ДЛЯ ГРАФИКОВ</p>
-      <h2>В источнике нет наблюдений по этому опросу</h2>
-      <p>Номер включён в список топ-опросов, поэтому для него создана отдельная страница. Графики появятся после добавления строк с этим <code>event_type_id</code> в исходные данные.</p>
-      <a href="../index.html#catalogue">← Вернуться к списку опросов</a>
-      <div id="chartGrid" hidden></div>
+    <section class="chart-section" id="charts">
+      <div class="section-heading section-heading--charts"><div><p class="eyebrow">mp_status</p><h2>Кривые изменения</h2><p>Все события — сумма cnt по всем mp_status. Ответы — сумма qa_cnt по всем mp_status. CSI — среднее с весами cnt, без нулевых оценок.</p></div><span>3 отдельных графиков</span></div>
+      <div class="chart-grid" id="chartGrid" aria-live="polite"></div>
     </section>
-    <footer><span>event_type_id 1593</span><span>Пропуски по месяцам отображаются как 0</span></footer>
+    <footer><span>event_type_id 1593</span><span>Отсутствующие статусы — 0 · CSI без оценок — «—»</span></footer>
   </main>
   <div class="chart-tooltip" id="chartTooltip" hidden></div>
-  <script>window.EVENT_DATA={"channel":"communication","statusModel":"status_det","id":1593,"hasData":false,"isTop":true,"months":["2026-01","2026-02","2026-03","2026-04","2026-05","2026-06","2026-07","2026-08","2026-09","2026-10"],"statuses":[],"totals":[0,0,0,0,0,0,0,0,0,0],"latest":0,"previous":0,"change":null,"communicated":0,"communicationShare":0};</script>
+  <script>window.EVENT_DATA={"csiValues":[4.985899366346568,4.6090676293843815,4.911165542117943,4.871860048091048,4.941496002820708,4.981298694199422,4.6734237664558,4.760410663768882,4.700043327652629,4.998418439010761],"csiWeights":[218462,427217,164299,407963,332597,292716,300404,287360,273391,180834],"channel":"success_screen","statusModel":"mp_status","responseTotals":[6144,2781,2964,4060,3033,2452,2459,2368,2187,1111],"id":1593,"hasData":true,"isTop":true,"months":["2026-01","2026-02","2026-03","2026-04","2026-05","2026-06","2026-07","2026-08","2026-09","2026-10"],"statuses":[{"code":"CLOSE_FORM","description":"CLOSE_FORM","values":[504,259,250,331,240,212,170,198,162,96],"qaValues":[504,259,250,331,240,212,170,198,162,96],"csiValues":[4.148809524,3.741312741,3.916,3.978851964,3.958333333,4.004716981,4.023529412,4.292929293,4.043209877,3.989583333],"total":2422,"latest":96},{"code":"CLOSE_WIDGET","description":"CLOSE_WIDGET","values":[9782,5648,5040,4841,3471,2763,2362,2483,2383,1226],"qaValues":[95,11,13,23,14,14,7,4,7,3],"csiValues":[4.863157895,4.909090909,4.230769231,4.826086957,4.857142857,4.642857143,4.571428571,4.75,5,5],"total":39999,"latest":1226},{"code":"IN_PROGRESS","description":"IN_PROGRESS","values":[285,169,137,191,128,136,183,56,36,23],"qaValues":[285,169,137,191,128,136,183,56,36,23],"csiValues":[4.350877193,4.609467456,4.233576642,4.387434555,4.203125,4.058823529,4.43715847,4.517857143,4.361111111,4.217391304],"total":1344,"latest":23},{"code":"PREVIEW","description":"PREVIEW","values":[72044,52145,52414,53147,40579,35946,27457,29166,28557,15860],"qaValues":[7,5,2,5,9,10,29,12,5,1],"csiValues":[5,4,5,4.2,4.555555556,4.9,4.655172414,5,5,5],"total":407315,"latest":15860},{"code":"SENDED","description":"SENDED","values":[290703,268975,263499,246413,210296,186673,193714,145382,133665,101271],"qaValues":[0,2,0,9,3,5,128,53,11,4],"csiValues":[0,5,0,5,5,5,4.65625,4.58490566,4.636363636,5],"total":2040591,"latest":101271},{"code":"SUCCEEDED","description":"SUCCEEDED","values":[5227,2291,2526,3460,2614,2049,1874,1990,1948,964],"qaValues":[5227,2291,2526,3460,2614,2049,1874,1990,1948,964],"csiValues":[4.799119954,4.771278918,4.77949327,4.781791908,4.803749044,4.80136652,4.811632871,4.814572864,4.810061602,4.822614108],"total":24943,"latest":964},{"code":"VIEW","description":"VIEW","values":[130051,97191,103435,99097,74833,64526,57652,58120,57006,30779],"qaValues":[5,12,11,13,7,7,22,14,6,3],"csiValues":[5,3.833333333,4.909090909,4.923076923,5,5,4.727272727,5,5,5],"total":772690,"latest":30779},{"code":"close_widget","description":"close_widget","values":[569,539,497,483,436,411,359,313,356,182],"qaValues":[21,32,25,28,18,19,2,0,0,0],"csiValues":[4.863157895,4.909090909,4.230769231,4.826086957,4.857142857,4.642857143,4.571428571,4.75,5,5],"total":4145,"latest":182},{"code":"ENTERED","description":"ENTERED","values":[0,0,0,0,0,0,16633,49652,49278,30433],"qaValues":[0,0,0,0,0,0,44,41,12,17],"csiValues":[null,null,null,null,null,null,4.727272727,4.853658537,4.333333333,5],"total":145996,"latest":30433}],"totals":[509165,427217,427798,407963,332597,292716,300404,287360,273391,180834],"latest":180834,"previous":273391,"change":null,"communicated":0,"communicationShare":0};</script>
   <script src="../assets/events-list.js"></script>
-  <script src="../assets/dashboard.js?v=20261020-2"></script>
+  <script src="../assets/dashboard.js?v=20261020-3"></script>
 </body>
 </html>
