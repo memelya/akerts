@@ -57,6 +57,10 @@ if(data.channel==='success_screen'){
     card.querySelector('.chart-card__title p').textContent=index?'Сумма qa_cnt по всем mp_status · помесячно':'Сумма cnt по всем mp_status · помесячно';
     card.querySelector('thead th:nth-child(2)').textContent=index?'Ответы':'Все события';
   });
+  const csiValues=data.csiValues;
+  const csiCard=renderChart({code:0,displayCode:'ЭУ · CSI',displayDescription:'Динамика CSI экрана успеха',values:csiValues,sourceValues:csiValues,latest:csiValues.at(-1),isCsi:true});
+  csiCard.querySelector('.chart-card__title p').textContent='Среднее по cnt · Σ(cnt × csi) / Σ(cnt) · оценки 1–5, без нулевых CSI';
+  chartGrid.append(csiCard);
 }
 if(primaryStatus){
   chartGrid.append(renderChart(primaryStatus));
