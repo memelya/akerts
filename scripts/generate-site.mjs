@@ -599,7 +599,7 @@ function businessFunnel(group, width = 960, compact = false) {
   </div>`;
 }
 
-function baseHead(title, description, relative = '', styleVersion = '12') {
+function baseHead(title, description, relative = '', styleVersion = '13') {
   return `<!doctype html>
 <html lang="ru">
 <head>
@@ -762,7 +762,7 @@ const criticalIssueRows = criticalIssues.map((issue, index) => {
 
 function segmentDashboard({ file, eyebrow, title, description, group, totals }) {
   const segmentCards = group.map(renderEventCard).join('\n');
-  return `${baseHead(`${title} — дашборд`, description, '', '12')}
+  return `${baseHead(`${title} — дашборд`, description, '', '13')}
 <body class="overview-page segment-page">
   <header class="site-header">
     <a class="brand" href="index.html" aria-label="Главная"><span class="brand__mark"><i></i><i></i><i></i></span><span><b>Events</b><small>status monitor</small></span></a>
@@ -784,7 +784,23 @@ function segmentDashboard({ file, eyebrow, title, description, group, totals }) 
 </body></html>`;
 }
 
-const indexHtml = `${baseHead('Дашборд статусов событий', 'Помесячная аналитика событий по event_type_id и status_det.', '', '12')}
+const managementRows = catalogueEvents.map(event => {
+  const status = event.statuses.find(s => s.code === 0);
+  const plan = surveyPlans.get(event.id);
+  const answers = event.responseTotals?.at(-1) ?? status?.qaValues?.at(-1) ?? 0;
+  const csiValue = event.csiValues?.at(-1) ?? status?.csiValues?.at(-1);
+  const previousCsi = event.csiValues?.at(-2) ?? status?.csiValues?.at(-2);
+  const validCsi = value => Number.isFinite(value) && value >= 1 && value <= 5;
+  const forecast = elapsedBusinessDays > 0 ? Math.round(answers / elapsedBusinessDays * (elapsedBusinessDays + remainingBusinessDays)) : answers;
+  const remaining = plan ? Math.max(0, plan.plan - answers) : 0;
+  const sends = status?.values?.at(-1) || 0;
+  const rate = sends ? answers / sends : 0;
+  const needed = remainingBusinessDays > 0 && rate > 0 ? Math.ceil(remaining / remainingBusinessDays / rate) : null;
+  const action = event.channel === 'success_screen' ? 'Рекомендации по отправкам неприменимы для экранов успеха. Проверьте охват и долю ответов.' : !plan ? 'Месячный план не задан.' : !remaining ? 'Месячный план по сбору ответов выполнен.' : needed === null ? 'Проверьте данные отправок и ответов для расчёта необходимого темпа.' : forecast >= plan.plan ? 'Поддерживайте текущий темп сбора ответов.' : 'Необходимо отправлять ' + numberFormat.format(needed) + ' коммуникаций в рабочий день при текущем отклике.';
+  return {id:event.id,name:plan?.name || 'Опрос ' + event.id,channel:event.channel === 'success_screen' ? 'Экраны успеха' : 'Пуш и смс',answers,plan:plan?.plan ?? null,forecast,csi:validCsi(csiValue)?csiValue:null,delta:validCsi(csiValue)&&validCsi(previousCsi)?csiValue-previousCsi:null,action};
+});
+const managementData = {period:'1.'+latestMonthNumber+' — '+currentDataDay+'.'+latestMonthNumber+'.2026',issueIds:[...new Set(criticalIssues.map(issue=>issue.event.id))],rows:managementRows};
+const indexHtml = `${baseHead('Дашборд статусов событий', 'Помесячная аналитика событий по event_type_id и status_det.', '', '13')}
 <body class="overview-page">
   <header class="site-header">
     <a class="brand" href="index.html" aria-label="Главная">
@@ -838,6 +854,11 @@ const indexHtml = `${baseHead('Дашборд статусов событий', 
           <button type="button" data-channel-filter="success_screen" aria-pressed="false">Экраны успеха <span data-channel-count="success_screen">${topEvents.filter(event => event.channel === 'success_screen').length}</span></button>
         </div>
       </div>
+<section class="personal-workspace" id="personalWorkspace" aria-label="Личный рабочий экран">
+<div class="personal-heading"><b>Мой рабочий экран <span data-favorite-count>0</span> ★</b><button type="button" data-open-report>Отчёт для руководителя ↗</button></div>
+<div class="personal-controls" role="group" aria-label="Мои опросы"><button type="button" class="active" data-personal-mode="all" aria-pressed="true">Все доступные</button><button type="button" data-personal-mode="favorites" aria-pressed="false">★ Избранные</button><button type="button" data-personal-mode="problems" aria-pressed="false">Мои проблемные опросы</button></div>
+<div class="personal-views"><input data-view-name maxlength="80" aria-label="Название набора фильтров" placeholder="Название набора фильтров"><button type="button" data-save-view>Сохранить фильтры</button><select data-saved-view aria-label="Сохранённые фильтры"></select><button type="button" data-delete-view>Удалить набор</button></div><small data-storage-note>Настройки сохраняются в этом браузере</small>
+</section>
       <div class="catalogue-tools">
         <label class="search-box"><span>⌕</span><input id="eventSearch" type="search" placeholder="Найти ID или статус…" autocomplete="off"></label>
         <label class="sort-box"><span>Сортировка</span><select id="eventSort"><option value="latest" selected>По объёму</option><option value="top">По списку</option><option value="id">По ID</option><option value="change">По динамике</option></select></label>
@@ -852,13 +873,16 @@ const indexHtml = `${baseHead('Дашборд статусов событий', 
   <div class="compare-bar" id="compareBar" hidden><span>Выбрано: <b id="compareCount">0</b></span><button id="compareOpen" type="button" disabled>Сравнить показатели</button><button id="compareClear" type="button">Очистить</button></div>
   <dialog class="compare-dialog" id="compareDialog"><header><div><span class="eyebrow">СРАВНЕНИЕ</span><h2>Опросы и подразделения</h2></div><button type="button" data-compare-close aria-label="Закрыть">×</button></header><div class="compare-table-wrap"><table><thead><tr><th>Опрос</th><th>События</th><th>Отправки</th><th>Ответы</th><th>Отклик</th><th>CSI</th><th>План</th><th>Динамика</th></tr></thead><tbody id="compareTable"></tbody></table></div></dialog>
   <footer><span>Источник: предоставленная агрегированная выборка</span><span>Пропуски по месяцам отображаются как 0</span></footer>
-  <script src="assets/index.js?v=20261020-2"></script>
+  <dialog id="managementReport" class="management-report"><div class="report-toolbar"><button type="button" data-report-csv>Скачать CSV</button><button type="button" data-report-html>Скачать HTML / для печати</button><button type="button" data-report-close aria-label="Закрыть отчёт">× Закрыть</button></div><div data-report-body></div></dialog>
+  <script type="application/json" id="managementData">${JSON.stringify(managementData).replaceAll('<', '\\u003c')}</script>
+  <script src="assets/workspace.js?v=20261020-1"></script>
+  <script src="assets/index.js?v=20261020-3"></script>
 </body>
 </html>`;
 
 fs.writeFileSync(path.join(dist, 'index.html'), indexHtml);
 
-const attentionHtml = `${baseHead('Требуют внимания — Events', 'Центр критических отклонений и управленческих уведомлений.', '', '12')}
+const attentionHtml = `${baseHead('Требуют внимания — Events', 'Центр критических отклонений и управленческих уведомлений.', '', '13')}
 <body class="overview-page attention-page">
   <header class="site-header"><a class="brand" href="index.html"><span><b>Events</b><small>status monitor</small></span></a><a class="period-pill" href="index.html">← Все опросы</a></header>
   <main>
@@ -1055,7 +1079,7 @@ body{background:radial-gradient(circle at 8% 7%,rgba(33,160,56,.16),transparent 
 .chart-dialog.is-card-view .plan-rings .plan-ring b{font-size:21px}
 @media(max-width:380px){.plan-rings{gap:4px}.plan-rings .plan-ring{width:66px;flex-basis:66px}.chart-dialog.is-card-view .plan-rings .plan-ring{width:76px;flex-basis:76px}}
 `;
-fs.writeFileSync(path.join(assetsDir, 'styles.css'), styles.trim() + '\n');
+fs.writeFileSync(path.join(assetsDir, 'styles.css'), styles.trim() + '\n' + "\n.personal-workspace{padding:18px;border:1px solid #c8e5d5;border-radius:18px;background:rgba(255,255,255,.65);margin:22px 0 16px}\n.personal-heading,.personal-controls,.personal-views,.report-toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap}\n.personal-heading{justify-content:space-between;margin-bottom:12px}.personal-heading b{color:#0b5338}\n.personal-workspace button,.personal-workspace input,.personal-workspace select,.report-toolbar button{font:inherit;font-size:12px;padding:10px 12px;border:1px solid #c9dfd3;border-radius:10px;background:#f6fcf8;color:#14583c}\n.personal-workspace button,.report-toolbar button{cursor:pointer;font-weight:750}.personal-workspace button.active{background:#0b6843;color:white}\n.personal-views{margin-top:12px}.personal-views input,.personal-views select{min-width:0;max-width:100%}.personal-workspace>small{display:block;font-size:10px;color:#60796f;margin-top:10px}\n.favorite-toggle{border:0;border-radius:8px;background:#e8f5ee;color:#0b6843;font-size:20px;line-height:26px;width:27px;padding:0;cursor:pointer}\n.favorite-toggle[aria-pressed=true]{background:#e5ffb8;color:#377000}\n.management-report{width:min(1200px,96vw);max-height:90dvh;border:0;border-radius:18px;padding:24px;color:#153c2b;background:#f7fcf9}\n.management-report::backdrop{background:#082f22aa}.report-toolbar{position:sticky;top:-24px;background:#f7fcf9;padding:10px 0;border-bottom:1px solid #dce9e2}\n.report-toolbar button:last-child{margin-left:auto}.report-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:20px 0}\n.report-summary>div{padding:14px;border-radius:12px;background:#e6f3ec;font-size:12px}.report-summary b{display:block;font-size:24px;margin-top:8px}\n.report-method{font-size:12px;line-height:1.5;color:#60796f}.report-table-wrap{overflow:auto}.management-report table{border-collapse:collapse;width:100%;font-size:12px}.management-report td,.management-report th{text-align:left;border-bottom:1px solid #dce9e2;padding:12px;min-width:90px}.management-report td:last-child{min-width:220px}.management-report li{margin:12px 0}\n@media(max-width:560px){.personal-heading{align-items:stretch;flex-direction:column}.personal-controls button{flex:1 1 120px}.personal-views>*{flex:1 1 130px}.report-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.management-report{padding:16px}.report-toolbar{top:-16px}.report-summary b{font-size:20px}}\n");
 
 const indexJs = `
 const grid=document.getElementById('eventGrid');
@@ -1069,22 +1093,31 @@ const scopeButtons=[...document.querySelectorAll('[data-scope]')];
 const channelButtons=[...document.querySelectorAll('[data-channel-filter]')];
 let scope='top';
 let channel='communication';
+let personal=null;
 const plural=n=>{const d=n%10,h=n%100;return h>=11&&h<=14?'опросов':d===1?'опрос':d>=2&&d<=4?'опроса':'опросов'};
 function update(){
   const query=search.value.trim().toLowerCase();
   const scoped=cards.filter(card=>scope==='top'?card.dataset.top==='true':card.dataset.hasData==='true');
   channelButtons.forEach(button=>{button.querySelector('[data-channel-count]').textContent=scoped.filter(card=>card.dataset.channel===button.dataset.channelFilter).length});
-  let visible=scoped.filter(card=>card.dataset.channel===channel&&(!query||card.dataset.search.includes(query))&&(planFilter.value==='all'||card.dataset.planStatus===planFilter.value));
+  let visible=scoped.filter(card=>card.dataset.channel===channel&&(!personal||personal.allows(card))&&(!query||card.dataset.search.includes(query))&&(planFilter.value==='all'||card.dataset.planStatus===planFilter.value));
   const key=sort.value;
   visible.sort((a,b)=>key==='top'?Number(a.dataset.rank)-Number(b.dataset.rank):key==='id'?Number(a.dataset.id)-Number(b.dataset.id):key==='change'?Number(b.dataset.change)-Number(a.dataset.change):Number(b.dataset.latest)-Number(a.dataset.latest));
   cards.forEach(card=>card.hidden=true);
   visible.forEach(card=>{card.hidden=false;grid.append(card)});
   count.textContent=visible.length+' '+plural(visible.length);
   empty.hidden=visible.length!==0;
+  personal?.changed();
 }
 scopeButtons.forEach(button=>button.addEventListener('click',()=>{scope=button.dataset.scope;scopeButtons.forEach(item=>{item.classList.toggle('active',item===button);item.setAttribute('aria-pressed',String(item===button))});update()}));
 channelButtons.forEach(button=>button.addEventListener('click',()=>{channel=button.dataset.channelFilter;channelButtons.forEach(item=>{item.classList.toggle('active',item===button);item.setAttribute('aria-pressed',String(item===button))});update()}));
 search.addEventListener('input',update);sort.addEventListener('change',update);planFilter.addEventListener('change',update);update();
+personal=window.createEventsWorkspace?.({cards,refresh:update,readFilters:()=>({scope,channel,query:search.value,sort:sort.value,plan:planFilter.value}),applyFilters:filters=>{
+  scope=filters.scope==='all'?'all':'top';channel=filters.channel==='success_screen'?'success_screen':'communication';
+  search.value=typeof filters.query==='string'?filters.query:'';sort.value=['latest','top','id','change'].includes(filters.sort)?filters.sort:'latest';planFilter.value=['all','risk','ontrack'].includes(filters.plan)?filters.plan:'all';
+  scopeButtons.forEach(b=>{b.classList.toggle('active',b.dataset.scope===scope);b.setAttribute('aria-pressed',String(b.dataset.scope===scope));});
+  channelButtons.forEach(b=>{b.classList.toggle('active',b.dataset.channelFilter===channel);b.setAttribute('aria-pressed',String(b.dataset.channelFilter===channel));});
+}})??null;
+update();
 const chartDialog=document.getElementById('chartDialog');
 if(chartDialog){
   const dialogBody=chartDialog.querySelector('.chart-dialog__body');
@@ -1139,6 +1172,7 @@ compareOpen?.addEventListener('click',()=>{
 compareDialog?.querySelector('[data-compare-close]')?.addEventListener('click',()=>compareDialog.close());
 compareDialog?.addEventListener('click',event=>{if(event.target===compareDialog)compareDialog.close()});
 `;
+fs.copyFileSync(path.join(root, 'scripts', 'workspace.js'), path.join(assetsDir, 'workspace.js'));
 fs.writeFileSync(path.join(assetsDir, 'index.js'), indexJs.trim() + '\n');
 
 const attentionJs = `
