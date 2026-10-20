@@ -929,12 +929,12 @@ for (const event of catalogueEvents) {
       <a href="../index.html#catalogue">← Вернуться к списку опросов</a>
       <div id="chartGrid" hidden></div>
     </section>`}
-    <footer><span>event_type_id ${event.id}</span><span>Пропуски по месяцам отображаются как 0</span></footer>
+    <footer><span>event_type_id ${event.id}</span><span>${event.channel === 'success_screen' ? 'Отсутствующие статусы — 0 · CSI без оценок — «—»' : 'Пропуски по месяцам отображаются как 0'}</span></footer>
   </main>
   <div class="chart-tooltip" id="chartTooltip" hidden></div>
   <script>window.EVENT_DATA=${JSON.stringify(eventPayload)};</script>
   <script src="../assets/events-list.js"></script>
-  <script src="../assets/dashboard.js?v=20261020-2"></script>
+  <script src="../assets/dashboard.js?v=20261020-3"></script>
 </body>
 </html>`;
   fs.writeFileSync(path.join(eventsDir, `${event.id}.html`), page);
@@ -1128,7 +1128,10 @@ function renderChart(status){
   const isCsi=status.isCsi===true;
   const max=isCsi?5:niceMax(Math.max(...status.values));
   const points=status.values.map((value,index)=>[pad.left+(index/(status.values.length-1))*plotW,pad.top+plotH-(value/max)*plotH]);
-  const line=smoothPath(points),area=line+' L'+points.at(-1)[0]+','+(pad.top+plotH)+' L'+points[0][0]+','+(pad.top+plotH)+' Z';
+  const segments=[[]];
+  points.forEach((point,index)=>{if(status.values[index]===null){if(segments.at(-1).length)segments.push([])}else segments.at(-1).push(point)});
+  const validSegments=segments.filter(segment=>segment.length);
+  const line=validSegments.map(smoothPath).join(' '),area=validSegments.map(segment=>smoothPath(segment)+' L'+segment.at(-1)[0]+','+(pad.top+plotH)+' L'+segment[0][0]+','+(pad.top+plotH)+' Z').join(' ');
   const isQaResponse=status.isQaResponse===true;
   const displayCode=status.displayCode??status.code;
   const displayDescription=status.displayDescription??status.description;
@@ -1143,10 +1146,10 @@ function renderChart(status){
     return '<g class="comparison-overlay"><g class="comparison-legend"><line class="comparison-send" x1="'+pad.left+'" y1="24" x2="'+(pad.left+22)+'" y2="24"/><text x="'+(pad.left+28)+'" y="27">Отправки</text><line class="comparison-response" x1="'+(pad.left+105)+'" y1="24" x2="'+(pad.left+127)+'" y2="24"/><text x="'+(pad.left+133)+'" y="27">Ответы</text><text class="comparison-note" x="'+(width-pad.right)+'" y="27" text-anchor="end">сравнительный фон · нормировано</text></g><path class="comparison-send" d="'+overlayPath(communicationStatus.values)+'"/><path class="comparison-response" d="'+overlayPath(responses)+'"/></g>';
   })():'';
   const valueLabel=value=>isCsi?value.toFixed(2).replace('.',','):compact.format(value);
-  const pointEls=points.map((point,index)=>{const labelY=Math.max(point[1]-(isQaResponse?20:12),16);const rate=isQaResponse&&status.rates[index]!==null?status.rates[index].toFixed(1).replace('.',',')+'%':null;return '<g><circle class="chart-point" data-index="'+index+'" cx="'+point[0]+'" cy="'+point[1]+'" r="4" fill="'+color+'"/><text class="point-label" x="'+point[0]+'" y="'+labelY+'" text-anchor="middle"><tspan x="'+point[0]+'">'+valueLabel(status.values[index])+'</tspan>'+(rate?'<tspan class="point-label__rate" x="'+point[0]+'" dy="11">'+rate+'</tspan>':'')+'</text></g>'}).join('');
+  const pointEls=points.map((point,index)=>{if(status.values[index]===null)return '';const labelY=Math.max(point[1]-(isQaResponse?20:12),16);const rate=isQaResponse&&status.rates[index]!==null?status.rates[index].toFixed(1).replace('.',',')+'%':null;return '<g><circle class="chart-point" data-index="'+index+'" cx="'+point[0]+'" cy="'+point[1]+'" r="4" fill="'+color+'"/><text class="point-label" x="'+point[0]+'" y="'+labelY+'" text-anchor="middle"><tspan x="'+point[0]+'">'+valueLabel(status.values[index])+'</tspan>'+(rate?'<tspan class="point-label__rate" x="'+point[0]+'" dy="11">'+rate+'</tspan>':'')+'</text></g>'}).join('');
   const rows=data.months.map((month,index)=>'<tr><td>'+month+'</td><td>'+(isCsi&&status.sourceValues?.[index]===null?'—':isCsi?status.values[index].toFixed(3).replace('.',','):nf.format(status.values[index]))+'</td>'+(hasQa?'<td>'+(status.qaValues[index]===null?'—':nf.format(status.qaValues[index]))+'</td><td>'+(status.qaValues[index]===null||!status.values[index]?'—':(status.qaValues[index]/status.values[index]*100).toFixed(1).replace('.',',')+'%')+'</td>':'')+'</tr>').join('');
   const card=document.createElement('article');card.className='chart-card';
-  card.innerHTML='<header class="chart-card__header"><span class="status-chip">'+displayCode+'</span><div class="chart-card__title"><h3>'+displayDescription+'</h3><p>'+(isCsi?'Средняя оценка клиентской удовлетворённости · шкала 1–5':isQaResponse?'Количество полученных ответов · подпись точки содержит отклик':hasQa?'Линия — отправки · столбцы — ответы и отклик':'Статус '+status.code+' · сравнение с основными бизнес-метриками')+'</p></div><div class="chart-card__actions"><div class="chart-card__latest"><b>'+(isCsi?status.latest.toFixed(2).replace('.',','):nf.format(status.latest))+'</b><small>'+data.months.at(-1)+'</small></div><button class="chart-card__expand" type="button" aria-label="Развернуть график на весь экран" title="Развернуть на весь экран">⛶ <span>Развернуть</span></button></div></header><div class="chart-wrap"><svg class="status-chart" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="Динамика: '+displayDescription+'">'+ticks+months+qaBars+'<path class="chart-area" d="'+area+'" fill="'+color+'"/><path class="chart-line" d="'+line+'" stroke="'+color+'"/>'+comparisonOverlay+pointEls+'</svg></div><details class="data-table"><summary>Показать таблицу значений</summary><table><thead><tr><th>Месяц</th><th>'+(isCsi?'CSI':isQaResponse?'Ответы':'Отправки')+'</th>'+(hasQa?'<th>Ответы</th><th>Отклик</th>':'')+'</tr></thead><tbody>'+rows+'</tbody></table></details>';
+  card.innerHTML='<header class="chart-card__header"><span class="status-chip">'+displayCode+'</span><div class="chart-card__title"><h3>'+displayDescription+'</h3><p>'+(isCsi?'Средняя оценка клиентской удовлетворённости · шкала 1–5':isQaResponse?'Количество полученных ответов · подпись точки содержит отклик':hasQa?'Линия — отправки · столбцы — ответы и отклик':'Статус '+status.code+' · сравнение с основными бизнес-метриками')+'</p></div><div class="chart-card__actions"><div class="chart-card__latest"><b>'+(isCsi?(status.latest===null?'—':status.latest.toFixed(2).replace('.',',')):nf.format(status.latest))+'</b><small>'+data.months.at(-1)+'</small></div><button class="chart-card__expand" type="button" aria-label="Развернуть график на весь экран" title="Развернуть на весь экран">⛶ <span>Развернуть</span></button></div></header><div class="chart-wrap"><svg class="status-chart" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="Динамика: '+displayDescription+'">'+ticks+months+qaBars+'<path class="chart-area" d="'+area+'" fill="'+color+'"/><path class="chart-line" d="'+line+'" stroke="'+color+'"/>'+comparisonOverlay+pointEls+'</svg></div><details class="data-table"><summary>Показать таблицу значений</summary><table><thead><tr><th>Месяц</th><th>'+(isCsi?'CSI':isQaResponse?'Ответы':'Отправки')+'</th>'+(hasQa?'<th>Ответы</th><th>Отклик</th>':'')+'</tr></thead><tbody>'+rows+'</tbody></table></details>';
   const expandButton=card.querySelector('.chart-card__expand');
   expandButton.addEventListener('click',async()=>{
     if(document.fullscreenElement===card){await document.exitFullscreen();return}
@@ -1170,7 +1173,7 @@ if(data.channel==='success_screen'){
   });
   const csiValues=data.csiValues;
   const csiCard=renderChart({code:0,displayCode:'ЭУ · CSI',displayDescription:'Динамика CSI экрана успеха',values:csiValues,sourceValues:csiValues,latest:csiValues.at(-1),isCsi:true});
-  csiCard.querySelector('.chart-card__title p').textContent='Среднее по cnt · Σ(cnt × csi) / Σ(cnt) · оценки 1–5, без нулевых CSI';
+  csiCard.querySelector('.chart-card__title p').textContent='Среднее по cnt · Σ(cnt × csi) / Σ(cnt) · оценки 1–5, без нулевых CSI'+(csiValues.at(-1)===null?' · За текущий месяц оценки отсутствуют':'');
   chartGrid.append(csiCard);
 }
 if(primaryStatus){
