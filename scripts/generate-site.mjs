@@ -600,7 +600,7 @@ function businessFunnel(group, width = 960, compact = false) {
   </div>`;
 }
 
-function baseHead(title, description, relative = '', styleVersion = '14') {
+function baseHead(title, description, relative = '', styleVersion = '15') {
   return `<!doctype html>
 <html lang="ru">
 <head>
@@ -652,7 +652,7 @@ function renderEventCard(event) {
     ? responsesRemaining > 0 && currentResponseRate <= 0
       ? '<div class="action-recommendation action-recommendation--warning"><span class="action-recommendation__label">Недостаточно данных для расчёта</span><p>Нет отправок или ответов за текущий период. Проверьте загрузку данных, затем система рассчитает необходимый темп коммуникаций.</p></div>'
       : responsesRemaining > 0
-      ? `<div class="action-recommendation"><span class="action-recommendation__label">Рекомендуемое действие</span><p>Чтобы выполнить план, необходимо отправлять <b>${numberFormat.format(requiredDailySends)} коммуникаций в день</b> — на <b>${numberFormat.format(sendsIncrease)} больше текущего темпа</b>. При сохранении отклика <b>${latestResponseRatePercent.toFixed(1).replace('.', ',')}%</b> план будет выполнен ${monthEndDay} ${monthName(latestMonth, 'genitive')}.</p></div>${sendPace}`
+      ? `<div class="action-recommendation"><span class="action-recommendation__label">Рекомендуемое действие</span><dl class="action-steps"><div><dt>Отправлять в рабочий день</dt><dd>${numberFormat.format(requiredDailySends)} коммуникаций</dd></div><div><dt>Прибавка к текущему темпу</dt><dd>${sendsIncrease > 0 ? '+' + numberFormat.format(sendsIncrease) + ' в день' : 'Увеличение не требуется'}</dd></div><div><dt>При сохранении отклика</dt><dd>${latestResponseRatePercent.toFixed(1).replace('.', ',')}%</dd></div><div><dt>Расчётное выполнение плана</dt><dd>${monthEndDay} ${monthName(latestMonth, 'genitive')}</dd></div></dl></div>${sendPace}`
       : '<div class="plan-complete">✓ План выполнен — дополнительное увеличение отправок не требуется</div>'
     : '';
   const changeClass = event.change === null ? 'neutral' : event.change >= 0 ? 'up' : 'down';
@@ -762,7 +762,7 @@ const criticalIssueRows = criticalIssues.map((issue, index) => {
 
 function segmentDashboard({ file, eyebrow, title, description, group, totals }) {
   const segmentCards = group.map(renderEventCard).join('\n');
-  return `${baseHead(`${title} — дашборд`, description, '', '14')}
+  return `${baseHead(`${title} — дашборд`, description, '', '15')}
 <body class="overview-page segment-page">
   <header class="site-header">
     <a class="brand" href="index.html" aria-label="Главная"><span class="brand__mark"><i></i><i></i><i></i></span><span><b>Events</b><small>status monitor</small></span></a>
@@ -800,7 +800,7 @@ const managementRows = catalogueEvents.map(event => {
   return {id:event.id,name:plan?.name || 'Опрос ' + event.id,channel:event.channel === 'success_screen' ? 'Экраны успеха' : 'Пуш и смс',answers,plan:plan?.plan ?? null,forecast,csi:validCsi(csiValue)?csiValue:null,delta:validCsi(csiValue)&&validCsi(previousCsi)?csiValue-previousCsi:null,action};
 });
 const managementData = {period:'1.'+latestMonthNumber+' — '+currentDataDay+'.'+latestMonthNumber+'.2026',issueIds:[...new Set(criticalIssues.map(issue=>issue.event.id))],rows:managementRows};
-const indexHtml = `${baseHead('Дашборд статусов событий', 'Помесячная аналитика событий по event_type_id и status_det.', '', '14')}
+const indexHtml = `${baseHead('Дашборд статусов событий', 'Помесячная аналитика событий по event_type_id и status_det.', '', '15')}
 <body class="overview-page">
   <header class="site-header">
     <a class="brand" href="index.html" aria-label="Главная">
@@ -882,7 +882,7 @@ const indexHtml = `${baseHead('Дашборд статусов событий', 
 
 fs.writeFileSync(path.join(dist, 'index.html'), indexHtml);
 
-const attentionHtml = `${baseHead('Требуют внимания — Events', 'Центр критических отклонений и управленческих уведомлений.', '', '14')}
+const attentionHtml = `${baseHead('Требуют внимания — Events', 'Центр критических отклонений и управленческих уведомлений.', '', '15')}
 <body class="overview-page attention-page">
   <header class="site-header"><a class="brand" href="index.html"><span><b>Events</b><small>status monitor</small></span></a><a class="period-pill" href="index.html">← Все опросы</a></header>
   <main>
@@ -1083,6 +1083,30 @@ body{background:radial-gradient(circle at 8% 7%,rgba(33,160,56,.16),transparent 
 .chart-dialog.is-card-view .plan-rings .plan-ring{width:96px;flex-basis:96px}
 .chart-dialog.is-card-view .plan-rings .plan-ring b{font-size:21px}
 @media(max-width:380px){.plan-rings{gap:4px}.plan-rings .plan-ring{width:66px;flex-basis:66px}.chart-dialog.is-card-view .plan-rings .plan-ring{width:76px;flex-basis:76px}}
+
+/* Readable card metrics: the accent is a border outside the content area. */
+.event-card.is-top{height:1100px;min-height:1100px}
+.event-card .event-funnel__step:before{display:none}
+.event-card .event-funnel__step{border-left:3px solid #3aad7a}
+.event-card.is-top .event-funnel__step,.chart-dialog.is-card-view .event-card.is-top .event-funnel__step{padding:10px 8px;gap:6px}
+.event-card .event-funnel__step>span{padding-left:0;font-size:11px}
+.event-card .event-funnel__step>span small{font-size:8px;line-height:1.35}
+.event-card.is-top .event-funnel__step>em{flex-wrap:wrap;white-space:normal;row-gap:3px}
+.event-card.is-top .event-funnel__step>em small,.event-card.is-top .event-funnel .historical-csi>em small{font-size:8px}
+.action-recommendation__label{font-size:10px;line-height:1.4}
+.action-recommendation p{font-size:11px;line-height:1.5}
+.action-steps{display:grid;gap:9px;margin:10px 0 0}
+.action-steps>div{padding-top:8px;border-top:1px solid rgba(8,82,50,.1)}
+.action-steps dt{font-size:10px;line-height:1.4;color:#486759}
+.action-steps dd{margin:3px 0 0;font-size:13px;line-height:1.35;font-weight:800;color:#073b25;overflow-wrap:anywhere}
+.event-card .send-pace__label,.event-card .send-pace__unit,.event-card .send-pace__note{font-size:9px;line-height:1.4}
+.event-card .response-plan-head span,.event-card .response-plan-head small{font-size:9px;line-height:1.35}
+.chart-dialog.is-card-view .action-recommendation__label{font-size:12px}
+.chart-dialog.is-card-view .action-steps{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 18px}
+.chart-dialog.is-card-view .action-steps dt{font-size:12px}
+.chart-dialog.is-card-view .action-steps dd{font-size:16px}
+.chart-dialog.is-card-view .action-recommendation p{font-size:14px}
+@media(max-width:380px){.chart-dialog.is-card-view .action-steps{grid-template-columns:1fr}}
 `;
 fs.writeFileSync(path.join(assetsDir, 'styles.css'), styles.trim() + '\n' + "\n.personal-workspace{padding:18px;border:1px solid #c8e5d5;border-radius:18px;background:rgba(255,255,255,.65);margin:22px 0 16px}\n.personal-heading,.personal-controls,.personal-views,.report-toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap}\n.personal-heading{justify-content:space-between;margin-bottom:12px}.personal-heading b{color:#0b5338}\n.personal-workspace button,.personal-workspace input,.personal-workspace select,.report-toolbar button{font:inherit;font-size:12px;padding:10px 12px;border:1px solid #c9dfd3;border-radius:10px;background:#f6fcf8;color:#14583c}\n.personal-workspace button,.report-toolbar button{cursor:pointer;font-weight:750}.personal-workspace button.active{background:#0b6843;color:white}\n.personal-views{margin-top:12px}.personal-views input,.personal-views select{min-width:0;max-width:100%}.personal-workspace>small{display:block;font-size:10px;color:#60796f;margin-top:10px}\n.favorite-toggle{border:0;border-radius:8px;background:#e8f5ee;color:#0b6843;font-size:20px;line-height:26px;width:27px;padding:0;cursor:pointer}\n.favorite-toggle[aria-pressed=true]{background:#e5ffb8;color:#377000}\n.management-report{width:min(1200px,96vw);max-height:90dvh;border:0;border-radius:18px;padding:24px;color:#153c2b;background:#f7fcf9}\n.management-report::backdrop{background:#082f22aa}.report-toolbar{position:sticky;top:-24px;background:#f7fcf9;padding:10px 0;border-bottom:1px solid #dce9e2}\n.report-toolbar button:last-child{margin-left:auto}.report-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:20px 0}\n.report-summary>div{padding:14px;border-radius:12px;background:#e6f3ec;font-size:12px}.report-summary b{display:block;font-size:24px;margin-top:8px}\n.report-method{font-size:12px;line-height:1.5;color:#60796f}.report-table-wrap{overflow:auto}.management-report table{border-collapse:collapse;width:100%;font-size:12px}.management-report td,.management-report th{text-align:left;border-bottom:1px solid #dce9e2;padding:12px;min-width:90px}.management-report td:last-child{min-width:220px}.management-report li{margin:12px 0}\n@media(max-width:560px){.personal-heading{align-items:stretch;flex-direction:column}.personal-controls button{flex:1 1 120px}.personal-views>*{flex:1 1 130px}.report-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.management-report{padding:16px}.report-toolbar{top:-16px}.report-summary b{font-size:20px}}\n");
 
