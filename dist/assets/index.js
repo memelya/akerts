@@ -69,6 +69,7 @@ compareClear?.addEventListener('click',()=>{selected.clear();syncCompare()});
 compareOpen?.addEventListener('click',()=>{
   const rows=cards.filter(card=>selected.has(card.dataset.id)).map(card=>'<tr><td>#'+card.dataset.id+'</td><td>'+fmt(card.dataset.events)+'</td><td>'+fmt(card.dataset.sends)+'</td><td>'+fmt(card.dataset.responses)+'</td><td>'+Number(card.dataset.rate||0).toFixed(1).replace('.',',')+'%</td><td>'+(card.dataset.csi?Number(card.dataset.csi).toFixed(2).replace('.',','):'—')+'</td><td>'+(card.dataset.planProgress?Number(card.dataset.planProgress).toFixed(1).replace('.',',')+'%':'—')+'</td><td>'+(Number(card.dataset.change)>-999999?(Number(card.dataset.change)>=0?'↑ ':'↓ ')+Math.abs(Number(card.dataset.change)).toFixed(1).replace('.',',')+'%':'—')+'</td></tr>').join('');
   compareTable.innerHTML=rows;compareDialog.showModal();
+  [...compareTable.rows].forEach(row=>{const id=row.cells[0].textContent.slice(1);if(cards.find(card=>card.dataset.id===id)?.dataset.channel==='success_screen'){row.cells[0].textContent+=' · ЭУ';row.cells[2].textContent='—';row.cells[4].textContent='—';}});
 });
 compareDialog?.querySelector('[data-compare-close]')?.addEventListener('click',()=>compareDialog.close());
 compareDialog?.addEventListener('click',event=>{if(event.target===compareDialog)compareDialog.close()});

@@ -176,8 +176,32 @@ const events = [...grouped.entries()]
   })
   .sort((a, b) => a.id - b.id);
 
+// Экраны успеха хранятся отдельно: mp_status не является status_det.
+const successScreenRows = [];
+const successScreenPath = path.join(dataDir, 'success-screen.csv');
+if (fs.existsSync(successScreenPath)) {
+  const lines = fs.readFileSync(successScreenPath, 'utf8').trim().split(/\r?\n/).slice(1);
+  for (const line of lines) {
+    const match = line.match(/^(\d{4}-\d{2}),(\d+),([A-Z_]+),(\d+),(\d+),(?:"([\d,]+)"|([\d.]+))$/);
+    if (!match || !monthIndex.has(match[1])) throw new Error(`Некорректная строка ЭУ: ${line}`);
+    successScreenRows.push({ month: match[1], eventTypeId: Number(match[2]), channel: 'success_screen', statusModel: 'mp_status', status: match[3], count: Number(match[4]), qaCount: Number(match[5]), csi: Number((match[6] || match[7]).replace(',', '.')) });
+  }
+  for (const id of new Set(successScreenRows.map(row => row.eventTypeId))) {
+    if (events.some(event => event.id === id)) throw new Error(`Опрос ${id} уже имеет status_det: требуется явное разделение каналов`);
+    const channelRows = successScreenRows.filter(row => row.eventTypeId === id);
+    const sumByMonth = (field, source = channelRows) => months.map(month => source.filter(row => row.month === month).reduce((sum, row) => sum + row[field], 0));
+    const statuses = [...new Set(channelRows.map(row => row.status))].map(code => {
+      const source = channelRows.filter(row => row.status === code);
+      const values = sumByMonth('count', source);
+      return { code, description: code, values, qaValues: sumByMonth('qaCount', source), csiValues: months.map(month => source.find(row => row.month === month)?.csi ?? null), total: values.reduce((a,b) => a+b,0), latest: values.at(-1) };
+    });
+    const totals = sumByMonth('count');
+    const responseTotals = sumByMonth('qaCount');
+    events.push({ id, channel: 'success_screen', channelLabel: 'ЭУ — экран успеха', statusModel: 'mp_status', hasData: true, isTop: topSurveySet.has(id), topRank: topSurveyRank.get(id), statuses, totals, responseTotals, latest: totals.at(-1), previous: totals.at(-2), change: null, communicated: 0, communicationShare: 0 });
+  }
+}
 const missingTopEvents = topSurveyIds
-  .filter((id) => !grouped.has(id))
+  .filter((id) => !events.some(event => event.id === id))
   .map((id) => ({
     id,
     hasData: false,
@@ -195,11 +219,12 @@ const catalogueEvents = [...events, ...missingTopEvents];
 
 const dataset = {
   months,
-  rowCount: rows.length,
+  rowCount: rows.length + successScreenRows.length,
+  channels: { success_screen: { label: 'ЭУ — экран успеха', statusModel: 'mp_status', source: 'success-screen.csv', responseAggregation: 'sum(qa_cnt) across mp_status' } },
   statusDescriptions,
   topSurveyIds,
   missingTopSurveyIds: missingTopEvents.map((event) => event.id),
-  events: events.map(({ id, statuses, totals }) => ({ id, statuses, totals }))
+  events: events.map(({ id, statuses, totals, channel, statusModel, responseTotals }) => ({ id, statuses, totals, channel: channel || 'communication', statusModel: statusModel || 'status_det', responseTotals }))
 };
 
 fs.writeFileSync(path.join(dataDir, 'events.json'), JSON.stringify(dataset));
@@ -586,7 +611,8 @@ function renderEventCard(event) {
   const planMeta = surveyPlans.get(event.id);
   const communicationStatus = event.statuses.find((status) => status.code === 0);
   const responseValues = communicationStatus?.qaValues?.map((value) => value ?? 0) || months.map(() => 0);
-  const monitorsResponses = event.isTop && Boolean(planMeta);
+  const isSuccessScreen = event.channel === 'success_screen';
+  const monitorsResponses = event.isTop && Boolean(planMeta) && !isSuccessScreen;
   const primaryValues = monitorsResponses ? responseValues : event.totals;
   const primaryLatest = primaryValues.at(-1) || 0;
   const planProgress = monitorsResponses && planMeta.plan ? (primaryLatest / planMeta.plan) * 100 : null;
@@ -621,7 +647,7 @@ function renderEventCard(event) {
   const eventAlerts = buildEventAlerts(event);
   const alertUps = eventAlerts.filter((alert) => alert.direction === 'up').length;
   const alertDowns = eventAlerts.length - alertUps;
-  const searchText = `event ${event.id} ${planMeta?.name || ''} ${planMeta?.type || ''} ${event.statuses.map((status) => `${status.code} ${status.description}`).join(' ')}`;
+  const searchText = `event ${event.id} ${planMeta?.name || ''} ${planMeta?.type || ''} ${event.channelLabel || ''} ${event.statuses.map((status) => `${status.code} ${status.description}`).join(' ')}`;
   const cardTrend = !event.hasData
     ? '<small>нет данных</small><b class="trend neutral">—</b>'
     : isLatestComparisonExcluded
@@ -629,7 +655,7 @@ function renderEventCard(event) {
       : `<small>к ${months.at(-2)}</small><b class="trend ${changeClass}">${percent(event.change)}</b>`;
   const lastFullIndex = months.findIndex((month) => month === excludedComparisonToMonth) - 1;
   const priorFullIndex = lastFullIndex - 1;
-  const funnelMetrics = event.hasData && lastFullIndex > 0 ? [
+  const funnelMetrics = !isSuccessScreen && event.hasData && lastFullIndex > 0 ? [
     { label: 'События', current: event.totals[lastFullIndex] || 0, previous: event.totals[priorFullIndex] || 0, share: 100 },
     { label: 'Отправки', current: communicationStatus?.values[lastFullIndex] || 0, previous: communicationStatus?.values[priorFullIndex] || 0, share: event.totals[lastFullIndex] ? ((communicationStatus?.values[lastFullIndex] || 0) / event.totals[lastFullIndex]) * 100 : 0 },
     { label: 'Ответы', current: communicationStatus?.qaValues?.[lastFullIndex] || 0, previous: communicationStatus?.qaValues?.[priorFullIndex] || 0, share: communicationStatus?.values[lastFullIndex] ? ((communicationStatus?.qaValues?.[lastFullIndex] || 0) / communicationStatus.values[lastFullIndex]) * 100 : 0 }
@@ -646,12 +672,13 @@ function renderEventCard(event) {
       return `<div class="event-funnel__step event-funnel__step--${index + 1}"><span>${metric.label}<small>${shareLabel}</small></span><b>${compactNumber(metric.current)}</b><em class="${direction}"><span>${changeLabel}</span><small>к ${funnelComparisonName}</small></em></div>`;
     }).join('')}
   </div>` : '';
-  return `<a class="event-card${event.isTop ? ' is-top' : ''}${event.hasData ? '' : ' is-missing'}" href="events/${event.id}.html" data-id="${event.id}" data-top="${event.isTop}" data-rank="${event.topRank}" data-has-data="${event.hasData}" data-latest="${primaryLatest}" data-change="${event.change ?? -999999}" data-events="${event.totals.at(-1) || 0}" data-sends="${latestSends}" data-responses="${primaryLatest}" data-rate="${latestResponseRatePercent.toFixed(2)}" data-csi="${latestCsi ?? ''}" data-plan-progress="${planProgress ?? ''}" data-plan-status="${monitorsResponses ? (planRisk ? 'risk' : 'ontrack') : 'none'}" data-search="${esc(searchText.toLowerCase())}">
+  return `<a class="event-card${event.isTop ? ' is-top' : ''}${event.hasData ? '' : ' is-missing'}" href="events/${event.id}.html" data-id="${event.id}" data-channel="${event.channel || 'communication'}" data-top="${event.isTop}" data-rank="${event.topRank}" data-has-data="${event.hasData}" data-latest="${primaryLatest}" data-change="${event.change ?? -999999}" data-events="${event.totals.at(-1) || 0}" data-sends="${latestSends}" data-responses="${event.responseTotals?.at(-1) ?? primaryLatest}" data-rate="${latestResponseRatePercent.toFixed(2)}" data-csi="${latestCsi ?? ''}" data-plan-progress="${planProgress ?? ''}" data-plan-status="${monitorsResponses ? (planRisk ? 'risk' : 'ontrack') : 'none'}" data-search="${esc(searchText.toLowerCase())}">
     <div class="event-card__top"><span class="event-id">${event.isTop ? '<small class="top-badge">ТОП</small>' : ''}#${event.id}${planMeta ? `<span class="survey-inline"><b>${esc(planMeta.name)}</b><i>${esc(planMeta.type)}</i></span>` : ''}</span><span class="card-actions">${monitorsResponses ? '<button class="card-expand" type="button" aria-label="Открыть карточку крупнее" title="Открыть крупнее">⛶</button>' : `<span class="trend-block">${cardTrend}</span>`}</span></div>
     ${planMeta ? `<div class="survey-identity"><span>Текущий период</span><strong>1.${latestMonthNumber} — ${currentDataDay}.${latestMonthNumber}</strong></div>` : ''}
+${isSuccessScreen ? `<div class="plan-progress"><div class="action-title">ЭУ — экран успеха</div><p>Баннер со звёздами в интерфейсе приложения или сайта. Статусная модель: mp_status.</p><p><b>${numberFormat.format(event.responseTotals.at(-1))}</b> ответов за ${monthName(latestMonth, 'long')}</p><small>Ответы — сумма qa_cnt по всем mp_status.</small></div>` : ''}
 ${monitorsResponses ? '' : miniSpark(primaryValues, months, 180, 66, 'событий')}
     ${monitorsResponses ? `${planStatus}<div class="response-plan-head"><div><span>План ответов на месяц</span><b>${numberFormat.format(planMeta.plan)}</b><small>целевой объём</small></div><div><span>Получено ответов</span><b>${numberFormat.format(primaryLatest)}</b><small>за ${monthName(latestMonth, 'long')}</small></div><div class="${planRisk ? 'is-deficit' : 'is-on-track'}"><span>Осталось собрать</span><b>${numberFormat.format(responsesRemaining)}</b><small>ответов</small></div></div><div class="plan-progress"><div class="action-title">Рекомендации, выраженные в действиях</div>${planPace}</div>` : `<div class="event-card__value${!event.hasData ? ' event-card__value--missing' : ''}">${!event.hasData ? 'Нет данных' : numberFormat.format(primaryLatest)}</div>${event.hasData ? `<div class="event-card__value-label">Сумма событий за ${latestMonth}</div>` : ''}`}
-    ${funnel}
+${funnel}
     <button class="compare-pick" type="button" aria-label="Добавить опрос ${event.id} к сравнению" aria-pressed="false">＋ Сравнить</button>
     <div class="event-card__meta"><span>${event.hasData ? `${eventAlerts.length} алертов · ↓${alertDowns} ↑${alertUps}` : 'алертов нет'}</span><span>${event.hasData ? latestMonth : '—'}</span></div>
   </a>`;
@@ -663,7 +690,7 @@ const topEvents = catalogueEvents.filter((event) => event.isTop);
 const otherEvents = catalogueEvents.filter((event) => event.hasData && !event.isTop);
 const sumGroup = (group) => months.map((_, index) => group.reduce((sum, event) => sum + (event.totals[index] || 0), 0));
 const sumStatusZero = (group) => months.map((_, index) => group.reduce((sum, event) => sum + (event.statuses.find((status) => status.code === 0)?.values[index] || 0), 0));
-const sumResponses = (group) => months.map((_, index) => group.reduce((sum, event) => sum + (event.statuses.find((status) => status.code === 0)?.qaValues?.[index] || 0), 0));
+const sumResponses = (group) => months.map((_, index) => group.reduce((sum, event) => sum + (event.responseTotals?.[index] ?? event.statuses.find((status) => status.code === 0)?.qaValues?.[index] ?? 0), 0));
 const topTotals = sumGroup(topEvents);
 const otherTotals = sumGroup(otherEvents);
 const overviewSeries = (group) => [
@@ -675,6 +702,7 @@ const topAlertCount = topEvents.reduce((sum, event) => sum + buildEventAlerts(ev
 const otherAlertCount = otherEvents.reduce((sum, event) => sum + buildEventAlerts(event).length, 0);
 
 function buildCriticalIssues(event) {
+  if (event.channel === 'success_screen') return [];
   const issues = [];
   const lastFullMonthIndex = months.findIndex((month) => month === excludedComparisonToMonth) - 1;
   const planMeta = surveyPlans.get(event.id);
@@ -798,7 +826,7 @@ const indexHtml = `${baseHead('Дашборд статусов событий', 
   <div class="compare-bar" id="compareBar" hidden><span>Выбрано: <b id="compareCount">0</b></span><button id="compareOpen" type="button" disabled>Сравнить показатели</button><button id="compareClear" type="button">Очистить</button></div>
   <dialog class="compare-dialog" id="compareDialog"><header><div><span class="eyebrow">СРАВНЕНИЕ</span><h2>Опросы и подразделения</h2></div><button type="button" data-compare-close aria-label="Закрыть">×</button></header><div class="compare-table-wrap"><table><thead><tr><th>Опрос</th><th>События</th><th>Отправки</th><th>Ответы</th><th>Отклик</th><th>CSI</th><th>План</th><th>Динамика</th></tr></thead><tbody id="compareTable"></tbody></table></div></dialog>
   <footer><span>Источник: предоставленная агрегированная выборка</span><span>Пропуски по месяцам отображаются как 0</span></footer>
-  <script src="assets/index.js?v=20261019-3"></script>
+  <script src="assets/index.js?v=20261020-1"></script>
 </body>
 </html>`;
 
@@ -833,6 +861,9 @@ fs.writeFileSync(path.join(assetsDir, 'events-list.js'), `window.EVENT_LIST=${JS
 for (const event of catalogueEvents) {
   const changeClass = event.change === null ? 'neutral' : event.change >= 0 ? 'up' : 'down';
   const eventPayload = {
+    channel: event.channel || 'communication',
+    statusModel: event.statusModel || 'status_det',
+    responseTotals: event.responseTotals,
     id: event.id,
     hasData: event.hasData,
     isTop: event.isTop,
@@ -869,19 +900,19 @@ for (const event of catalogueEvents) {
       <div>
         <p class="eyebrow">EVENT_TYPE_ID ${event.isTop ? '<span class="top-survey-label">ТОП ОПРОС</span>' : ''}</p>
         <h1>${event.id}</h1>
-        <p>${event.hasData ? 'Детальная динамика обработки по каждому статусу.' : 'Отдельная страница приоритетного опроса.'}</p>
+        <p>${event.channel === 'success_screen' ? 'ЭУ — экран успеха · баннер со звёздами в UI приложений и сайтов. Статусная модель mp_status.' : event.hasData ? 'Детальная динамика обработки по каждому статусу.' : 'Отдельная страница приоритетного опроса.'}</p>
       </div>
       <div class="hero-stamp"><span>${event.hasData ? 'АКТУАЛЬНЫЙ ПЕРИОД' : 'СТАТУС ДАННЫХ'}</span><b>${event.hasData ? latestMonth : 'Нет строк'}</b><small>${event.hasData ? `${numberFormat.format(event.latest)} событий` : 'в исходной выборке'}</small></div>
     </section>
     ${event.hasData ? `<section class="kpi-grid" aria-label="Показатели события">
       <article><span>Сумма событий за ${latestMonth}</span><b>${numberFormat.format(event.latest)}</b><small>сумма всех событий</small></article>
       <article><span>Изменение суммы событий к ${months.at(-2)}</span><b class="neutral">Не считается</b><small>${latestMonth} — неполный месяц</small></article>
-      <article><span>Коммуникации</span><b>${numberFormat.format(event.communicated)}</b><small>${event.communicationShare.toFixed(1).replace('.', ',')}% от объёма</small></article>
-      <article><span>CSI</span><b>${event.statuses.find((status) => status.code === 0)?.csiValues?.at(-1)?.toFixed(2).replace('.', ',') ?? '—'}</b><small>средняя оценка за ${latestMonth}</small></article>
+      <article><span>${event.channel === 'success_screen' ? 'Ответы ЭУ' : 'Коммуникации'}</span><b>${numberFormat.format(event.responseTotals?.at(-1) ?? event.communicated)}</b><small>${event.channel === 'success_screen' ? 'сумма qa_cnt по всем mp_status' : `${event.communicationShare.toFixed(1).replace('.', ',')}% от объёма`}</small></article>
+      <article><span>CSI</span><b>${event.channel === 'success_screen' ? 'По статусам' : event.statuses.find((status) => status.code === 0)?.csiValues?.at(-1)?.toFixed(2).replace('.', ',') ?? '—'}</b><small>${event.channel === 'success_screen' ? 'сохранён отдельно для каждого mp_status' : `средняя оценка за ${latestMonth}`}</small></article>
     </section>` : ''}
     ${renderAlertPanel(event)}
     ${event.hasData ? `<section class="chart-section" id="charts">
-      <div class="section-heading section-heading--charts"><div><p class="eyebrow">STATUS_DET</p><h2>Кривые изменения</h2></div><span>${event.statuses.length + (event.statuses.some((status) => status.code === 0 && status.qaValues?.some((value) => value !== null)) ? 1 : 0) + (event.statuses.some((status) => status.code === 0 && status.csiValues?.some((value) => value !== null)) ? 1 : 0)} отдельных графиков</span></div>
+      <div class="section-heading section-heading--charts"><div><p class="eyebrow">${event.statusModel || 'STATUS_DET'}</p><h2>Кривые изменения</h2>${event.channel === 'success_screen' ? '<p>Все события — сумма cnt по всем mp_status. Ответы — сумма qa_cnt по всем mp_status.</p>' : ''}</div><span>${event.channel === 'success_screen' ? 2 : event.statuses.length + (event.statuses.some((status) => status.code === 0 && status.qaValues?.some((value) => value !== null)) ? 1 : 0) + (event.statuses.some((status) => status.code === 0 && status.csiValues?.some((value) => value !== null)) ? 1 : 0)} отдельных графиков</span></div>
       <div class="chart-grid" id="chartGrid" aria-live="polite"></div>
     </section>` : `<section class="missing-survey" id="charts">
       <span class="missing-survey__mark">#${event.id}</span>
@@ -896,7 +927,7 @@ for (const event of catalogueEvents) {
   <div class="chart-tooltip" id="chartTooltip" hidden></div>
   <script>window.EVENT_DATA=${JSON.stringify(eventPayload)};</script>
   <script src="../assets/events-list.js"></script>
-  <script src="../assets/dashboard.js?v=20261019-6"></script>
+  <script src="../assets/dashboard.js?v=20261020-1"></script>
 </body>
 </html>`;
   fs.writeFileSync(path.join(eventsDir, `${event.id}.html`), page);
@@ -1047,6 +1078,7 @@ compareClear?.addEventListener('click',()=>{selected.clear();syncCompare()});
 compareOpen?.addEventListener('click',()=>{
   const rows=cards.filter(card=>selected.has(card.dataset.id)).map(card=>'<tr><td>#'+card.dataset.id+'</td><td>'+fmt(card.dataset.events)+'</td><td>'+fmt(card.dataset.sends)+'</td><td>'+fmt(card.dataset.responses)+'</td><td>'+Number(card.dataset.rate||0).toFixed(1).replace('.',',')+'%</td><td>'+(card.dataset.csi?Number(card.dataset.csi).toFixed(2).replace('.',','):'—')+'</td><td>'+(card.dataset.planProgress?Number(card.dataset.planProgress).toFixed(1).replace('.',',')+'%':'—')+'</td><td>'+(Number(card.dataset.change)>-999999?(Number(card.dataset.change)>=0?'↑ ':'↓ ')+Math.abs(Number(card.dataset.change)).toFixed(1).replace('.',',')+'%':'—')+'</td></tr>').join('');
   compareTable.innerHTML=rows;compareDialog.showModal();
+  [...compareTable.rows].forEach(row=>{const id=row.cells[0].textContent.slice(1);if(cards.find(card=>card.dataset.id===id)?.dataset.channel==='success_screen'){row.cells[0].textContent+=' · ЭУ';row.cells[2].textContent='—';row.cells[4].textContent='—';}});
 });
 compareDialog?.querySelector('[data-compare-close]')?.addEventListener('click',()=>compareDialog.close());
 compareDialog?.addEventListener('click',event=>{if(event.target===compareDialog)compareDialog.close()});
@@ -1122,6 +1154,14 @@ function renderChart(status){
 }
 const chartGrid=document.getElementById('chartGrid');
 const primaryStatus=data.statuses.find(status=>status.code===0);
+if(data.channel==='success_screen'){
+  chartGrid.append(renderChart({code:0,displayCode:'ЭУ · ВСЕ',displayDescription:'Все события экрана успеха · сумма cnt по mp_status',values:data.totals,latest:data.totals.at(-1)}));
+  chartGrid.append(renderChart({code:0,displayCode:'ЭУ · ОТВЕТЫ',displayDescription:'Ответы экрана успеха · сумма qa_cnt по mp_status',values:data.responseTotals,latest:data.responseTotals.at(-1),isQaResponse:true,rates:data.months.map(()=>null)}));
+  chartGrid.querySelectorAll('.chart-card').forEach((card,index)=>{
+    card.querySelector('.chart-card__title p').textContent=index?'Сумма qa_cnt по всем mp_status · помесячно':'Сумма cnt по всем mp_status · помесячно';
+    card.querySelector('thead th:nth-child(2)').textContent=index?'Ответы':'Все события';
+  });
+}
 if(primaryStatus){
   chartGrid.append(renderChart(primaryStatus));
   if(Array.isArray(primaryStatus.qaValues)){
@@ -1137,7 +1177,7 @@ if(primaryStatus){
   }
 }
 data.statuses
-  .filter(status=>status.code!==0)
+  .filter(status=>data.channel!=='success_screen'&&status.code!==0)
   .sort((a,b)=>b.values.reduce((sum,value)=>sum+(value||0),0)-a.values.reduce((sum,value)=>sum+(value||0),0))
   .forEach(status=>chartGrid.append(renderChart(status)));
 const alertFilterButtons=[...document.querySelectorAll('[data-alert-filter]')];
@@ -1158,7 +1198,7 @@ updateAlertFilters();
 fs.writeFileSync(path.join(assetsDir, 'dashboard.js'), dashboardJs.trim() + '\n');
 
 console.log(JSON.stringify({
-  rows: rows.length,
+  rows: rows.length + successScreenRows.length,
   eventsWithData: events.length,
   eventPages: catalogueEvents.length,
   topSurveys: topSurveyIds.length,

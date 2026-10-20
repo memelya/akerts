@@ -50,6 +50,14 @@ function renderChart(status){
 }
 const chartGrid=document.getElementById('chartGrid');
 const primaryStatus=data.statuses.find(status=>status.code===0);
+if(data.channel==='success_screen'){
+  chartGrid.append(renderChart({code:0,displayCode:'ЭУ · ВСЕ',displayDescription:'Все события экрана успеха · сумма cnt по mp_status',values:data.totals,latest:data.totals.at(-1)}));
+  chartGrid.append(renderChart({code:0,displayCode:'ЭУ · ОТВЕТЫ',displayDescription:'Ответы экрана успеха · сумма qa_cnt по mp_status',values:data.responseTotals,latest:data.responseTotals.at(-1),isQaResponse:true,rates:data.months.map(()=>null)}));
+  chartGrid.querySelectorAll('.chart-card').forEach((card,index)=>{
+    card.querySelector('.chart-card__title p').textContent=index?'Сумма qa_cnt по всем mp_status · помесячно':'Сумма cnt по всем mp_status · помесячно';
+    card.querySelector('thead th:nth-child(2)').textContent=index?'Ответы':'Все события';
+  });
+}
 if(primaryStatus){
   chartGrid.append(renderChart(primaryStatus));
   if(Array.isArray(primaryStatus.qaValues)){
@@ -65,7 +73,7 @@ if(primaryStatus){
   }
 }
 data.statuses
-  .filter(status=>status.code!==0)
+  .filter(status=>data.channel!=='success_screen'&&status.code!==0)
   .sort((a,b)=>b.values.reduce((sum,value)=>sum+(value||0),0)-a.values.reduce((sum,value)=>sum+(value||0),0))
   .forEach(status=>chartGrid.append(renderChart(status)));
 const alertFilterButtons=[...document.querySelectorAll('[data-alert-filter]')];
