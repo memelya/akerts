@@ -197,7 +197,12 @@ if (fs.existsSync(successScreenPath)) {
     });
     const totals = sumByMonth('count');
     const responseTotals = sumByMonth('qaCount');
-    events.push({ id, channel: 'success_screen', channelLabel: 'ЭУ — экран успеха', statusModel: 'mp_status', hasData: true, isTop: topSurveySet.has(id), topRank: topSurveyRank.get(id) ?? Number.MAX_SAFE_INTEGER, statuses, totals, responseTotals, latest: totals.at(-1), previous: totals.at(-2), change: null, communicated: 0, communicationShare: 0 });
+    // Пользователь задал вес cnt. Нулевая CSI означает отсутствие оценки,
+    // поэтому её cnt не включается ни в числитель, ни в знаменатель.
+    const csiRows = channelRows.filter(row => row.count > 0 && Number.isFinite(row.csi) && row.csi >= 1 && row.csi <= 5);
+    const csiWeights = sumByMonth('count', csiRows);
+    const csiValues = months.map((month, index) => csiWeights[index] ? csiRows.filter(row => row.month === month).reduce((sum, row) => sum + row.count * row.csi, 0) / csiWeights[index] : null);
+    events.push({ id, channel: 'success_screen', channelLabel: 'ЭУ — экран успеха', statusModel: 'mp_status', hasData: true, isTop: topSurveySet.has(id), topRank: topSurveyRank.get(id) ?? Number.MAX_SAFE_INTEGER, statuses, totals, responseTotals, csiValues, csiWeights, latest: totals.at(-1), previous: totals.at(-2), change: null, communicated: 0, communicationShare: 0 });
   }
 }
 const missingTopEvents = topSurveyIds
@@ -220,11 +225,11 @@ const catalogueEvents = [...events, ...missingTopEvents];
 const dataset = {
   months,
   rowCount: rows.length + successScreenRows.length,
-  channels: { success_screen: { label: 'ЭУ — экран успеха', statusModel: 'mp_status', source: 'success-screen.csv', responseAggregation: 'sum(qa_cnt) across mp_status' } },
+  channels: { success_screen: { label: 'ЭУ — экран успеха', statusModel: 'mp_status', source: 'success-screen.csv', responseAggregation: 'sum(qa_cnt) across mp_status', csiAggregation: 'sum(cnt * csi) / sum(cnt), rows with cnt > 0 and 1 <= csi <= 5 only' } },
   statusDescriptions,
   topSurveyIds,
   missingTopSurveyIds: missingTopEvents.map((event) => event.id),
-  events: events.map(({ id, statuses, totals, channel, statusModel, responseTotals }) => ({ id, statuses, totals, channel: channel || 'communication', statusModel: statusModel || 'status_det', responseTotals }))
+  events: events.map(({ id, statuses, totals, channel, statusModel, responseTotals, csiValues, csiWeights }) => ({ id, statuses, totals, channel: channel || 'communication', statusModel: statusModel || 'status_det', responseTotals, csiValues, csiWeights }))
 };
 
 fs.writeFileSync(path.join(dataDir, 'events.json'), JSON.stringify(dataset));
@@ -629,7 +634,7 @@ function renderEventCard(event) {
   const sendsIncrease = Math.max(0, requiredDailySends - currentDailySends);
   const sendsIncreasePercent = currentDailySends > 0 ? (sendsIncrease / currentDailySends) * 100 : 0;
   const planRisk = responsesRemaining > 0 && (currentResponseRate <= 0 || sendsIncrease > 0);
-  const latestCsi = communicationStatus?.csiValues?.at(-1) ?? null;
+  const latestCsi = event.csiValues?.at(-1) ?? communicationStatus?.csiValues?.at(-1) ?? null;
   const latestResponseRatePercent = latestSends > 0 ? (primaryLatest / latestSends) * 100 : 0;
   const planStatus = monitorsResponses ? `<div class="plan-status"><div class="plan-rings"><div class="plan-ring plan-ring--period" style="--progress:${Math.min(periodPlanProgress, 100).toFixed(1)}%" title="${numberFormat.format(primaryLatest)} ответов из ${numberFormat.format(Math.round(periodPlanTarget))} по плану за прошедшие ${elapsedBusinessDays} ${businessDayWord(elapsedBusinessDays)}"><div><b>${periodPlanProgress.toFixed(1).replace('.', ',')}%</b><span>план за<br>период</span></div></div><div class="plan-ring" style="--progress:${Math.min(planProgress, 100).toFixed(1)}%"><div><b>${planProgress.toFixed(1).replace('.', ',')}%</b><span>план<br>месяца</span></div></div></div><div class="plan-status__message ${planRisk ? 'is-risk' : 'is-ok'}"><b>${planRisk ? '⚠ План в риске' : '✓ План выполняется'}</b><span>${planRisk ? `Нужно увеличить темп отправок на ${sendsIncreasePercent.toFixed(1).replace('.', ',')}%, чтобы выполнить план.` : 'Текущего темпа отправок достаточно для выполнения плана.'}</span></div></div>` : '';
   const sendPace = responsesRemaining > 0 && remainingBusinessDays > 0
@@ -675,7 +680,7 @@ function renderEventCard(event) {
   return `<a class="event-card${event.isTop ? ' is-top' : ''}${event.hasData ? '' : ' is-missing'}" href="events/${event.id}.html" data-id="${event.id}" data-channel="${event.channel || 'communication'}" data-top="${event.isTop}" data-rank="${event.topRank}" data-has-data="${event.hasData}" data-latest="${primaryLatest}" data-change="${event.change ?? -999999}" data-events="${event.totals.at(-1) || 0}" data-sends="${latestSends}" data-responses="${event.responseTotals?.at(-1) ?? primaryLatest}" data-rate="${latestResponseRatePercent.toFixed(2)}" data-csi="${latestCsi ?? ''}" data-plan-progress="${planProgress ?? ''}" data-plan-status="${monitorsResponses ? (planRisk ? 'risk' : 'ontrack') : 'none'}" data-search="${esc(searchText.toLowerCase())}">
     <div class="event-card__top"><span class="event-id">${event.isTop ? '<small class="top-badge">ТОП</small>' : ''}#${event.id}${planMeta ? `<span class="survey-inline"><b>${esc(planMeta.name)}</b><i>${esc(planMeta.type)}</i></span>` : ''}</span><span class="card-actions">${monitorsResponses ? '<button class="card-expand" type="button" aria-label="Открыть карточку крупнее" title="Открыть крупнее">⛶</button>' : `<span class="trend-block">${cardTrend}</span>`}</span></div>
 ${planMeta ? `<div class="survey-identity"><span>Текущий период</span><strong>1.${latestMonthNumber} — ${currentDataDay}.${latestMonthNumber}</strong></div>` : ''}
-${isSuccessScreen ? `<div class="plan-progress"><div class="action-title">ЭУ — экран успеха</div><p>Баннер со звёздами в интерфейсе приложения или сайта. Статусная модель: mp_status.</p><p><b>${numberFormat.format(event.responseTotals.at(-1))}</b> ответов за ${monthName(latestMonth, 'long')}</p><small>Ответы — сумма qa_cnt по всем mp_status.</small></div>` : ''}
+${isSuccessScreen ? `<div class="plan-progress"><div class="action-title">ЭУ — экран успеха</div><p>Баннер со звёздами в интерфейсе приложения или сайта. Статусная модель: mp_status.</p><p><b>${numberFormat.format(event.responseTotals.at(-1))}</b> ответов за ${monthName(latestMonth, 'long')}</p><p>CSI: <b>${latestCsi?.toFixed(2).replace('.', ',') ?? '—'}</b> из 5 · взвешен по cnt</p><small>Ответы — сумма qa_cnt по всем mp_status.</small></div>` : ''}
 ${monitorsResponses ? '' : miniSpark(primaryValues, months, 180, 66, 'событий')}
     ${monitorsResponses ? `${planStatus}<div class="response-plan-head"><div><span>План ответов на месяц</span><b>${numberFormat.format(planMeta.plan)}</b><small>целевой объём</small></div><div><span>Получено ответов</span><b>${numberFormat.format(primaryLatest)}</b><small>за ${monthName(latestMonth, 'long')}</small></div><div class="${planRisk ? 'is-deficit' : 'is-on-track'}"><span>Осталось собрать</span><b>${numberFormat.format(responsesRemaining)}</b><small>ответов</small></div></div><div class="plan-progress"><div class="action-title">Рекомендации, выраженные в действиях</div>${planPace}</div>` : `<div class="event-card__value${!event.hasData ? ' event-card__value--missing' : ''}">${!event.hasData ? 'Нет данных' : numberFormat.format(primaryLatest)}</div>${event.hasData ? `<div class="event-card__value-label">Сумма событий за ${latestMonth}</div>` : ''}`}
 ${funnel}
@@ -861,6 +866,8 @@ fs.writeFileSync(path.join(assetsDir, 'events-list.js'), `window.EVENT_LIST=${JS
 for (const event of catalogueEvents) {
   const changeClass = event.change === null ? 'neutral' : event.change >= 0 ? 'up' : 'down';
   const eventPayload = {
+    csiValues: event.csiValues,
+    csiWeights: event.csiWeights,
     channel: event.channel || 'communication',
     statusModel: event.statusModel || 'status_det',
     responseTotals: event.responseTotals,
@@ -908,11 +915,11 @@ for (const event of catalogueEvents) {
       <article><span>Сумма событий за ${latestMonth}</span><b>${numberFormat.format(event.latest)}</b><small>сумма всех событий</small></article>
       <article><span>Изменение суммы событий к ${months.at(-2)}</span><b class="neutral">Не считается</b><small>${latestMonth} — неполный месяц</small></article>
       <article><span>${event.channel === 'success_screen' ? 'Ответы ЭУ' : 'Коммуникации'}</span><b>${numberFormat.format(event.responseTotals?.at(-1) ?? event.communicated)}</b><small>${event.channel === 'success_screen' ? 'сумма qa_cnt по всем mp_status' : `${event.communicationShare.toFixed(1).replace('.', ',')}% от объёма`}</small></article>
-      <article><span>CSI</span><b>${event.channel === 'success_screen' ? 'По статусам' : event.statuses.find((status) => status.code === 0)?.csiValues?.at(-1)?.toFixed(2).replace('.', ',') ?? '—'}</b><small>${event.channel === 'success_screen' ? 'сохранён отдельно для каждого mp_status' : `средняя оценка за ${latestMonth}`}</small></article>
+      <article><span>CSI</span><b>${(event.csiValues?.at(-1) ?? event.statuses.find((status) => status.code === 0)?.csiValues?.at(-1))?.toFixed(2).replace('.', ',') ?? '—'}</b><small>${event.channel === 'success_screen' ? 'среднее по cnt · без нулевых оценок' : `средняя оценка за ${latestMonth}`}</small></article>
     </section>` : ''}
     ${renderAlertPanel(event)}
     ${event.hasData ? `<section class="chart-section" id="charts">
-      <div class="section-heading section-heading--charts"><div><p class="eyebrow">${event.statusModel || 'STATUS_DET'}</p><h2>Кривые изменения</h2>${event.channel === 'success_screen' ? '<p>Все события — сумма cnt по всем mp_status. Ответы — сумма qa_cnt по всем mp_status.</p>' : ''}</div><span>${event.channel === 'success_screen' ? 2 : event.statuses.length + (event.statuses.some((status) => status.code === 0 && status.qaValues?.some((value) => value !== null)) ? 1 : 0) + (event.statuses.some((status) => status.code === 0 && status.csiValues?.some((value) => value !== null)) ? 1 : 0)} отдельных графиков</span></div>
+      <div class="section-heading section-heading--charts"><div><p class="eyebrow">${event.statusModel || 'STATUS_DET'}</p><h2>Кривые изменения</h2>${event.channel === 'success_screen' ? '<p>Все события — сумма cnt по всем mp_status. Ответы — сумма qa_cnt по всем mp_status. CSI — среднее с весами cnt, без нулевых оценок.</p>' : ''}</div><span>${event.channel === 'success_screen' ? 3 : event.statuses.length + (event.statuses.some((status) => status.code === 0 && status.qaValues?.some((value) => value !== null)) ? 1 : 0) + (event.statuses.some((status) => status.code === 0 && status.csiValues?.some((value) => value !== null)) ? 1 : 0)} отдельных графиков</span></div>
       <div class="chart-grid" id="chartGrid" aria-live="polite"></div>
     </section>` : `<section class="missing-survey" id="charts">
       <span class="missing-survey__mark">#${event.id}</span>
@@ -927,7 +934,7 @@ for (const event of catalogueEvents) {
   <div class="chart-tooltip" id="chartTooltip" hidden></div>
   <script>window.EVENT_DATA=${JSON.stringify(eventPayload)};</script>
   <script src="../assets/events-list.js"></script>
-  <script src="../assets/dashboard.js?v=20261020-1"></script>
+  <script src="../assets/dashboard.js?v=20261020-2"></script>
 </body>
 </html>`;
   fs.writeFileSync(path.join(eventsDir, `${event.id}.html`), page);
@@ -1161,6 +1168,10 @@ if(data.channel==='success_screen'){
     card.querySelector('.chart-card__title p').textContent=index?'Сумма qa_cnt по всем mp_status · помесячно':'Сумма cnt по всем mp_status · помесячно';
     card.querySelector('thead th:nth-child(2)').textContent=index?'Ответы':'Все события';
   });
+  const csiValues=data.csiValues;
+  const csiCard=renderChart({code:0,displayCode:'ЭУ · CSI',displayDescription:'Динамика CSI экрана успеха',values:csiValues,sourceValues:csiValues,latest:csiValues.at(-1),isCsi:true});
+  csiCard.querySelector('.chart-card__title p').textContent='Среднее по cnt · Σ(cnt × csi) / Σ(cnt) · оценки 1–5, без нулевых CSI';
+  chartGrid.append(csiCard);
 }
 if(primaryStatus){
   chartGrid.append(renderChart(primaryStatus));
