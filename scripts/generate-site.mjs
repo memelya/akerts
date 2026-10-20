@@ -772,7 +772,7 @@ function segmentDashboard({ file, eyebrow, title, description, group, totals }) 
 </body></html>`;
 }
 
-const indexHtml = `${baseHead('Дашборд статусов событий', 'Помесячная аналитика событий по event_type_id и status_det.', '', '9')}
+const indexHtml = `${baseHead('Дашборд статусов событий', 'Помесячная аналитика событий по event_type_id и status_det.', '', '10')}
 <body class="overview-page">
   <header class="site-header">
     <a class="brand" href="index.html" aria-label="Главная">
@@ -813,11 +813,18 @@ const indexHtml = `${baseHead('Дашборд статусов событий', 
     <section class="catalogue" id="catalogue">
       <div class="section-heading">
         <div><p class="eyebrow">КАТАЛОГ</p><h2>Выберите опрос</h2></div>
-        <span id="resultCount">${topSurveyIds.length} топ-опросов</span>
+        <span id="resultCount">${topEvents.filter(event => event.channel !== 'success_screen').length} опросов</span>
       </div>
       <div class="scope-toggle" role="group" aria-label="Состав списка">
-        <button class="active" type="button" data-scope="top">Топ опросы <span>${topSurveyIds.length}</span></button>
-        <button type="button" data-scope="all">Все опросы <span>${events.length}</span></button>
+        <button class="active" type="button" data-scope="top" aria-pressed="true">Топ опросы <span>${topSurveyIds.length}</span></button>
+        <button type="button" data-scope="all" aria-pressed="false">Все опросы <span>${events.length}</span></button>
+      </div>
+      <div class="channel-navigation">
+        <span class="channel-caption">Канал опроса</span>
+        <div class="channel-toggle" role="group" aria-label="Канал опроса">
+          <button class="active" type="button" data-channel-filter="communication" aria-pressed="true">Пуш и смс <span data-channel-count="communication">${topEvents.filter(event => event.channel !== 'success_screen').length}</span></button>
+          <button type="button" data-channel-filter="success_screen" aria-pressed="false">Экраны успеха <span data-channel-count="success_screen">${topEvents.filter(event => event.channel === 'success_screen').length}</span></button>
+        </div>
       </div>
       <div class="catalogue-tools">
         <label class="search-box"><span>⌕</span><input id="eventSearch" type="search" placeholder="Найти ID или статус…" autocomplete="off"></label>
@@ -826,14 +833,14 @@ const indexHtml = `${baseHead('Дашборд статусов событий', 
         <button class="compare-toggle" id="compareToggle" type="button">⇄ Сравнить опросы</button>
       </div>
       <div class="event-grid" id="eventGrid">${cards}</div>
-      <div class="empty-state" id="emptyState" hidden><b>Ничего не найдено</b><span>Попробуйте другой ID или код статуса.</span></div>
+      <div class="empty-state" id="emptyState" hidden><b>Ничего не найдено</b><span>Измените запрос или фильтр либо выберите другой канал опроса.</span></div>
     </section>
   </main>
   <dialog class="chart-dialog" id="chartDialog"><div class="chart-dialog__head"><div><span class="eyebrow"></span><strong></strong></div><button type="button" aria-label="Закрыть увеличенные графики">×</button></div><div class="chart-dialog__body"></div></dialog>
   <div class="compare-bar" id="compareBar" hidden><span>Выбрано: <b id="compareCount">0</b></span><button id="compareOpen" type="button" disabled>Сравнить показатели</button><button id="compareClear" type="button">Очистить</button></div>
   <dialog class="compare-dialog" id="compareDialog"><header><div><span class="eyebrow">СРАВНЕНИЕ</span><h2>Опросы и подразделения</h2></div><button type="button" data-compare-close aria-label="Закрыть">×</button></header><div class="compare-table-wrap"><table><thead><tr><th>Опрос</th><th>События</th><th>Отправки</th><th>Ответы</th><th>Отклик</th><th>CSI</th><th>План</th><th>Динамика</th></tr></thead><tbody id="compareTable"></tbody></table></div></dialog>
   <footer><span>Источник: предоставленная агрегированная выборка</span><span>Пропуски по месяцам отображаются как 0</span></footer>
-  <script src="assets/index.js?v=20261020-1"></script>
+  <script src="assets/index.js?v=20261020-2"></script>
 </body>
 </html>`;
 
@@ -1011,6 +1018,7 @@ body{background:radial-gradient(circle at 8% 7%,rgba(33,160,56,.16),transparent 
 @media(max-width:800px){.overview-hero--main{padding-top:40px}.overview-hero--main .overview-hero__pulse{padding:28px 20px;border-radius:28px}.overview-hero--main .overview-hero__copy{text-align:left}.overview-hero--main .lede{margin-left:0}.overview-hero--main h1{font-size:clamp(40px,11vw,56px);white-space:normal}.dashboard-links{grid-template-columns:1fr}}
 @media(max-width:760px){.attention-link{font-size:0;padding:8px}.attention-link b{font-size:9px}.attention-page main{padding:34px 16px 70px}.attention-hero{align-items:flex-start;flex-direction:column}.attention-total{align-items:flex-start}.rule-grid{grid-template-columns:1fr 1fr}.rule-actions{align-items:stretch;flex-direction:column}.rule-actions span{margin:4px 0 0}.attention-item{grid-template-columns:34px 1fr}.attention-item>a{grid-column:2}.catalogue-tools .compare-toggle{min-height:50px}.compare-bar{width:calc(100% - 24px);bottom:12px;justify-content:center}.compare-bar span{display:none}}
 @media(max-width:460px){.rule-grid{grid-template-columns:1fr}.attention-item{padding:15px 14px}.header-actions{gap:5px}}
+.channel-navigation{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin:0 0 22px}.channel-caption{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}.channel-toggle{display:flex;gap:8px;width:min(440px,100%)}.channel-toggle button{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 12px;border:1px solid rgba(8,118,72,.12);border-radius:12px;background:rgba(255,255,255,.55);color:#60796f;font:inherit;font-size:12px;font-weight:750;cursor:pointer}.channel-toggle button span{flex:none;display:inline-grid;place-items:center;min-width:23px;padding:3px 6px;border-radius:99px;background:rgba(8,82,50,.065);font-size:9px}.channel-toggle button.active{background:#def4e7;border-color:#8fd0ad;color:#075635;box-shadow:inset 0 0 0 1px rgba(8,118,72,.08)}.channel-toggle button.active span{background:#c5eace;color:#075635}.channel-toggle button:focus-visible{outline:2px solid #087c46;outline-offset:3px}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 `;
 fs.writeFileSync(path.join(assetsDir, 'styles.css'), styles.trim() + '\n');
@@ -1024,11 +1032,15 @@ const planFilter=document.getElementById('planFilter');
 const count=document.getElementById('resultCount');
 const empty=document.getElementById('emptyState');
 const scopeButtons=[...document.querySelectorAll('[data-scope]')];
+const channelButtons=[...document.querySelectorAll('[data-channel-filter]')];
 let scope='top';
+let channel='communication';
 const plural=n=>{const d=n%10,h=n%100;return h>=11&&h<=14?'опросов':d===1?'опрос':d>=2&&d<=4?'опроса':'опросов'};
 function update(){
   const query=search.value.trim().toLowerCase();
-  let visible=cards.filter(card=>(scope==='top'?card.dataset.top==='true':card.dataset.hasData==='true')&&(!query||card.dataset.search.includes(query))&&(planFilter.value==='all'||card.dataset.planStatus===planFilter.value));
+  const scoped=cards.filter(card=>scope==='top'?card.dataset.top==='true':card.dataset.hasData==='true');
+  channelButtons.forEach(button=>{button.querySelector('[data-channel-count]').textContent=scoped.filter(card=>card.dataset.channel===button.dataset.channelFilter).length});
+  let visible=scoped.filter(card=>card.dataset.channel===channel&&(!query||card.dataset.search.includes(query))&&(planFilter.value==='all'||card.dataset.planStatus===planFilter.value));
   const key=sort.value;
   visible.sort((a,b)=>key==='top'?Number(a.dataset.rank)-Number(b.dataset.rank):key==='id'?Number(a.dataset.id)-Number(b.dataset.id):key==='change'?Number(b.dataset.change)-Number(a.dataset.change):Number(b.dataset.latest)-Number(a.dataset.latest));
   cards.forEach(card=>card.hidden=true);
@@ -1036,7 +1048,8 @@ function update(){
   count.textContent=visible.length+' '+plural(visible.length);
   empty.hidden=visible.length!==0;
 }
-scopeButtons.forEach(button=>button.addEventListener('click',()=>{scope=button.dataset.scope;scopeButtons.forEach(item=>item.classList.toggle('active',item===button));sort.value='latest';update()}));
+scopeButtons.forEach(button=>button.addEventListener('click',()=>{scope=button.dataset.scope;scopeButtons.forEach(item=>{item.classList.toggle('active',item===button);item.setAttribute('aria-pressed',String(item===button))});update()}));
+channelButtons.forEach(button=>button.addEventListener('click',()=>{channel=button.dataset.channelFilter;channelButtons.forEach(item=>{item.classList.toggle('active',item===button);item.setAttribute('aria-pressed',String(item===button))});update()}));
 search.addEventListener('input',update);sort.addEventListener('change',update);planFilter.addEventListener('change',update);update();
 const chartDialog=document.getElementById('chartDialog');
 if(chartDialog){
