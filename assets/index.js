@@ -6,11 +6,15 @@ const planFilter=document.getElementById('planFilter');
 const count=document.getElementById('resultCount');
 const empty=document.getElementById('emptyState');
 const scopeButtons=[...document.querySelectorAll('[data-scope]')];
+const channelButtons=[...document.querySelectorAll('[data-channel-filter]')];
 let scope='top';
+let channel='communication';
 const plural=n=>{const d=n%10,h=n%100;return h>=11&&h<=14?'опросов':d===1?'опрос':d>=2&&d<=4?'опроса':'опросов'};
 function update(){
   const query=search.value.trim().toLowerCase();
-  let visible=cards.filter(card=>(scope==='top'?card.dataset.top==='true':card.dataset.hasData==='true')&&(!query||card.dataset.search.includes(query))&&(planFilter.value==='all'||card.dataset.planStatus===planFilter.value));
+  const scoped=cards.filter(card=>scope==='top'?card.dataset.top==='true':card.dataset.hasData==='true');
+  channelButtons.forEach(button=>{button.querySelector('[data-channel-count]').textContent=scoped.filter(card=>card.dataset.channel===button.dataset.channelFilter).length});
+  let visible=scoped.filter(card=>card.dataset.channel===channel&&(!query||card.dataset.search.includes(query))&&(planFilter.value==='all'||card.dataset.planStatus===planFilter.value));
   const key=sort.value;
   visible.sort((a,b)=>key==='top'?Number(a.dataset.rank)-Number(b.dataset.rank):key==='id'?Number(a.dataset.id)-Number(b.dataset.id):key==='change'?Number(b.dataset.change)-Number(a.dataset.change):Number(b.dataset.latest)-Number(a.dataset.latest));
   cards.forEach(card=>card.hidden=true);
@@ -18,7 +22,8 @@ function update(){
   count.textContent=visible.length+' '+plural(visible.length);
   empty.hidden=visible.length!==0;
 }
-scopeButtons.forEach(button=>button.addEventListener('click',()=>{scope=button.dataset.scope;scopeButtons.forEach(item=>item.classList.toggle('active',item===button));sort.value='latest';update()}));
+scopeButtons.forEach(button=>button.addEventListener('click',()=>{scope=button.dataset.scope;scopeButtons.forEach(item=>{item.classList.toggle('active',item===button);item.setAttribute('aria-pressed',String(item===button))});update()}));
+channelButtons.forEach(button=>button.addEventListener('click',()=>{channel=button.dataset.channelFilter;channelButtons.forEach(item=>{item.classList.toggle('active',item===button);item.setAttribute('aria-pressed',String(item===button))});update()}));
 search.addEventListener('input',update);sort.addEventListener('change',update);planFilter.addEventListener('change',update);update();
 const chartDialog=document.getElementById('chartDialog');
 if(chartDialog){

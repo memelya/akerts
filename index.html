@@ -6,7 +6,7 @@
   <meta name="description" content="Помесячная аналитика событий по event_type_id и status_det.">
   <meta name="theme-color" content="#11251f">
   <title>Дашборд статусов событий</title>
-  <link rel="stylesheet" href="assets/styles.css?v=20261019-9">
+  <link rel="stylesheet" href="assets/styles.css?v=20261019-10">
 </head>
 <body class="overview-page">
   <header class="site-header">
@@ -93,11 +93,18 @@
     <section class="catalogue" id="catalogue">
       <div class="section-heading">
         <div><p class="eyebrow">КАТАЛОГ</p><h2>Выберите опрос</h2></div>
-        <span id="resultCount">95 топ-опросов</span>
+        <span id="resultCount">80 опросов</span>
       </div>
       <div class="scope-toggle" role="group" aria-label="Состав списка">
-        <button class="active" type="button" data-scope="top">Топ опросы <span>95</span></button>
-        <button type="button" data-scope="all">Все опросы <span>482</span></button>
+        <button class="active" type="button" data-scope="top" aria-pressed="true">Топ опросы <span>95</span></button>
+        <button type="button" data-scope="all" aria-pressed="false">Все опросы <span>482</span></button>
+      </div>
+      <div class="channel-navigation">
+        <span class="channel-caption">Канал опроса</span>
+        <div class="channel-toggle" role="group" aria-label="Канал опроса">
+          <button class="active" type="button" data-channel-filter="communication" aria-pressed="true">Пуш и смс <span data-channel-count="communication">80</span></button>
+          <button type="button" data-channel-filter="success_screen" aria-pressed="false">Экраны успеха <span data-channel-count="success_screen">15</span></button>
+        </div>
       </div>
       <div class="catalogue-tools">
         <label class="search-box"><span>⌕</span><input id="eventSearch" type="search" placeholder="Найти ID или статус…" autocomplete="off"></label>
@@ -6353,13 +6360,13 @@
     <button class="compare-pick" type="button" aria-label="Добавить опрос 543 к сравнению" aria-pressed="false">＋ Сравнить</button>
     <div class="event-card__meta"><span>алертов нет</span><span>—</span></div>
   </a></div>
-      <div class="empty-state" id="emptyState" hidden><b>Ничего не найдено</b><span>Попробуйте другой ID или код статуса.</span></div>
+      <div class="empty-state" id="emptyState" hidden><b>Ничего не найдено</b><span>Измените запрос или фильтр либо выберите другой канал опроса.</span></div>
     </section>
   </main>
   <dialog class="chart-dialog" id="chartDialog"><div class="chart-dialog__head"><div><span class="eyebrow"></span><strong></strong></div><button type="button" aria-label="Закрыть увеличенные графики">×</button></div><div class="chart-dialog__body"></div></dialog>
   <div class="compare-bar" id="compareBar" hidden><span>Выбрано: <b id="compareCount">0</b></span><button id="compareOpen" type="button" disabled>Сравнить показатели</button><button id="compareClear" type="button">Очистить</button></div>
   <dialog class="compare-dialog" id="compareDialog"><header><div><span class="eyebrow">СРАВНЕНИЕ</span><h2>Опросы и подразделения</h2></div><button type="button" data-compare-close aria-label="Закрыть">×</button></header><div class="compare-table-wrap"><table><thead><tr><th>Опрос</th><th>События</th><th>Отправки</th><th>Ответы</th><th>Отклик</th><th>CSI</th><th>План</th><th>Динамика</th></tr></thead><tbody id="compareTable"></tbody></table></div></dialog>
   <footer><span>Источник: предоставленная агрегированная выборка</span><span>Пропуски по месяцам отображаются как 0</span></footer>
-  <script src="assets/index.js?v=20261020-1"></script>
+  <script src="assets/index.js?v=20261020-2"></script>
 </body>
 </html>
