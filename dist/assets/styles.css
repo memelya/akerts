@@ -77,7 +77,12 @@ body{background:radial-gradient(circle at 8% 7%,rgba(33,160,56,.16),transparent 
 .event-card.is-top .event-funnel__step{min-width:0;padding-inline:7px}
 .historical-csi{min-width:0;flex-wrap:wrap}.historical-csi>small{white-space:normal}
 .historical-csi>b{font-size:17px;color:#287d98}.historical-csi>small{margin-left:auto;font-size:8px;color:#60796f;text-align:right}
-.event-card.is-top .event-funnel__step:nth-last-child(2):after{display:none}
+.event-card.is-top .event-funnel__step:after{display:none}
+.event-card.is-top .event-funnel .historical-csi{grid-column:auto;flex-wrap:nowrap;gap:4px}
+.event-card.is-top .event-funnel .historical-csi>b{font-size:14px;color:#287d98}
+.event-card.is-top .event-funnel .historical-csi>em{white-space:normal;flex-wrap:wrap;row-gap:2px}
+.event-card.is-top .event-funnel .historical-csi>em small{font-size:6px}
+.chart-dialog.is-card-view .event-funnel .historical-csi>b{font-size:16px}
 .plan-status,.chart-dialog.is-card-view .plan-status{grid-template-columns:minmax(0,1fr);gap:8px}
 .plan-rings{flex-direction:row;justify-content:space-around;align-items:center;gap:8px}
 .plan-rings .plan-ring{width:72px;flex:0 0 72px}
