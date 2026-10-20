@@ -599,7 +599,7 @@ function businessFunnel(group, width = 960, compact = false) {
   </div>`;
 }
 
-function baseHead(title, description, relative = '', styleVersion = '11') {
+function baseHead(title, description, relative = '', styleVersion = '12') {
   return `<!doctype html>
 <html lang="ru">
 <head>
@@ -640,7 +640,7 @@ function renderEventCard(event) {
   const averageResponses = averageResponseValues.length === 3 ? averageResponseValues.reduce((sum, value) => sum + value, 0) / 3 : null;
   const validLatestCsi = Number.isFinite(latestCsi) && latestCsi >= 1 && latestCsi <= 5 ? latestCsi : null;
   const latestResponseRatePercent = latestSends > 0 ? (primaryLatest / latestSends) * 100 : 0;
-  const planStatus = monitorsResponses ? `<div class="plan-status"><div class="plan-rings"><div class="plan-ring plan-ring--period" style="--progress:${Math.min(periodPlanProgress, 100).toFixed(1)}%" title="${numberFormat.format(primaryLatest)} ответов из ${numberFormat.format(Math.round(periodPlanTarget))} по плану за прошедшие ${elapsedBusinessDays} ${businessDayWord(elapsedBusinessDays)}"><div><b>${periodPlanProgress.toFixed(1).replace('.', ',')}%</b><span>план за<br>период</span></div></div><div class="plan-ring" style="--progress:${Math.min(planProgress, 100).toFixed(1)}%"><div><b>${planProgress.toFixed(1).replace('.', ',')}%</b><span>план<br>месяца</span></div></div><div class="plan-ring plan-ring--csi" style="--progress:${validLatestCsi === null ? 0 : (validLatestCsi / 5 * 100).toFixed(1)}%" title="Текущий CSI за ${esc(monthName(latestMonth, 'long'))}, шкала от 1 до 5"><div><b>${validLatestCsi === null ? '—' : validLatestCsi.toFixed(2).replace('.', ',')}</b><span>CSI за<br>период</span></div></div></div><div class="plan-status__message ${planRisk ? 'is-risk' : 'is-ok'}"><b>${planRisk ? '⚠ План в риске' : '✓ План выполняется'}</b></div></div>` : '';
+  const planStatus = monitorsResponses ? `<div class="plan-status"><div class="plan-rings"><div class="plan-ring plan-ring--period" style="--progress:${Math.min(periodPlanProgress, 100).toFixed(1)}%" title="${numberFormat.format(primaryLatest)} ответов из ${numberFormat.format(Math.round(periodPlanTarget))} по плану за прошедшие ${elapsedBusinessDays} ${businessDayWord(elapsedBusinessDays)}"><div><b>${periodPlanProgress.toFixed(1).replace('.', ',')}%</b><span>план за<br>период</span></div></div><div class="plan-ring" style="--progress:${Math.min(planProgress, 100).toFixed(1)}%"><div><b>${planProgress.toFixed(1).replace('.', ',')}%</b><span>план<br>месяца</span></div></div><div class="plan-ring plan-ring--csi" style="--progress:${validLatestCsi === null ? 0 : (validLatestCsi / 5 * 100).toFixed(1)}%" title="Текущий CSI за ${esc(monthName(latestMonth, 'long'))}, шкала от 1 до 5"><div><b>${validLatestCsi === null ? '—' : validLatestCsi.toFixed(2).replace('.', ',')}</b><span>CSI за<br>период</span></div></div></div><div class="plan-status__message ${planRisk ? 'is-risk' : 'is-ok'}"><b>${planRisk ? '⚠ Под риском месячный план по сбору ответов' : '✓ Месячный план по сбору ответов выполняется'}</b></div></div>` : '';
   const sendPace = responsesRemaining > 0 && remainingBusinessDays > 0
     ? `<div class="send-pace"><div class="send-pace__card"><span class="send-pace__label">Текущий темп</span><b class="send-pace__value">${numberFormat.format(currentDailySends)}</b><span class="send-pace__unit">отправок в день</span><small class="send-pace__note">Отклик — ${(currentResponseRate * 100).toLocaleString('ru-RU', { maximumFractionDigits: 1 })}%</small></div><div class="send-pace__card ${sendsIncrease > 0 ? 'is-risk' : 'is-ok'}"><span class="send-pace__label">Нужный темп</span><b class="send-pace__value">${numberFormat.format(requiredDailySends)}</b><span class="send-pace__unit">отправок в день</span><small class="send-pace__note">${sendsIncrease > 0 ? `↑ на ${numberFormat.format(sendsIncrease)} в день · +${sendsIncreasePercent.toFixed(1).replace('.', ',')}%` : 'Текущего темпа достаточно'}</small></div></div>`
     : '';
@@ -673,6 +673,13 @@ function renderEventCard(event) {
   ] : [];
   const funnelMonthName = monthNamesLong[Number(months[lastFullIndex].slice(5)) - 1];
   const funnelComparisonName = monthNamesDative[Number(months[priorFullIndex].slice(5)) - 1];
+  const historicalCsi = event.csiValues ?? communicationStatus?.csiValues ?? [];
+  const priorCsi = historicalCsi[lastFullIndex];
+  const comparisonCsi = historicalCsi[priorFullIndex];
+  const hasPriorCsi = Number.isFinite(priorCsi) && priorCsi >= 1 && priorCsi <= 5;
+  const hasComparisonCsi = Number.isFinite(comparisonCsi) && comparisonCsi >= 1 && comparisonCsi <= 5;
+  const csiDelta = hasPriorCsi && hasComparisonCsi ? priorCsi - comparisonCsi : null;
+  const historicalCsiBlock = `<div class="historical-csi"><span>CSI <small>из 5</small></span><b>${hasPriorCsi ? priorCsi.toFixed(2).replace('.', ',') : '—'}</b><small>${csiDelta === null ? 'Нет данных для сравнения' : `${csiDelta > 0 ? '+' : ''}${csiDelta.toFixed(2).replace('.', ',')} балла к ${funnelComparisonName}`}</small></div>`;
   const funnel = funnelMetrics.length ? `<div class="event-funnel" aria-label="Данные за прошлый период — ${monthName(months[lastFullIndex], 'long')}; изменения относительно ${monthName(months[priorFullIndex], 'genitive')}">
     <div class="event-funnel__caption"><span>Данные за прошлый период — ${funnelMonthName[0].toUpperCase()}${funnelMonthName.slice(1)}</span></div>
     ${funnelMetrics.map((metric, index) => {
@@ -682,13 +689,14 @@ function renderEventCard(event) {
       const shareLabel = index === 0 ? '100% объёма' : index === 1 ? `${metric.share.toFixed(1).replace('.', ',')}% событий` : `${metric.share.toFixed(1).replace('.', ',')}% отправок`;
       return `<div class="event-funnel__step event-funnel__step--${index + 1}"><span>${metric.label}<small>${shareLabel}</small></span><b>${compactNumber(metric.current)}</b><em class="${direction}"><span>${changeLabel}</span><small>к ${funnelComparisonName}</small></em></div>`;
     }).join('')}
+    ${historicalCsiBlock}
   </div>` : '';
   return `<a class="event-card${event.isTop ? ' is-top' : ''}${event.hasData ? '' : ' is-missing'}" href="events/${event.id}.html" data-id="${event.id}" data-channel="${event.channel || 'communication'}" data-top="${event.isTop}" data-rank="${event.topRank}" data-has-data="${event.hasData}" data-latest="${primaryLatest}" data-change="${event.change ?? -999999}" data-events="${event.totals.at(-1) || 0}" data-sends="${latestSends}" data-responses="${event.responseTotals?.at(-1) ?? primaryLatest}" data-rate="${latestResponseRatePercent.toFixed(2)}" data-csi="${latestCsi ?? ''}" data-plan-progress="${planProgress ?? ''}" data-plan-status="${monitorsResponses ? (planRisk ? 'risk' : 'ontrack') : 'none'}" data-search="${esc(searchText.toLowerCase())}">
     <div class="event-card__top"><span class="event-id">${event.isTop ? '<small class="top-badge">ТОП</small>' : ''}#${event.id}${planMeta ? `<span class="survey-inline"><b>${esc(planMeta.name)}</b><i>${esc(planMeta.type)}</i></span>` : ''}</span><span class="card-actions">${monitorsResponses ? '<button class="card-expand" type="button" aria-label="Открыть карточку крупнее" title="Открыть крупнее">⛶</button>' : `<span class="trend-block">${cardTrend}</span>`}</span></div>
 ${planMeta ? `<div class="survey-identity"><span>Текущий период</span><strong>1.${latestMonthNumber} — ${currentDataDay}.${latestMonthNumber}</strong></div>` : ''}
 ${isSuccessScreen && !monitorsResponses ? `<div class="plan-progress"><div class="action-title">ЭУ — экран успеха</div><p>Баннер со звёздами в интерфейсе приложения или сайта. Статусная модель: mp_status.</p><p><b>${numberFormat.format(event.responseTotals.at(-1))}</b> ответов за ${monthName(latestMonth, 'long')}</p><p>CSI: <b>${latestCsi?.toFixed(2).replace('.', ',') ?? '—'}</b> из 5 · взвешен по cnt</p><small>Ответы — сумма qa_cnt по всем mp_status.</small><div class="action-title">Рекомендации</div><p>Неприменимо для опросов по каналу = экран успеха</p></div>` : ''}
 ${monitorsResponses ? '' : miniSpark(primaryValues, months, 180, 66, 'событий')}
-    ${monitorsResponses ? `${planStatus}<div class="response-plan-head"><div><span>План ответов на месяц</span><b>${numberFormat.format(planMeta.plan)}</b><small>целевой объём</small></div><div><span>Получено ответов</span><b>${numberFormat.format(primaryLatest)}</b><small>за ${monthName(latestMonth, 'long')}</small></div><div class="${planRisk ? 'is-deficit' : 'is-on-track'}"><span>Осталось собрать</span><b>${numberFormat.format(responsesRemaining)}</b><small>ответов</small></div><div class="response-average"><span>Средний факт за 3 месяца</span><b>${averageResponses === null ? '—' : numberFormat.format(Math.round(averageResponses))}</b><small>${averageResponseMonths.map((month) => monthName(month, 'short')).join(' · ')} · ответов в месяц</small></div></div><div class="plan-progress"><div class="action-title">Рекомендации, выраженные в действиях</div>${planPace}</div>` : `<div class="event-card__value${!event.hasData ? ' event-card__value--missing' : ''}">${!event.hasData ? 'Нет данных' : numberFormat.format(primaryLatest)}</div>${event.hasData ? `<div class="event-card__value-label">Сумма событий за ${latestMonth}</div>` : ''}`}
+    ${monitorsResponses ? `${planStatus}<div class="response-plan-head"><div><span>План ответов на месяц</span><b>${numberFormat.format(planMeta.plan)}</b><small>целевой объём</small></div><div class="response-average"><span>Средний факт за 3 месяца</span><b>${averageResponses === null ? '—' : numberFormat.format(Math.round(averageResponses))}</b><small>${averageResponseMonths.map((month) => monthName(month, 'short')).join(' · ')} · ответов в месяц</small></div><div class="${planRisk ? 'is-deficit' : 'is-on-track'}"><span>Осталось собрать</span><b>${numberFormat.format(responsesRemaining)}</b><small>ответов</small></div><div><span>Получено ответов</span><b>${numberFormat.format(primaryLatest)}</b><small>за ${monthName(latestMonth, 'long')}</small></div></div><div class="plan-progress"><div class="action-title">Рекомендации, выраженные в действиях</div>${planPace}</div>` : `<div class="event-card__value${!event.hasData ? ' event-card__value--missing' : ''}">${!event.hasData ? 'Нет данных' : numberFormat.format(primaryLatest)}</div>${event.hasData ? `<div class="event-card__value-label">Сумма событий за ${latestMonth}</div>` : ''}`}
 ${funnel}
     <button class="compare-pick" type="button" aria-label="Добавить опрос ${event.id} к сравнению" aria-pressed="false">＋ Сравнить</button>
     <div class="event-card__meta"><span>${event.hasData ? `${eventAlerts.length} алертов · ↓${alertDowns} ↑${alertUps}` : 'алертов нет'}</span><span>${event.hasData ? latestMonth : '—'}</span></div>
@@ -754,7 +762,7 @@ const criticalIssueRows = criticalIssues.map((issue, index) => {
 
 function segmentDashboard({ file, eyebrow, title, description, group, totals }) {
   const segmentCards = group.map(renderEventCard).join('\n');
-  return `${baseHead(`${title} — дашборд`, description, '', '11')}
+  return `${baseHead(`${title} — дашборд`, description, '', '12')}
 <body class="overview-page segment-page">
   <header class="site-header">
     <a class="brand" href="index.html" aria-label="Главная"><span class="brand__mark"><i></i><i></i><i></i></span><span><b>Events</b><small>status monitor</small></span></a>
@@ -776,7 +784,7 @@ function segmentDashboard({ file, eyebrow, title, description, group, totals }) 
 </body></html>`;
 }
 
-const indexHtml = `${baseHead('Дашборд статусов событий', 'Помесячная аналитика событий по event_type_id и status_det.', '', '11')}
+const indexHtml = `${baseHead('Дашборд статусов событий', 'Помесячная аналитика событий по event_type_id и status_det.', '', '12')}
 <body class="overview-page">
   <header class="site-header">
     <a class="brand" href="index.html" aria-label="Главная">
@@ -850,7 +858,7 @@ const indexHtml = `${baseHead('Дашборд статусов событий', 
 
 fs.writeFileSync(path.join(dist, 'index.html'), indexHtml);
 
-const attentionHtml = `${baseHead('Требуют внимания — Events', 'Центр критических отклонений и управленческих уведомлений.', '', '11')}
+const attentionHtml = `${baseHead('Требуют внимания — Events', 'Центр критических отклонений и управленческих уведомлений.', '', '12')}
 <body class="overview-page attention-page">
   <header class="site-header"><a class="brand" href="index.html"><span><b>Events</b><small>status monitor</small></span></a><a class="period-pill" href="index.html">← Все опросы</a></header>
   <main>
@@ -1026,7 +1034,14 @@ body{background:radial-gradient(circle at 8% 7%,rgba(33,160,56,.16),transparent 
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 
 /* Three compact gauges and a full-width status; historical baseline uses complete months. */
-.event-card.is-top{height:840px;min-height:840px}
+.event-card.is-top{height:900px;min-height:900px}
+.historical-csi{grid-column:1/-1;display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid rgba(8,118,72,.14);border-radius:10px;background:rgba(255,255,255,.62)}
+.historical-csi>span{font-size:10px;font-weight:800}.historical-csi>span small{font-weight:400;color:#638276}
+.event-card.is-top .event-funnel{grid-template-columns:repeat(3,minmax(0,1fr));min-width:0}
+.event-card.is-top .event-funnel__step{min-width:0;padding-inline:7px}
+.historical-csi{min-width:0;flex-wrap:wrap}.historical-csi>small{white-space:normal}
+.historical-csi>b{font-size:17px;color:#287d98}.historical-csi>small{margin-left:auto;font-size:8px;color:#60796f;text-align:right}
+.event-card.is-top .event-funnel__step:nth-last-child(2):after{display:none}
 .plan-status,.chart-dialog.is-card-view .plan-status{grid-template-columns:minmax(0,1fr);gap:8px}
 .plan-rings{flex-direction:row;justify-content:space-around;align-items:center;gap:8px}
 .plan-rings .plan-ring{width:72px;flex:0 0 72px}
