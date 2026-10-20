@@ -582,7 +582,8 @@ function funnelStageChart({ label, kicker, values, labels, colorClass, width = 9
 
 function businessFunnel(group, width = 960, compact = false) {
   const eventValues = sumGroup(group);
-  const sendValues = sumStatusZero(group);
+  const sendValues = months.map((_, index) => group.reduce((sum, event) => sum + (event.channel === 'success_screen' ? event.totals[index] || 0 : event.statuses.find(status => status.code === 0)?.values[index] || 0), 0));
+  const hasSuccessScreens = group.some(event => event.channel === 'success_screen');
   const responseValues = sumResponses(group);
   const eventTotal = eventValues.reduce((sum, value) => sum + value, 0);
   const sendTotal = sendValues.reduce((sum, value) => sum + value, 0);
@@ -592,9 +593,9 @@ function businessFunnel(group, width = 960, compact = false) {
   const stageHeight = compact ? 118 : 148;
   return `<div class="business-funnel${compact ? ' business-funnel--compact' : ''}" aria-label="Бизнес-воронка: события, коммуникации и ответы">
     ${funnelStageChart({ label: 'Полученные события', kicker: '01 · Входящий поток', values: eventValues, labels: months, colorClass: 'events', width, height: stageHeight })}
-    <div class="funnel-connector"><span>↓</span><b>${sendRate.toFixed(1).replace('.', ',')}%</b><small>событий перешли в коммуникацию</small></div>
-    ${funnelStageChart({ label: 'Отправленные коммуникации', kicker: '02 · Доставка ценности', values: sendValues, labels: months, colorClass: 'sends', width, height: stageHeight })}
-    <div class="funnel-connector"><span>↓</span><b>${responseRate.toFixed(1).replace('.', ',')}%</b><small>отправок получили ответ</small></div>
+    <div class="funnel-connector"><span>↓</span><b>${sendRate.toFixed(1).replace('.', ',')}%</b><small>${hasSuccessScreens ? 'коммуникации и события ЭУ от всех событий' : 'событий перешли в коммуникацию'}</small></div>
+    ${funnelStageChart({ label: 'Отправленные коммуникации', kicker: hasSuccessScreens ? '02 · Пуш и SMS + экраны успеха: все статусы' : '02 · Доставка ценности', values: sendValues, labels: months, colorClass: 'sends', width, height: stageHeight })}
+    <div class="funnel-connector"><span>↓</span><b>${responseRate.toFixed(1).replace('.', ',')}%</b><small>${hasSuccessScreens ? 'ответов к сумме коммуникаций и событий ЭУ' : 'отправок получили ответ'}</small></div>
     ${funnelStageChart({ label: 'Полученные ответы', kicker: '03 · Результат контакта', values: responseValues, labels: months, colorClass: 'responses', width, height: stageHeight })}
   </div>`;
 }
