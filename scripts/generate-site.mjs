@@ -182,7 +182,7 @@ const successScreenPath = path.join(dataDir, 'success-screen.csv');
 if (fs.existsSync(successScreenPath)) {
   const lines = fs.readFileSync(successScreenPath, 'utf8').trim().split(/\r?\n/).slice(1);
   for (const line of lines) {
-    const match = line.match(/^(\d{4}-\d{2}),(\d+),([A-Z_]+),(\d+),(\d+),(?:"([\d,]+)"|([\d.]+))$/);
+    const match = line.match(/^(\d{4}-\d{2}),(\d+),([A-Za-z_]+),(\d+),(\d+),(?:"([\d,]+)"|([\d.]+))$/);
     if (!match || !monthIndex.has(match[1])) throw new Error(`Некорректная строка ЭУ: ${line}`);
     successScreenRows.push({ month: match[1], eventTypeId: Number(match[2]), channel: 'success_screen', statusModel: 'mp_status', status: match[3], count: Number(match[4]), qaCount: Number(match[5]), csi: Number((match[6] || match[7]).replace(',', '.')) });
   }
@@ -197,7 +197,7 @@ if (fs.existsSync(successScreenPath)) {
     });
     const totals = sumByMonth('count');
     const responseTotals = sumByMonth('qaCount');
-    events.push({ id, channel: 'success_screen', channelLabel: 'ЭУ — экран успеха', statusModel: 'mp_status', hasData: true, isTop: topSurveySet.has(id), topRank: topSurveyRank.get(id), statuses, totals, responseTotals, latest: totals.at(-1), previous: totals.at(-2), change: null, communicated: 0, communicationShare: 0 });
+    events.push({ id, channel: 'success_screen', channelLabel: 'ЭУ — экран успеха', statusModel: 'mp_status', hasData: true, isTop: topSurveySet.has(id), topRank: topSurveyRank.get(id) ?? Number.MAX_SAFE_INTEGER, statuses, totals, responseTotals, latest: totals.at(-1), previous: totals.at(-2), change: null, communicated: 0, communicationShare: 0 });
   }
 }
 const missingTopEvents = topSurveyIds
@@ -674,7 +674,7 @@ function renderEventCard(event) {
   </div>` : '';
   return `<a class="event-card${event.isTop ? ' is-top' : ''}${event.hasData ? '' : ' is-missing'}" href="events/${event.id}.html" data-id="${event.id}" data-channel="${event.channel || 'communication'}" data-top="${event.isTop}" data-rank="${event.topRank}" data-has-data="${event.hasData}" data-latest="${primaryLatest}" data-change="${event.change ?? -999999}" data-events="${event.totals.at(-1) || 0}" data-sends="${latestSends}" data-responses="${event.responseTotals?.at(-1) ?? primaryLatest}" data-rate="${latestResponseRatePercent.toFixed(2)}" data-csi="${latestCsi ?? ''}" data-plan-progress="${planProgress ?? ''}" data-plan-status="${monitorsResponses ? (planRisk ? 'risk' : 'ontrack') : 'none'}" data-search="${esc(searchText.toLowerCase())}">
     <div class="event-card__top"><span class="event-id">${event.isTop ? '<small class="top-badge">ТОП</small>' : ''}#${event.id}${planMeta ? `<span class="survey-inline"><b>${esc(planMeta.name)}</b><i>${esc(planMeta.type)}</i></span>` : ''}</span><span class="card-actions">${monitorsResponses ? '<button class="card-expand" type="button" aria-label="Открыть карточку крупнее" title="Открыть крупнее">⛶</button>' : `<span class="trend-block">${cardTrend}</span>`}</span></div>
-    ${planMeta ? `<div class="survey-identity"><span>Текущий период</span><strong>1.${latestMonthNumber} — ${currentDataDay}.${latestMonthNumber}</strong></div>` : ''}
+${planMeta ? `<div class="survey-identity"><span>Текущий период</span><strong>1.${latestMonthNumber} — ${currentDataDay}.${latestMonthNumber}</strong></div>` : ''}
 ${isSuccessScreen ? `<div class="plan-progress"><div class="action-title">ЭУ — экран успеха</div><p>Баннер со звёздами в интерфейсе приложения или сайта. Статусная модель: mp_status.</p><p><b>${numberFormat.format(event.responseTotals.at(-1))}</b> ответов за ${monthName(latestMonth, 'long')}</p><small>Ответы — сумма qa_cnt по всем mp_status.</small></div>` : ''}
 ${monitorsResponses ? '' : miniSpark(primaryValues, months, 180, 66, 'событий')}
     ${monitorsResponses ? `${planStatus}<div class="response-plan-head"><div><span>План ответов на месяц</span><b>${numberFormat.format(planMeta.plan)}</b><small>целевой объём</small></div><div><span>Получено ответов</span><b>${numberFormat.format(primaryLatest)}</b><small>за ${monthName(latestMonth, 'long')}</small></div><div class="${planRisk ? 'is-deficit' : 'is-on-track'}"><span>Осталось собрать</span><b>${numberFormat.format(responsesRemaining)}</b><small>ответов</small></div></div><div class="plan-progress"><div class="action-title">Рекомендации, выраженные в действиях</div>${planPace}</div>` : `<div class="event-card__value${!event.hasData ? ' event-card__value--missing' : ''}">${!event.hasData ? 'Нет данных' : numberFormat.format(primaryLatest)}</div>${event.hasData ? `<div class="event-card__value-label">Сумма событий за ${latestMonth}</div>` : ''}`}
