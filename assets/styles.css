@@ -120,6 +120,15 @@ body{background:radial-gradient(circle at 8% 7%,rgba(33,160,56,.16),transparent 
 .chart-dialog.is-card-view .action-recommendation p{font-size:14px}
 @media(max-width:380px){.chart-dialog.is-card-view .action-steps{grid-template-columns:1fr}}
 
+.channel-graph-groups{display:grid;gap:32px}
+.channel-graph-heading{margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.18)}
+.channel-graph-heading h2{font-size:24px;line-height:1.2;margin:0;color:inherit;letter-spacing:-.02em}
+.channel-graph-heading p{font-size:12px;line-height:1.5;margin:8px 0 0;color:inherit;opacity:.8}
+.channel-graph-group+.channel-graph-group{padding-top:28px;border-top:1px solid rgba(255,255,255,.18)}
+.group-dashboard__charts .channel-graph-heading h2{font-size:19px}
+.group-dashboard__charts .channel-graph-heading p{font-size:11px}
+@media(max-width:560px){.channel-graph-heading h2{font-size:21px}.channel-graph-heading p{font-size:11px}.channel-graph-groups{gap:24px}}
+
 .personal-workspace{padding:18px;border:1px solid #c8e5d5;border-radius:18px;background:rgba(255,255,255,.65);margin:22px 0 16px}
 .personal-heading,.personal-controls,.personal-views,.report-toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
 .personal-heading{justify-content:space-between;margin-bottom:12px}.personal-heading b{color:#0b5338}
