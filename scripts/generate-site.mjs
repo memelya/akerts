@@ -604,10 +604,17 @@ function channelGraphs(group, width = 960, compact = false) {
   const communication = group.filter(event => event.channel !== 'success_screen');
   const successScreens = group.filter(event => event.channel === 'success_screen');
   const height = compact ? 118 : 148;
+  const contactPolicyCodes = new Set([1003, 1016, 1017, 1018, 1019, 1020, 1021, 1022, 1023, 1024]);
+  const policyValues = months.map((_, index) => communication.reduce((sum, event) => sum + event.statuses.filter(status => contactPolicyCodes.has(status.code)).reduce((subtotal, status) => subtotal + (status.values[index] || 0), 0), 0));
+  const missingPolicyCodes = [...contactPolicyCodes].filter(code => !communication.some(event => event.statuses.some(status => status.code === code)));
   return `<div class="channel-graph-groups">
     <section class="channel-graph-group" data-graph-channel="communication" aria-label="Общие графики: Пуш и SMS">
       <header class="channel-graph-heading"><h2>Пуш и SMS</h2><p>События, отправленные коммуникации и полученные ответы · ${communication.length} опросов</p></header>
       ${communication.length ? businessFunnel(communication, width, compact) : '<p>Нет данных по этому каналу.</p>'}
+      ${communication.length ? `<div class="contact-policy-chart" data-policy-codes="${[...contactPolicyCodes].join(',')}">
+        ${funnelStageChart({label:'Отсечения по политике контактов',kicker:'04 · Пуш и SMS · политика контактов',values:policyValues,labels:months,colorClass:'sends',width,height})}
+        <p style="font-size:12px;line-height:1.5;opacity:.8">Сумма событий по кодам ${[...contactPolicyCodes].join(', ')}.${missingPolicyCodes.length ? ` Коды ${missingPolicyCodes.join(', ')} отсутствуют в этой выборке и не добавляют объём.` : ''}</p>
+      </div>` : ''}
     </section>
     <section class="channel-graph-group" data-graph-channel="success_screen" aria-label="Общие графики: Экраны успеха">
       <header class="channel-graph-heading"><h2>Экраны успеха</h2><p>Все статусы mp_status · ${successScreens.length} опросов. События — сумма cnt; ответы — сумма qa_cnt.</p></header>
