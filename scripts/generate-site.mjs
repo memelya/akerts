@@ -600,7 +600,26 @@ function businessFunnel(group, width = 960, compact = false) {
   </div>`;
 }
 
-function baseHead(title, description, relative = '', styleVersion = '15') {
+function channelGraphs(group, width = 960, compact = false) {
+  const communication = group.filter(event => event.channel !== 'success_screen');
+  const successScreens = group.filter(event => event.channel === 'success_screen');
+  const height = compact ? 118 : 148;
+  return `<div class="channel-graph-groups">
+    <section class="channel-graph-group" data-graph-channel="communication" aria-label="Общие графики: Пуш и SMS">
+      <header class="channel-graph-heading"><h2>Пуш и SMS</h2><p>События, отправленные коммуникации и полученные ответы · ${communication.length} опросов</p></header>
+      ${communication.length ? businessFunnel(communication, width, compact) : '<p>Нет данных по этому каналу.</p>'}
+    </section>
+    <section class="channel-graph-group" data-graph-channel="success_screen" aria-label="Общие графики: Экраны успеха">
+      <header class="channel-graph-heading"><h2>Экраны успеха</h2><p>Все статусы mp_status · ${successScreens.length} опросов. События — сумма cnt; ответы — сумма qa_cnt.</p></header>
+      ${successScreens.length ? `<div class="business-funnel${compact ? ' business-funnel--compact' : ''}">
+        ${funnelStageChart({label:'Все события экранов успеха',kicker:'01 · Все статусы mp_status',values:sumGroup(successScreens),labels:months,colorClass:'events',width,height})}
+        ${funnelStageChart({label:'Полученные ответы экранов успеха',kicker:'02 · Ответы по всем статусам',values:sumResponses(successScreens),labels:months,colorClass:'responses',width,height})}
+      </div>` : '<p>Нет данных по этому каналу.</p>'}
+    </section>
+  </div>`;
+}
+
+function baseHead(title, description, relative = '', styleVersion = '16') {
   return `<!doctype html>
 <html lang="ru">
 <head>
@@ -762,7 +781,7 @@ const criticalIssueRows = criticalIssues.map((issue, index) => {
 
 function segmentDashboard({ file, eyebrow, title, description, group, totals }) {
   const segmentCards = group.map(renderEventCard).join('\n');
-  return `${baseHead(`${title} — дашборд`, description, '', '15')}
+  return `${baseHead(`${title} — дашборд`, description, '', '16')}
 <body class="overview-page segment-page">
   <header class="site-header">
     <a class="brand" href="index.html" aria-label="Главная"><span class="brand__mark"><i></i><i></i><i></i></span><span><b>Events</b><small>status monitor</small></span></a>
@@ -774,7 +793,7 @@ function segmentDashboard({ file, eyebrow, title, description, group, totals }) 
       <div class="overview-hero__pulse">
         <div class="pulse-header"><span>Сумма событий группы по месяцам</span><span class="trend neutral">сентябрь → октябрь не сравнивается: октябрь неполный</span></div>
         <strong>${numberFormat.format(totals.at(-1))}</strong><span class="pulse-current-label">событий за ${monthName(latestMonth, 'long')}</span>
-        ${businessFunnel(group, 560, true)}
+        ${channelGraphs(group, 560, true)}
       </div>
     </section>
     <section class="metric-strip" aria-label="Сводные показатели"><div><span>Опросов в группе</span><b>${group.length}</b></div><div><span>Месяцев</span><b>${months.length}</b></div></section>
@@ -800,7 +819,7 @@ const managementRows = catalogueEvents.map(event => {
   return {id:event.id,name:plan?.name || 'Опрос ' + event.id,channel:event.channel === 'success_screen' ? 'Экраны успеха' : 'Пуш и смс',answers,plan:plan?.plan ?? null,forecast,csi:validCsi(csiValue)?csiValue:null,delta:validCsi(csiValue)&&validCsi(previousCsi)?csiValue-previousCsi:null,action};
 });
 const managementData = {period:'1.'+latestMonthNumber+' — '+currentDataDay+'.'+latestMonthNumber+'.2026',issueIds:[...new Set(criticalIssues.map(issue=>issue.event.id))],rows:managementRows};
-const indexHtml = `${baseHead('Дашборд статусов событий', 'Помесячная аналитика событий по event_type_id и status_det.', '', '15')}
+const indexHtml = `${baseHead('Дашборд статусов событий', 'Помесячная аналитика событий по event_type_id и status_det.', '', '16')}
 <body class="overview-page">
   <header class="site-header">
     <a class="brand" href="index.html" aria-label="Главная">
@@ -817,7 +836,7 @@ const indexHtml = `${baseHead('Дашборд статусов событий', 
       </div>
       <div class="overview-hero__pulse">
         <div class="pulse-header"><span>Воронка платформы · ${months[0]} — ${months.at(-1)}</span><span class="trend neutral">сравнение с ${monthName(months.at(-2))} отключено: октябрь неполный</span></div>
-        ${businessFunnel(events, 1040)}
+        ${channelGraphs(events, 1040)}
       </div>
     </section>
 
@@ -825,14 +844,14 @@ const indexHtml = `${baseHead('Дашборд статусов событий', 
       <article class="group-dashboard">
         <header><span class="eyebrow">ТОП‑ТРИГГЕРЫ</span><a href="top.html">Открыть полный обзор →</a></header>
         <div class="group-dashboard__kpi"><b>${numberFormat.format(topPeriodTotal)}</b><small>получено событий за период: ${months[0]} — ${months.at(-1)}</small></div>
-        <div class="group-dashboard__charts">${businessFunnel(topEvents, 560, true)}</div>
+        <div class="group-dashboard__charts">${channelGraphs(topEvents, 560, true)}</div>
         <button class="chart-expand" type="button" aria-label="Открыть графики топ-триггеров крупнее">⛶ Развернуть графики</button>
         <footer><span>${topEvents.length} опросов</span><span>${topAlertCount} алертов за завершённые месяцы</span></footer>
       </article>
       <article class="group-dashboard">
         <header><span class="eyebrow">ВСЕ ОСТАЛЬНЫЕ</span><a href="others.html">Открыть полный обзор →</a></header>
         <div class="group-dashboard__kpi"><b>${numberFormat.format(otherPeriodTotal)}</b><small>получено событий за период: ${months[0]} — ${months.at(-1)}</small></div>
-        <div class="group-dashboard__charts">${businessFunnel(otherEvents, 560, true)}</div>
+        <div class="group-dashboard__charts">${channelGraphs(otherEvents, 560, true)}</div>
         <button class="chart-expand" type="button" aria-label="Открыть графики остальных опросов крупнее">⛶ Развернуть графики</button>
         <footer><span>${otherEvents.length} опросов</span><span>${otherAlertCount} алертов за завершённые месяцы</span></footer>
       </article>
@@ -876,13 +895,13 @@ const indexHtml = `${baseHead('Дашборд статусов событий', 
   <dialog id="managementReport" class="management-report"><div class="report-toolbar"><button type="button" data-report-csv>Скачать CSV</button><button type="button" data-report-html>Скачать HTML / для печати</button><button type="button" data-report-close aria-label="Закрыть отчёт">× Закрыть</button></div><div data-report-body></div></dialog>
   <script type="application/json" id="managementData">${JSON.stringify(managementData).replaceAll('<', '\\u003c')}</script>
   <script src="assets/workspace.js?v=20261020-1"></script>
-  <script src="assets/index.js?v=20261020-3"></script>
+  <script src="assets/index.js?v=20261021-1"></script>
 </body>
 </html>`;
 
 fs.writeFileSync(path.join(dist, 'index.html'), indexHtml);
 
-const attentionHtml = `${baseHead('Требуют внимания — Events', 'Центр критических отклонений и управленческих уведомлений.', '', '15')}
+const attentionHtml = `${baseHead('Требуют внимания — Events', 'Центр критических отклонений и управленческих уведомлений.', '', '16')}
 <body class="overview-page attention-page">
   <header class="site-header"><a class="brand" href="index.html"><span><b>Events</b><small>status monitor</small></span></a><a class="period-pill" href="index.html">← Все опросы</a></header>
   <main>
@@ -1107,6 +1126,15 @@ body{background:radial-gradient(circle at 8% 7%,rgba(33,160,56,.16),transparent 
 .chart-dialog.is-card-view .action-steps dd{font-size:16px}
 .chart-dialog.is-card-view .action-recommendation p{font-size:14px}
 @media(max-width:380px){.chart-dialog.is-card-view .action-steps{grid-template-columns:1fr}}
+
+.channel-graph-groups{display:grid;gap:32px}
+.channel-graph-heading{margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.18)}
+.channel-graph-heading h2{font-size:24px;line-height:1.2;margin:0;color:inherit;letter-spacing:-.02em}
+.channel-graph-heading p{font-size:12px;line-height:1.5;margin:8px 0 0;color:inherit;opacity:.8}
+.channel-graph-group+.channel-graph-group{padding-top:28px;border-top:1px solid rgba(255,255,255,.18)}
+.group-dashboard__charts .channel-graph-heading h2{font-size:19px}
+.group-dashboard__charts .channel-graph-heading p{font-size:11px}
+@media(max-width:560px){.channel-graph-heading h2{font-size:21px}.channel-graph-heading p{font-size:11px}.channel-graph-groups{gap:24px}}
 `;
 fs.writeFileSync(path.join(assetsDir, 'styles.css'), styles.trim() + '\n' + "\n.personal-workspace{padding:18px;border:1px solid #c8e5d5;border-radius:18px;background:rgba(255,255,255,.65);margin:22px 0 16px}\n.personal-heading,.personal-controls,.personal-views,.report-toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap}\n.personal-heading{justify-content:space-between;margin-bottom:12px}.personal-heading b{color:#0b5338}\n.personal-workspace button,.personal-workspace input,.personal-workspace select,.report-toolbar button{font:inherit;font-size:12px;padding:10px 12px;border:1px solid #c9dfd3;border-radius:10px;background:#f6fcf8;color:#14583c}\n.personal-workspace button,.report-toolbar button{cursor:pointer;font-weight:750}.personal-workspace button.active{background:#0b6843;color:white}\n.personal-views{margin-top:12px}.personal-views input,.personal-views select{min-width:0;max-width:100%}.personal-workspace>small{display:block;font-size:10px;color:#60796f;margin-top:10px}\n.favorite-toggle{border:0;border-radius:8px;background:#e8f5ee;color:#0b6843;font-size:20px;line-height:26px;width:27px;padding:0;cursor:pointer}\n.favorite-toggle[aria-pressed=true]{background:#e5ffb8;color:#377000}\n.management-report{width:min(1200px,96vw);max-height:90dvh;border:0;border-radius:18px;padding:24px;color:#153c2b;background:#f7fcf9}\n.management-report::backdrop{background:#082f22aa}.report-toolbar{position:sticky;top:-24px;background:#f7fcf9;padding:10px 0;border-bottom:1px solid #dce9e2}\n.report-toolbar button:last-child{margin-left:auto}.report-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:20px 0}\n.report-summary>div{padding:14px;border-radius:12px;background:#e6f3ec;font-size:12px}.report-summary b{display:block;font-size:24px;margin-top:8px}\n.report-method{font-size:12px;line-height:1.5;color:#60796f}.report-table-wrap{overflow:auto}.management-report table{border-collapse:collapse;width:100%;font-size:12px}.management-report td,.management-report th{text-align:left;border-bottom:1px solid #dce9e2;padding:12px;min-width:90px}.management-report td:last-child{min-width:220px}.management-report li{margin:12px 0}\n@media(max-width:560px){.personal-heading{align-items:stretch;flex-direction:column}.personal-controls button{flex:1 1 120px}.personal-views>*{flex:1 1 130px}.report-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.management-report{padding:16px}.report-toolbar{top:-16px}.report-summary b{font-size:20px}}\n");
 
@@ -1156,7 +1184,7 @@ if(chartDialog){
     const dashboard=button.closest('.group-dashboard');
     chartDialog.classList.remove('is-card-view');
     dialogEyebrow.textContent=dashboard.querySelector('.eyebrow').textContent;
-    dialogTitle.textContent='Динамика событий, отправок и ответов';
+    dialogTitle.textContent='Пуш и SMS · Экраны успеха';
     dialogBody.replaceChildren(dashboard.querySelector('.group-dashboard__charts').cloneNode(true));
     chartDialog.showModal();
   }));

@@ -43,7 +43,7 @@ if(chartDialog){
     const dashboard=button.closest('.group-dashboard');
     chartDialog.classList.remove('is-card-view');
     dialogEyebrow.textContent=dashboard.querySelector('.eyebrow').textContent;
-    dialogTitle.textContent='Динамика событий, отправок и ответов';
+    dialogTitle.textContent='Пуш и SMS · Экраны успеха';
     dialogBody.replaceChildren(dashboard.querySelector('.group-dashboard__charts').cloneNode(true));
     chartDialog.showModal();
   }));
