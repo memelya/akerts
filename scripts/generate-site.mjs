@@ -604,7 +604,7 @@ function channelGraphs(group, width = 960, compact = false) {
   const communication = group.filter(event => event.channel !== 'success_screen');
   const successScreens = group.filter(event => event.channel === 'success_screen');
   const height = compact ? 118 : 148;
-  const contactPolicyCodes = new Set([1003, 1016, 1017, 1018, 1019, 1020, 1021, 1022, 1023, 1024]);
+  const contactPolicyCodes = new Set([1003, 1011, 1016, 1017, 1018, 1019, 1020, 1021, 1022, 1023, 1024]);
   const policyValues = months.map((_, index) => communication.reduce((sum, event) => sum + event.statuses.filter(status => contactPolicyCodes.has(status.code)).reduce((subtotal, status) => subtotal + (status.values[index] || 0), 0), 0));
   const missingPolicyCodes = [...contactPolicyCodes].filter(code => !communication.some(event => event.statuses.some(status => status.code === code)));
   return `<div class="channel-graph-groups">
