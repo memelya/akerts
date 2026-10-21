@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Графики status_det по event_type_id 193.">
+  <meta name="theme-color" content="#11251f">
+  <title>Событие 193 — динамика статусов</title>
+  <link rel="stylesheet" href="../assets/styles.css?v=20261021-ux2-17">
+</head>
+<body class="detail-page">
+  <aside class="sidebar">
+    <a class="brand brand--light" href="../index.html">
+      <span class="brand__mark"><i></i><i></i><i></i></span>
+      <span><b>Events</b><small>status monitor</small></span>
+    </a>
+    <nav>
+      <a href="../index.html"><span>⌂</span> Обзор</a>
+      <a class="active" href="#top"><span>⌁</span> Динамика</a>
+      <a href="#alerts"><span>⚑</span> Алерты</a>
+      <a href="#charts"><span>⌗</span> Статусы</a>
+    </nav>
+    <div class="sidebar-note"><span>Период данных</span><b>2026-01 — 2026-10</b><small>10 месяцев · 8 статусов</small></div>
+  </aside>
+  <main class="detail-main" id="top">
+    <div class="detail-topbar">
+      <a class="back-link" href="../index.html">← Все события</a>
+      <label class="event-jump"><span>Перейти к ID</span><select id="eventJump" aria-label="Перейти к другому event_type_id"></select></label>
+    </div>
+    <section class="event-hero">
+      <div>
+        <p class="eyebrow">EVENT_TYPE_ID <span class="top-survey-label">ТОП ОПРОС</span></p>
+        <h1>193</h1><h2 class="survey-detail-name">ВСП</h2><a class="detail-metrics-link" href="#charts">Ответы и CSI →</a>
+        <p>Детальная динамика обработки по каждому статусу.</p>
+      </div>
+      <div class="hero-stamp"><span>АКТУАЛЬНЫЙ ПЕРИОД</span><b>2026-10</b><small>9 841 026 событий</small></div>
+    </section>
+    <section class="kpi-grid" aria-label="Показатели события">
+      <article><span>Сумма событий за 2026-10</span><b>9 841 026</b><small>сумма всех событий</small></article>
+      <article><span>Изменение суммы событий к 2026-09</span><b class="neutral">Не считается</b><small>2026-10 — неполный месяц</small></article>
+      <article><span>Коммуникации</span><b>4 699 738</b><small>47,8% от объёма</small></article>
+      <article><span>CSI</span><b>4,92</b><small>средняя оценка за 2026-10</small></article>
+    </section>
+    <section class="alert-panel" id="alerts" aria-labelledby="alerts-title">
+    <header class="alert-panel__header">
+      <div><p class="eyebrow">ПАНЕЛЬ АЛЕРТОВ</p><h2 id="alerts-title">Изменения больше 10%</h2></div>
+      <span class="alert-count">28 алертов</span>
+    </header>
+    <div class="alert-summary"><div class="alert-filter-group" aria-label="Направление изменения"><button class="alert-summary__down active" type="button" data-alert-filter="down" aria-pressed="true">↓ 15 снижений</button><button class="alert-summary__up active" type="button" data-alert-filter="up" aria-pressed="true">↑ 13 ростов</button></div><div class="alert-filter-group alert-filter-group--period" aria-label="Период сравнения"><button class="active" type="button" data-alert-period-filter="latest" aria-pressed="true">Последний полный месяц</button><button type="button" data-alert-period-filter="other" aria-pressed="false">Остальное</button></div><small>Последний полный месяц: август → сентябрь</small></div>
+    <div class="alert-list"><article class="alert-item alert-item--up" data-alert-period="latest">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Сегмент исключен (SecondGroup)</b><strong>+201,8%</strong></div>
+        <p>Рост на 201,8%: с августа 2026 года к сентябрю 2026 года.</p>
+        <small>4 567 → 13 783 событий · статус 1021</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="latest">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Интеграция с ЕПК: Не найден в ЕПК</b><strong>-77,2%</strong></div>
+        <p>Снижение на 77,2%: с августа 2026 года к сентябрю 2026 года.</p>
+        <small>294 072 → 67 123 событий · статус 1004</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="latest">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>За определённый срок не было взято в обработку и было удалено</b><strong>+53,9%</strong></div>
+        <p>Рост на 53,9%: с августа 2026 года к сентябрю 2026 года.</p>
+        <small>432 → 665 событий · статус -1</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Интеграция с ЕПК: Не найден в ЕПК</b><strong>+344,1%</strong></div>
+        <p>Рост на 344,1%: с июля 2026 года к августу 2026 года.</p>
+        <small>66 223 → 294 072 событий · статус 1004</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>За определённый срок не было взято в обработку и было удалено</b><strong>-82,5%</strong></div>
+        <p>Снижение на 82,5%: с июля 2026 года к августу 2026 года.</p>
+        <small>2 473 → 432 событий · статус -1</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>За определённый срок не было взято в обработку и было удалено</b><strong>+1273,9%</strong></div>
+        <p>Рост на 1273,9%: с июня 2026 года к июлю 2026 года.</p>
+        <small>180 → 2 473 событий · статус -1</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Интеграция с ЕПК: Не найден в ЕПК</b><strong>-61,3%</strong></div>
+        <p>Снижение на 61,3%: с июня 2026 года к июлю 2026 года.</p>
+        <small>171 222 → 66 223 событий · статус 1004</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Сегмент исключен (SecondGroup)</b><strong>-23,5%</strong></div>
+        <p>Снижение на 23,5%: с июня 2026 года к июлю 2026 года.</p>
+        <small>5 692 → 4 357 событий · статус 1021</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Сегмент исключен (SecondGroup)</b><strong>+30,3%</strong></div>
+        <p>Рост на 30,3%: с мая 2026 года к июню 2026 года.</p>
+        <small>4 368 → 5 692 событий · статус 1021</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Интеграция с ЕПК: Не найден в ЕПК</b><strong>+13,0%</strong></div>
+        <p>Рост на 13,0%: с мая 2026 года к июню 2026 года.</p>
+        <small>151 503 → 171 222 событий · статус 1004</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Интеграция с ЕПК: Не найден в ЕПК</b><strong>+72,2%</strong></div>
+        <p>Рост на 72,2%: с апреля 2026 года к маю 2026 года.</p>
+        <small>87 989 → 151 503 событий · статус 1004</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Сегмент исключен (SecondGroup)</b><strong>-21,0%</strong></div>
+        <p>Снижение на 21,0%: с апреля 2026 года к маю 2026 года.</p>
+        <small>5 527 → 4 368 событий · статус 1021</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Политика коммуникаций по группам не пройдена (SecondGroup)</b><strong>-14,2%</strong></div>
+        <p>Снижение на 14,2%: с апреля 2026 года к маю 2026 года.</p>
+        <small>1 825 498 → 1 566 092 событий · статус 1020</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Коммуникации с клиентом</b><strong>-11,4%</strong></div>
+        <p>Снижение на 11,4%: с апреля 2026 года к маю 2026 года.</p>
+        <small>9 242 141 → 8 192 642 событий · статус 0</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Сумма всех событий</b><strong>-11,0%</strong></div>
+        <p>Снижение на 11,0%: с апреля 2026 года к маю 2026 года.</p>
+        <small>19 352 006 → 17 230 503 событий · общий объём</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Канал исключен (SecondGroup)</b><strong>-10,7%</strong></div>
+        <p>Снижение на 10,7%: с апреля 2026 года к маю 2026 года.</p>
+        <small>4 837 153 → 4 318 238 событий · статус 1023</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Интеграция со стоплистами массперс: Найден в стоплисте</b><strong>-10,6%</strong></div>
+        <p>Снижение на 10,6%: с апреля 2026 года к маю 2026 года.</p>
+        <small>3 353 698 → 2 997 660 событий · статус 1002</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Интеграция с ЕПК: Не найден в ЕПК</b><strong>+238,7%</strong></div>
+        <p>Рост на 238,7%: с марта 2026 года к апрелю 2026 года.</p>
+        <small>25 977 → 87 989 событий · статус 1004</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>За определённый срок не было взято в обработку и было удалено</b><strong>-100,0%</strong></div>
+        <p>Снижение на 100,0%: с марта 2026 года к апрелю 2026 года.</p>
+        <small>925 → 0 событий · статус -1</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Сегмент исключен (SecondGroup)</b><strong>-58,4%</strong></div>
+        <p>Снижение на 58,4%: с марта 2026 года к апрелю 2026 года.</p>
+        <small>13 283 → 5 527 событий · статус 1021</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Сегмент исключен (SecondGroup)</b><strong>+76,4%</strong></div>
+        <p>Рост на 76,4%: с февраля 2026 года к марту 2026 года.</p>
+        <small>7 529 → 13 283 событий · статус 1021</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Интеграция с ЕПК: Не найден в ЕПК</b><strong>+74,4%</strong></div>
+        <p>Рост на 74,4%: с февраля 2026 года к марту 2026 года.</p>
+        <small>14 896 → 25 977 событий · статус 1004</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Политика коммуникаций по группам не пройдена (SecondGroup)</b><strong>+12,5%</strong></div>
+        <p>Рост на 12,5%: с февраля 2026 года к марту 2026 года.</p>
+        <small>1 540 458 → 1 733 670 событий · статус 1020</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>За определённый срок не было взято в обработку и было удалено</b><strong>+2410,3%</strong></div>
+        <p>Рост на 2410,3%: с января 2026 года к февралю 2026 года.</p>
+        <small>39 → 979 событий · статус -1</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Дубликат по epk id и event type id</b><strong>-100,0%</strong></div>
+        <p>Снижение на 100,0%: с января 2026 года к февралю 2026 года.</p>
+        <small>44 014 → 0 событий · статус 1015</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Сегмент исключен (SecondGroup)</b><strong>-53,0%</strong></div>
+        <p>Снижение на 53,0%: с января 2026 года к февралю 2026 года.</p>
+        <small>16 028 → 7 529 событий · статус 1021</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Интеграция с ЕПК: Не найден в ЕПК</b><strong>-15,6%</strong></div>
+        <p>Снижение на 15,6%: с января 2026 года к февралю 2026 года.</p>
+        <small>17 652 → 14 896 событий · статус 1004</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Интеграция со стоплистами массперс: Найден в стоплисте</b><strong>+10,4%</strong></div>
+        <p>Рост на 10,4%: с января 2026 года к февралю 2026 года.</p>
+        <small>2 619 338 → 2 892 784 событий · статус 1002</small>
+      </div>
+    </article></div>
+  </section>
+    <section class="chart-section" id="charts">
+      <div class="section-heading section-heading--charts"><div><p class="eyebrow">STATUS_DET</p><h2>Кривые изменения</h2></div><span>10 отдельных графиков</span></div>
+      <div class="chart-grid" id="chartGrid" aria-live="polite"></div>
+    </section>
+    <footer><span>event_type_id 193</span><span>Пропуски по месяцам отображаются как 0</span></footer>
+  </main>
+  <div class="chart-tooltip" id="chartTooltip" hidden></div>
+  <script>window.EVENT_DATA={"channel":"communication","statusModel":"status_det","id":193,"hasData":true,"isTop":true,"months":["2026-01","2026-02","2026-03","2026-04","2026-05","2026-06","2026-07","2026-08","2026-09","2026-10"],"statuses":[{"code":0,"description":"По событию после всех проверок совершена коммуникация с клиентом","values":[7537418,8219473,8969389,9242141,8192642,8701149,9099639,9267652,9236645,4699738],"qaValues":[621390,673175,697891,699800,554738,594122,623500,412916,507464,285355],"csiValues":[4.908172578,4.907579643,4.906264166,4.904440261,4.917749246,4.917196902,4.912782795,4.90915114,4.914592912,4.915388632],"total":83165886,"latest":4699738},{"code":-1,"description":"За определённый срок не было взято в обработку и было удалено","values":[39,979,925,0,0,180,2473,432,665,6979],"qaValues":null,"csiValues":null,"total":12672,"latest":6979},{"code":1002,"description":"Интеграция со стоплистами массперс: Найден в стоплисте","values":[2619338,2892784,3158548,3353698,2997660,3217015,3386844,3426602,3476373,1792592],"qaValues":null,"csiValues":null,"total":30321454,"latest":1792592},{"code":1004,"description":"Интеграция с ЕПК: Не найден в ЕПК","values":[17652,14896,25977,87989,151503,171222,66223,294072,67123,26642],"qaValues":null,"csiValues":null,"total":923299,"latest":26642},{"code":1015,"description":"Дубликат по epk id и event type id","values":[44014,0,0,0,0,0,0,0,0,0],"qaValues":null,"csiValues":null,"total":44014,"latest":0},{"code":1020,"description":"Политика коммуникаций по группам не пройдена (SecondGroup)","values":[1610306,1540458,1733670,1825498,1566092,1642542,1793519,1806549,1865483,999326],"qaValues":null,"csiValues":null,"total":16383443,"latest":999326},{"code":1021,"description":"Сегмент исключен (SecondGroup)","values":[16028,7529,13283,5527,4368,5692,4357,4567,13783,9229],"qaValues":null,"csiValues":null,"total":84363,"latest":9229},{"code":1023,"description":"Канал исключен (SecondGroup)","values":[4234525,4100443,4448837,4837153,4318238,4174525,4402390,4336294,4489628,2306520],"qaValues":null,"csiValues":null,"total":41648553,"latest":2306520}],"totals":[16079320,16776562,18350629,19352006,17230503,17912325,18755445,19136168,19149700,9841026],"latest":9841026,"previous":19149700,"change":null,"communicated":4699738,"communicationShare":47.75658554301147};</script>
+  <script src="../assets/events-list.js"></script>
+  <script src="../assets/dashboard.js?v=20261021-3"></script>
+</body>
+</html>
