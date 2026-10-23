@@ -160,3 +160,6 @@ body{background:radial-gradient(circle at 8% 7%,rgba(33,160,56,.16),transparent 
 @media(max-width:760px){.top30-sends{padding:20px}.top30-heading{flex-direction:column;gap:14px}.top30-totals{gap:8px}.top30-totals>div{padding:12px 10px}.top30-totals b{font-size:20px}.top30-row{grid-template-columns:minmax(0,1fr) 90px;gap:10px;padding:16px 13px}.top30-identity{grid-column:1;grid-row:1}.top30-change{grid-column:2;grid-row:1}.top30-bars{grid-column:1/-1;grid-row:2}.top30-toolbar{align-items:flex-start;flex-direction:column;gap:8px}.top30-scroll{max-height:820px}.top30-bars>div{grid-template-columns:28px minmax(0,1fr) 82px}.top30-bars b{font-size:12px}.top30-bars>div>i{height:11px}}
 @media(max-width:460px){.top30-sends{padding:16px;border-radius:20px}.top30-totals{grid-template-columns:1fr 1fr}.top30-totals>div:last-child{grid-column:1/-1}.top30-totals b{font-size:21px}.top30-heading h2{font-size:25px}.top30-change small{font-size:9px}.top30-row{padding-inline:10px}.top30-identity b{font-size:12px}.top30-heading p:not(.eyebrow){font-size:12px}}
 /* top30-sends:end */
+
+/* Catalogue-first layout */
+.overview-page main>.catalogue:first-child{padding-top:32px}.segment-page .overview-hero{display:block;padding:40px 0 30px}.segment-page .overview-hero h1{font-size:clamp(36px,5vw,64px);line-height:1.1}.segment-page .metric-strip{margin-bottom:40px}
