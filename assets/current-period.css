@@ -1,34 +1,52 @@
-.elaya-design .current-period-chart{margin:0 0 32px;scroll-margin-top:24px}
-.current-period-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
-.elaya-design .current-period-head h2{font-size:24px;line-height:32px;letter-spacing:0;margin:0 0 8px}
-.current-period-caption,.current-period-note{font-size:14px;line-height:20px;color:#586b63;margin:0 0 16px;text-wrap:pretty}
-.current-period-tabs{display:flex;padding:4px;border:1px solid #dce5df;border-radius:12px;gap:4px;background:#f5f7f5}
-.elaya-design .current-period-tabs button{padding:8px 12px;border:0;border-radius:8px;min-height:40px;background:transparent;color:#486155;font-size:14px;line-height:20px;white-space:nowrap}
+.elaya-design .current-period-chart{margin:0 0 32px;scroll-margin-top:24px;min-width:0}
+.current-period-head .chart-card__actions{flex-shrink:0}
+.elaya-design .current-period-head .current-period-caption{font-size:14px;line-height:20px;letter-spacing:0;text-transform:none;margin-top:8px}
+.current-period-note{font-size:14px;line-height:20px;color:#72857b;margin:16px 0;text-wrap:pretty}
+.current-period-tabs{display:inline-flex;padding:4px;border:1px solid #dce5df;border-radius:12px;gap:4px;background:#f5f7f5;max-width:100%}
+.elaya-design .current-period-tabs button{padding:8px 12px;border:0;border-radius:8px;min-height:44px;background:transparent;color:#486155;font-size:14px;line-height:20px;white-space:nowrap;cursor:pointer}
 .elaya-design .current-period-tabs button[aria-pressed=true]{background:#137c55;color:#fff}
 .elaya-design .current-period-tabs button:hover:not(:disabled):not([aria-pressed=true]){background:#e2f0e7}
 .current-period-tabs button:disabled{opacity:.5;cursor:not-allowed}
-.current-period-totals,.current-period-selected{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:16px 0}
-.current-period-totals>div,.current-period-selected>div{padding:12px;border:1px solid #dce5df;border-radius:8px;background:#f7f9f7;min-width:0}
-.current-period-totals span,.current-period-selected span{display:block;font-size:12px;line-height:16px;color:#586b63;margin-bottom:8px}
-.current-period-totals b{display:block;font-size:24px;line-height:32px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-.current-period-selected b{display:block;font-size:18px;line-height:28px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-.current-period-legend{display:flex;gap:16px;flex-wrap:wrap;margin:16px 0}
-.current-period-legend label{display:flex;align-items:center;gap:8px;font-size:14px;line-height:20px;min-height:40px;cursor:pointer}
-.current-period-legend input{width:16px;height:16px;accent-color:var(--series-color)}
-.current-period-key{width:24px;height:0;border-top:3px solid var(--series-color);display:inline-block}
+.current-period-legend{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:24px 0 16px}
+.current-period-legend label{display:flex;align-items:center;gap:8px;min-width:0;padding:12px;border:1px solid #dce5df;border-radius:12px;background:#fff;cursor:pointer;flex-wrap:wrap}
+.current-period-legend input{width:16px;height:16px;margin:0;accent-color:var(--series-color);flex-shrink:0}
+.current-period-key{width:24px;height:0;border-top:3px solid var(--series-color);display:inline-block;flex-shrink:0}
 .current-period-key.is-csi{border-top-style:dashed}
-.current-period-legend label:has(input:disabled){color:#586b63;cursor:default}
+.current-period-legend label>span{min-width:0}
+.current-period-legend b{display:block;font-size:14px;line-height:20px;font-weight:700}
+.current-period-legend small{display:block;font-size:12px;line-height:16px;color:#72857b;margin-top:4px}
+.current-period-legend strong{margin-left:auto;font-size:24px;line-height:32px;color:var(--series-color);white-space:nowrap;font-variant-numeric:tabular-nums}
+.current-period-legend label:has(input:disabled){cursor:default;background:#f7f9f7}
+.current-period-legend label:has(input:disabled) strong{color:#72857b}
+.current-period-legend label:has(input:not(:checked):not(:disabled)){background:#f7f9f7;border-style:dashed}
+.current-period-legend label:has(input:not(:checked):not(:disabled)) :is(strong,.current-period-key){opacity:.5}
 .current-period-plot{width:100%;min-width:0;position:relative}
 .current-period-svg{width:100%;height:auto;display:block;overflow:visible}
-.current-period-svg text{fill:#586b63;font-size:12px;line-height:16px;font-weight:400!important}
-.current-period-grid{stroke:#e6ece7;stroke-width:1}.current-period-line{fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
-.current-period-point{cursor:pointer}.current-period-point:focus-visible{outline:none;stroke:#18392e;stroke-width:3}
-.current-period-empty{padding:32px 16px;text-align:center;background:#f7f9f7;border:1px solid #dce5df;border-radius:8px;color:#586b63}
-.current-period-selection-title{font-size:14px;line-height:20px;margin:16px 0 0;font-weight:700}
-.current-period-table{margin-top:16px}.current-period-table summary{font-size:14px;line-height:20px;cursor:pointer;padding:12px 0;font-weight:700}
-.current-period-table-wrap{overflow-x:auto;max-width:100%}.current-period-table table{width:100%;border-collapse:collapse;font-size:14px;line-height:20px}
+.current-period-svg text{fill:#84918c;font-size:12px;line-height:16px;font-weight:400!important}
+.current-period-grid{stroke:#e4e6df;stroke-width:1}
+.current-period-line{fill:none;stroke-width:2.7;stroke-linecap:round;stroke-linejoin:round}
+.current-period-area{opacity:.09;pointer-events:none}
+.current-period-point{stroke:#fff;stroke-width:3;cursor:pointer}
+.current-period-point:hover{r:6}
+.current-period-empty{padding:32px 16px;text-align:center;background:#f7f9f7;border:1px solid #dce5df;border-radius:12px;color:#586b63}
+.current-period-selection-title{font-size:14px;line-height:20px;margin:16px 0 12px;font-weight:700}
+.current-period-selected{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:16px 0;border-top:1px solid #dce5df;border-bottom:1px solid #dce5df}
+.current-period-selected>div{min-width:0}
+.current-period-selected span{display:block;font-size:12px;line-height:16px;color:#72857b;margin-bottom:4px}
+.current-period-selected b{display:block;font-size:18px;line-height:28px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.current-period-table{margin-top:16px}
+.current-period-table summary{font-size:14px;line-height:20px;cursor:pointer;padding:8px 0;min-height:44px;box-sizing:border-box}
+.current-period-table-wrap{overflow-x:auto;max-width:100%}
+.current-period-table table{width:100%;border-collapse:collapse;font-size:14px;line-height:20px}
+.current-period-table caption{text-align:left;color:#72857b;padding-bottom:12px}
 .current-period-table th,.current-period-table td{padding:12px 8px;border-bottom:1px solid #dce5df;text-align:right;white-space:nowrap}
-.current-period-table th:first-child,.current-period-table td:first-child{text-align:left}.current-period-table td:last-child{white-space:normal;min-width:96px}
+.current-period-table th:first-child,.current-period-table td:first-child{text-align:left}
+.current-period-table td:last-child{white-space:normal;min-width:96px}
 .current-period-table tr[aria-selected=true]{background:#edf5ef}
-@media(max-width:760px){.current-period-head{display:block}.current-period-tabs{margin-bottom:16px;width:100%}.elaya-design .current-period-tabs button{flex:1;padding:8px;min-width:0}.elaya-design .current-period-head h2{font-size:20px;line-height:28px}.current-period-totals,.current-period-selected{gap:8px}.current-period-totals>div,.current-period-selected>div{padding:8px}.current-period-totals b{font-size:18px;line-height:28px}.current-period-legend{gap:8px 16px}}
-@media(max-width:760px){.elaya-design .current-period-tabs button{white-space:normal}.current-period-totals,.current-period-selected{grid-template-columns:minmax(0,1fr)}.current-period-totals>div,.current-period-selected>div{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 12px;min-height:48px}.current-period-totals span,.current-period-selected span{margin:0}.current-period-totals b,.current-period-selected b{white-space:nowrap;overflow-wrap:normal;flex-shrink:0}}
+.current-period-coverage{margin-bottom:0}
+.current-period-chart :focus-visible{outline:3px solid #49af87;outline-offset:3px}
+.elaya-design .current-period-chart:fullscreen{background:#fff}
+.current-period-chart:fullscreen .current-period-plot{max-width:1500px;margin-inline:auto}
+@media(max-width:1100px){.current-period-legend{grid-template-columns:minmax(0,1fr)}.current-period-legend label{flex-wrap:nowrap}.current-period-legend strong{font-size:20px;line-height:28px}}
+@media(max-width:760px){.current-period-head .chart-card__title{flex:1 1 180px}.current-period-head .chart-card__actions{margin-left:auto}.current-period-tabs{display:flex;width:100%;box-sizing:border-box}.elaya-design .current-period-tabs button{flex:1;padding:8px;min-width:0;white-space:normal}.current-period-legend{gap:8px;margin-top:16px}.current-period-legend label{gap:8px;padding:12px}.current-period-legend strong{font-size:18px;line-height:28px}.current-period-key{width:16px}.current-period-selected{grid-template-columns:minmax(0,1fr);gap:8px;padding:12px 0}.current-period-selected>div{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:32px}.current-period-selected span{margin:0}.current-period-selected b{flex-shrink:0}.elaya-design .current-period-chart.chart-card--expanded{padding:16px}.current-period-head .status-chip{font-size:12px;line-height:16px}}
+@media(prefers-reduced-motion:reduce){.current-period-point{transition:none}}
