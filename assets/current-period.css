@@ -20,9 +20,14 @@
 .current-period-legend label:has(input:disabled) strong{color:#72857b}
 .current-period-legend label:has(input:not(:checked):not(:disabled)){background:#f7f9f7;border-style:dashed}
 .current-period-legend label:has(input:not(:checked):not(:disabled)) :is(strong,.current-period-key){opacity:.5}
-.current-period-plot{width:100%;min-width:0;position:relative}
+.current-period-plot{width:100%;min-width:0;position:relative;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:thin;padding-bottom:8px}
+.current-period-scroll-hint{padding:12px;background:#edf5ef;border-radius:8px;color:#486155}
+.current-period-scroll-hint[hidden]{display:none}
 .current-period-svg{width:100%;height:auto;display:block;overflow:visible}
 .current-period-svg text{fill:#84918c;font-size:12px;line-height:16px;font-weight:400!important}
+.current-period-svg .current-period-value{font-size:12px;font-weight:600!important;paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round;font-variant-numeric:tabular-nums;cursor:pointer}
+.current-period-svg .current-period-value--sends{fill:#137c55}.current-period-svg .current-period-value--answers{fill:#285dcc}.current-period-svg .current-period-value--csi{fill:#7553c5}
+.current-period-label-guide{stroke-width:1;opacity:.5;pointer-events:none}
 .current-period-grid{stroke:#e4e6df;stroke-width:1}
 .current-period-line{fill:none;stroke-width:2.7;stroke-linecap:round;stroke-linejoin:round}
 .current-period-area{opacity:.09;pointer-events:none}
