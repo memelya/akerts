@@ -1,0 +1,55 @@
+/* Latest-month chart. No interpolation or invented daily observations. */
+(()=>{
+ const source=document.getElementById('currentPeriodData');if(!source||document.getElementById('current-period-chart'))return;
+ const data=JSON.parse(source.textContent),main=document.querySelector('.detail-main');if(!main)return;
+ const nf=new Intl.NumberFormat('ru-RU'),decimal=new Intl.NumberFormat('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2});
+ const fullDate=value=>value?.split('-').reverse().join('.')||'—',shortDate=value=>value?.slice(8,10)+'.'+value?.slice(5,7);
+ const monthName=data.month?new Intl.DateTimeFormat('ru-RU',{month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(data.month+'-01T12:00:00Z')):'нет данных';
+ const fmt=(value,key)=>value===null||value===undefined?'—':key==='csi'?decimal.format(value):nf.format(value);
+ const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const metrics=[{key:'sends',label:'Отправки',color:'#137c55'},{key:'answers',label:'Ответы',color:'#2563eb'},{key:'csi',label:'CSI',color:'#b16c13'}];
+ let mode=data.dailyAvailable?'day':'month',selected=0,rows=[],enabled=new Set(metrics.filter(metric=>data.summary?.[metric.key]!==null&&data.summary?.[metric.key]!==undefined).map(metric=>metric.key));
+ const card=document.createElement('article');card.id='current-period-chart';card.className='chart-card current-period-chart';card.setAttribute('aria-labelledby','current-period-title');
+ card.innerHTML='<header class="current-period-head"><div><h2 id="current-period-title">Отправки, ответы и CSI</h2><p class="current-period-caption">Текущий период: '+escape(monthName)+(data.through?' · данные по '+fullDate(data.through):'')+'</p></div><div class="current-period-tabs" role="group" aria-label="Группировка текущего периода">'+[['day','По дням'],['week','По неделям'],['month','Итог месяца']].map(([key,label])=>'<button type="button" data-period-mode="'+key+'" aria-pressed="'+(mode===key)+'" '+(!data.month||key!=='month'&&!data.dailyAvailable?'disabled aria-describedby="current-period-coverage"':'')+'>'+label+'</button>').join('')+'</div></header><p id="current-period-coverage" class="current-period-note"></p><div class="current-period-totals" aria-label="Итоги по имеющимся данным">'+metrics.map(metric=>'<div><span>'+metric.label+' за период</span><b>'+fmt(data.summary?.[metric.key],metric.key)+'</b></div>').join('')+'</div><div class="current-period-legend" role="group" aria-label="Показатели на графике">'+metrics.map(metric=>'<label style="--series-color:'+metric.color+'"><input type="checkbox" data-period-series="'+metric.key+'" '+(enabled.has(metric.key)?'checked':'disabled')+'><i class="current-period-key '+(metric.key==='csi'?'is-csi':'')+'" aria-hidden="true"></i>'+metric.label+(!enabled.has(metric.key)?(data.channel==='success_screen'&&metric.key==='sends'?' (неприменимо)':' (нет данных)'):'')+'</label>').join('')+'</div><p class="current-period-note">Количество — левая шкала. CSI — правая шкала, от 1 до 5. Чтобы рассмотреть ответы крупнее, отключите отправки.</p><div class="current-period-plot"></div><p class="current-period-selection-title"></p><div class="current-period-selected" role="status" aria-live="polite" aria-atomic="true"></div><details class="current-period-table"><summary>Точные значения '+escape(monthName)+'</summary><div class="current-period-table-wrap"><table><thead><tr><th scope="col">Период</th><th scope="col">Отправки</th><th scope="col">Ответы</th><th scope="col">CSI</th><th scope="col">Полнота</th></tr></thead><tbody></tbody></table></div></details>';
+ const kpi=main.querySelector('.kpi-grid'),note=kpi?.nextElementSibling;const anchor=note?.classList.contains('source-note')?note:kpi;if(anchor)anchor.after(card);else main.querySelector('.event-hero')?.after(card);
+ const plot=card.querySelector('.current-period-plot'),table=card.querySelector('tbody'),selection=card.querySelector('.current-period-selected'),selectionTitle=card.querySelector('.current-period-selection-title'),coverage=card.querySelector('#current-period-coverage');
+ const label=row=>mode==='day'?fullDate(row.date):mode==='week'?shortDate(row.start)+' — '+fullDate(row.end):monthName;
+ const shortLabel=row=>mode==='day'?shortDate(row.date):mode==='week'?row.start.slice(8)+'–'+shortDate(row.end):new Intl.DateTimeFormat('ru-RU',{month:'short',timeZone:'UTC'}).format(new Date(data.month+'-01T12:00:00Z'));
+ function select(index){selected=Math.max(0,Math.min(rows.length-1,index));const row=rows[selected];if(!row)return;selectionTitle.textContent=label(row)+(row.missing?' · данных нет':'');selection.innerHTML=metrics.map(metric=>'<div><span>'+metric.label+'</span><b>'+fmt(row[metric.key],metric.key)+'</b></div>').join('');table.querySelectorAll('tr').forEach((tr,i)=>tr.setAttribute('aria-selected',String(i===selected)));}
+ function updateRows(){
+  rows=mode==='day'?data.days:mode==='week'?data.weeks.map(week=>({...week,missing:week.observedDays===0})):data.month?[{key:data.month,...data.summary}]:[];
+  selected=Math.max(0,rows.findLastIndex(row=>!row.missing));
+  card.querySelectorAll('[data-period-mode]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.periodMode===mode)));
+  const missing=data.missingDates?.map(fullDate).join(', ');
+  coverage.textContent=!data.month?'Наблюдений по этому опросу нет.':!data.dailyAvailable?'В источнике есть только итог за '+monthName+'. Дневная выгрузка отсутствует: разбивка по дням и неделям недоступна.':(mode==='week'?'Неделя — с понедельника по воскресенье, в пределах месяца и даты среза. Отправки и ответы суммируются; CSI пересчитывается по всем оценкам, а не как среднее дневных CSI.':'Дни с наблюдениями и пропуски рабочих дней. Выходные без наблюдений не показаны.')+(missing?' Нет данных за '+missing+'. Пропуски не заменяются нулями.':'');
+  if(data.channel==='success_screen')coverage.textContent+=' Для экранов успеха отправки неприменимы; ответы — сумма qa_cnt по mp_status, CSI взвешен по cnt.';
+  table.innerHTML=rows.map(row=>'<tr><th scope="row">'+escape(label(row))+'</th>'+metrics.map(metric=>'<td>'+fmt(row[metric.key],metric.key)+'</td>').join('')+'<td>'+escape(row.missing?'Нет данных':mode==='week'?row.observedDays+' из '+row.expectedDays+' дней'+(row.missingDates.length?' · нет '+row.missingDates.map(shortDate).join(', '):''):mode==='month'?'Итог из выгрузки':'Есть данные')+'</td></tr>').join('');
+  select(selected);draw();
+ }
+ const ns='http://www.w3.org/2000/svg';function svgNode(tag,attributes={},text){const node=document.createElementNS(ns,tag);for(const [key,value]of Object.entries(attributes))node.setAttribute(key,value);if(text!==undefined)node.textContent=text;return node;}
+ const compact=value=>value>=1e6?new Intl.NumberFormat('ru-RU',{maximumFractionDigits:1}).format(value/1e6)+' млн':value>=1000?new Intl.NumberFormat('ru-RU',{maximumFractionDigits:1}).format(value/1000)+' тыс.':nf.format(value);
+ let lastWidth=0;
+ function draw(){
+  const focused=plot.contains(document.activeElement);plot.replaceChildren();if(!rows.length||!enabled.size){const empty=document.createElement('div');empty.className='current-period-empty';empty.textContent=!rows.length?'Нет данных для построения графика.':'Выберите хотя бы один показатель над графиком.';plot.append(empty);return;}
+  const width=Math.max(240,Math.round(plot.getBoundingClientRect().width)),height=320,left=64,right=48,top=32,bottom=40,w=width-left-right,h=height-top-bottom;
+  const svg=svgNode('svg',{viewBox:'0 0 '+width+' '+height,class:'current-period-svg',role:'group',tabindex:'0','aria-label':'Отправки, ответы и CSI за '+monthName+'. Используйте стрелки влево и вправо для выбора периода.'});plot.append(svg);
+  const counts=rows.flatMap(row=>['sends','answers'].filter(key=>enabled.has(key)).map(key=>row[key]).filter(Number.isFinite)),max=Math.max(0,...counts),rawStep=Math.max(1,max/4),power=10**Math.floor(Math.log10(rawStep)),step=[1,2,5,10].map(x=>x*power).find(x=>x>=rawStep),maximum=step*4;
+  const x=index=>rows.length===1?left+w/2:left+index/(rows.length-1)*w,y=(value,key)=>top+h*(1-(key==='csi'?(value-1)/4:value/maximum));
+  svg.append(svgNode('text',{x:0,y:16},'Количество'));svg.append(svgNode('text',{x:width,y:16,'text-anchor':'end'},'CSI (1–5)'));
+  for(let tick=0;tick<=4;tick++){const yy=top+h-tick*h/4;svg.append(svgNode('line',{x1:left,y1:yy,x2:width-right,y2:yy,class:'current-period-grid'}));svg.append(svgNode('text',{x:left-8,y:yy+4,'text-anchor':'end'},compact(tick*step)));svg.append(svgNode('text',{x:width-right+12,y:yy+4},String(tick+1)));}
+  const ticks=Math.min(rows.length,Math.max(2,Math.floor(w/72)+1)),indices=new Set(Array.from({length:ticks},(_,index)=>Math.round(index/(ticks-1)*(rows.length-1))));if(rows.length===1){indices.clear();indices.add(0);}
+  for(const index of indices)svg.append(svgNode('text',{x:x(index),y:height-12,'text-anchor':'middle'},shortLabel(rows[index])));
+  let hasPoints=false;
+  for(const metric of metrics.filter(metric=>enabled.has(metric.key))){let path='',gap=true;rows.forEach((row,index)=>{const value=row[metric.key];if(!Number.isFinite(value)){gap=true;return;}path+=(gap?'M':' L')+x(index).toFixed(2)+' '+y(value,metric.key).toFixed(2);gap=false;});if(!path)continue;hasPoints=true;
+   svg.append(svgNode('path',{d:path,stroke:metric.color,class:'current-period-line',...(metric.key==='csi'?{'stroke-dasharray':'6 4'}:{})}));
+   rows.forEach((row,index)=>{const value=row[metric.key];if(!Number.isFinite(value))return;const point=svgNode('circle',{cx:x(index),cy:y(value,metric.key),r:5,fill:metric.color,stroke:'#fff','stroke-width':2,class:'current-period-point','data-period-point':index});point.append(svgNode('title',{},label(row)+' · '+metric.label+': '+fmt(value,metric.key)));point.addEventListener('pointerenter',()=>select(index));point.addEventListener('click',()=>select(index));svg.append(point);});
+  }
+  if(!hasPoints)svg.append(svgNode('text',{x:width/2,y:height/2,'text-anchor':'middle'},'По выбранным показателям данных нет'));
+  svg.addEventListener('keydown',event=>{if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();select(selected+(event.key==='ArrowRight'?1:-1));}else if(event.key==='Home'){event.preventDefault();select(0);}else if(event.key==='End'){event.preventDefault();select(rows.length-1);}});
+  if(focused)svg.focus({preventScroll:true});
+ }
+ card.querySelectorAll('[data-period-mode]').forEach(button=>button.addEventListener('click',()=>{mode=button.dataset.periodMode;updateRows();}));
+ card.querySelectorAll('[data-period-series]').forEach(input=>input.addEventListener('change',()=>{if(input.checked)enabled.add(input.dataset.periodSeries);else enabled.delete(input.dataset.periodSeries);draw();}));
+ new ResizeObserver(entries=>{const width=Math.round(entries[0].contentRect.width);if(width!==lastWidth){lastWidth=width;draw();}}).observe(plot);
+ updateRows();
+})();
