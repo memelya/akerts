@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Центр критических отклонений и управленческих уведомлений.">
+  <meta name="theme-color" content="#11251f">
+  <title>Требуют внимания — Events</title>
+  <link rel="stylesheet" href="assets/styles.css?v=20261021-ux2-17">
+<link rel="stylesheet" href="assets/elaya-design.css?v=20261026-2"><link rel="icon" type="image/svg+xml" href="assets/elaya-favicon.svg"><meta name="robots" content="noindex"><link rel="stylesheet" href="assets/v2.css?v=20261030-groups-1"></head>
+<body class="overview-page attention-page elaya-design v2-design"><a class="elaya-skip" href="#main-content">Перейти к содержимому</a>
+  <header class="site-header"><a class="brand" href="index.html"><span><b>Events</b><small>status monitor</small></span></a><a class="period-pill" href="index.html">← Все опросы</a></header>
+  <main id="main-content">
+    <section class="attention-hero"><div><p class="eyebrow">ЦЕНТР КРИТИЧЕСКИХ ОТКЛОНЕНИЙ</p><h1>Требуют внимания</h1><p>Приоритетная очередь проблем: от максимального влияния к минимальному.</p></div><div class="attention-total"><b id="attentionCount">0</b><span>активных сигналов</span></div></section>
+    <section class="notification-rules"><div><p class="eyebrow">УВЕДОМЛЕНИЯ И ЭСКАЛАЦИИ</p><h2>Правила контроля</h2></div><div class="rule-grid"><label>План за период ниже, %<input id="rulePlan" type="number" min="1" max="100" value="90"></label><label>Падение CSI больше<input id="ruleCsi" type="number" min="0" step="0.1" value="0.2"></label><label>Падение отклика больше, %<input id="ruleRate" type="number" min="0" value="15"></label><label>Маленькая выборка, менее<input id="ruleSample" type="number" min="1" value="30"></label></div><div class="rule-actions"><button id="applyRules" type="button">Применить правила</button><button id="exportAlerts" type="button">↓ Выгрузить список CSV</button><span id="rulesSaved">Пороговые значения сохраняются в этом браузере</span></div></section>
+    <section class="attention-list" id="attentionList"></section>
+  </main>
+  <footer><span>Сигналы рассчитаны по последнему полному периоду и текущему плану</span><a href="index.html">Вернуться к каталогу →</a><a href="../README.html">Инструкция по CSV</a><a href="about.html">Данные и расчёты</a></footer>
+  <script src="assets/attention.js?v=20261021-2"></script>
+<script type="application/json" id="v2Meta">{}</script><script src="assets/v2-ui.js?v=20261030-groups-1"></script><script src="assets/v2-charts.js?v=20261030-groups-1"></script></body></html>

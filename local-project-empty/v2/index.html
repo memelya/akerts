@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Помесячная аналитика событий по event_type_id и status_det.">
+  <meta name="theme-color" content="#11251f">
+  <title>Дашборд статусов событий</title>
+  <link rel="stylesheet" href="assets/styles.css?v=20261021-ux2-17">
+<link rel="stylesheet" href="assets/elaya-design.css?v=20261026-2"><link rel="icon" type="image/svg+xml" href="assets/elaya-favicon.svg"><meta name="robots" content="noindex"><link rel="stylesheet" href="assets/v2.css?v=20261030-groups-1"></head>
+<body class="overview-page elaya-design v2-design"><a class="elaya-skip" href="#main-content">Перейти к содержимому</a>
+  <header class="site-header">
+    <a class="brand" href="index.html" aria-label="Главная">
+      <span class="brand__mark"><i></i><i></i><i></i></span>
+      <span><b>Events</b><small>status monitor</small></span>
+    </a>
+    <div class="header-actions"><a class="quick-catalog" href="#catalogue">Найти опрос</a><a class="attention-link" href="attention.html">⚑ Требуют внимания <b>0</b></a><span class="period-pill">Данные не загружены</span></div>
+  </header>
+  <main id="main-content">
+    <nav class="v2-section-tabs" style="flex-wrap:wrap" aria-label="Раздел сайта"><a href="index.html" aria-current="page">Опросы</a><a href="general.html">Общая</a><a href="analysis.html">Анализ</a></nav>
+<section class="catalogue" id="catalogue">
+      <div class="section-heading">
+        <div><p class="eyebrow">КАТАЛОГ</p><h2>Выберите опрос</h2></div>
+        <span id="resultCount">0 опросов</span>
+      </div>
+      <div class="scope-toggle" role="group" aria-label="Состав списка">
+        <button class="active" type="button" data-scope="top" aria-pressed="true">Топ опросы <span>0</span></button>
+        <button type="button" data-scope="all" aria-pressed="false">Все опросы <span>0</span></button>
+      </div>
+      <div class="channel-navigation">
+        <span class="channel-caption">Канал опроса</span>
+        <div class="channel-toggle" role="group" aria-label="Канал опроса">
+          <button class="active" type="button" data-channel-filter="communication" aria-pressed="true">Пуш и смс <span data-channel-count="communication">0</span></button>
+          <button type="button" data-channel-filter="success_screen" aria-pressed="false">Экраны успеха <span data-channel-count="success_screen">0</span></button>
+        </div>
+      </div>
+<section class="personal-workspace" id="personalWorkspace" aria-label="Личный рабочий экран">
+<div class="personal-heading"><b>Мой рабочий экран <span data-favorite-count>0</span> ★</b><button type="button" data-open-report>Отчёт для руководителя ↗</button></div>
+<div class="personal-controls" role="group" aria-label="Мои опросы"><button type="button" class="active" data-personal-mode="all" aria-pressed="true">Все доступные</button><button type="button" data-personal-mode="favorites" aria-pressed="false">★ Избранные</button><button type="button" data-personal-mode="problems" aria-pressed="false">Мои проблемные опросы</button></div>
+<div class="personal-views"><input data-view-name maxlength="80" aria-label="Название набора фильтров" placeholder="Название набора фильтров"><button type="button" data-save-view>Сохранить фильтры</button><select data-saved-view aria-label="Сохранённые фильтры"></select><button type="button" data-delete-view>Удалить набор</button></div><small data-storage-note>Настройки сохраняются в этом браузере</small>
+</section>
+      <div class="catalogue-tools">
+        <label class="search-box"><span>⌕</span><input id="eventSearch" aria-label="Найти опрос по ID, названию или статусу" type="search" placeholder="Найти ID или статус…" autocomplete="off"></label>
+        <label class="sort-box" data-survey-type-control><span>Тип опроса</span><select id="surveyTypeFilter" aria-label="Тип опроса"><option value="all">Все типы</option><option value="csi">Общий (CSI)</option><option value="csat">Триггерный (CSAT)</option></select></label><label class="sort-box"><span>Сортировка</span><select id="eventSort"><option value="latest" selected>По объёму</option><option value="top">По списку</option><option value="id">По ID</option><option value="change">По динамике</option></select></label>
+        <label class="sort-box plan-filter-box"><span>План</span><select id="planFilter"><option value="all" selected>Все статусы</option><option value="ontrack">План выполняется</option><option value="risk">План не выполняется</option></select></label>
+        <button class="compare-toggle" id="compareToggle" type="button">⇄ Сравнить опросы</button>
+      </div>
+      <div class="event-grid" id="eventGrid"><!--local-cards-->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+      <div class="empty-state" id="emptyState" hidden><b>Ничего не найдено</b><span>Проверьте канал, избранное и план либо сбросьте фильтры.</span><button id="resetFilters" type="button">Сбросить фильтры</button></div>
+    </section>
+  </main>
+  <dialog class="chart-dialog" id="chartDialog"><div class="chart-dialog__head"><div><span class="eyebrow"></span><strong></strong></div><button type="button" aria-label="Закрыть увеличенные графики">×</button></div><div class="chart-dialog__body"></div></dialog>
+  <div class="compare-bar" id="compareBar" hidden><span>Выбрано: <b id="compareCount">0</b></span><button id="compareOpen" type="button" disabled>Сравнить показатели</button><button id="compareClear" type="button">Очистить</button></div>
+  <dialog class="compare-dialog" id="compareDialog"><header><div><span class="eyebrow">СРАВНЕНИЕ</span><h2>Опросы и подразделения</h2></div><button type="button" data-compare-close aria-label="Закрыть">×</button></header><div class="compare-table-wrap"><table><thead><tr><th>Опрос</th><th>События</th><th>Отправки</th><th>Ответы</th><th>Отклик</th><th>CSI</th><th>План</th><th>Динамика</th></tr></thead><tbody id="compareTable"></tbody></table></div></dialog>
+  <footer><span>Источник: ваши локальные CSV</span><a href="about.html">О доступе, хранении настроек и данных</a><a href="../README.html">Инструкция по CSV</a></footer>
+  <dialog id="managementReport" class="management-report"><div class="report-toolbar"><button type="button" data-report-csv>Скачать CSV</button><button type="button" data-report-html>Скачать HTML / для печати</button><button type="button" data-report-close aria-label="Закрыть отчёт">× Закрыть</button></div><div data-report-body></div></dialog>
+  <script type="application/json" id="managementData">{"period":null,"issueIds":[],"rows":[]}</script>
+  <script src="assets/workspace.js?v=20261021-2"></script>
+  <script src="assets/index.js?v=20261030-types-1"></script>
+<script type="application/json" id="v2Meta">{}</script><script src="assets/v2-ui.js?v=20261030-groups-1"></script><script src="assets/v2-charts.js?v=20261030-groups-1"></script></body>
+</html>
