@@ -3,6 +3,7 @@ const cards=[...grid.querySelectorAll('.event-card')];
 const search=document.getElementById('eventSearch');
 const sort=document.getElementById('eventSort');
 const planFilter=document.getElementById('planFilter');
+const typeFilter=document.getElementById('surveyTypeFilter');
 const count=document.getElementById('resultCount');
 const empty=document.getElementById('emptyState');
 const scopeButtons=[...document.querySelectorAll('[data-scope]')];
@@ -14,8 +15,8 @@ const plural=n=>{const d=n%10,h=n%100;return h>=11&&h<=14?'опросов':d===1
 function update(){
   const query=search.value.trim().toLowerCase();
   const scoped=cards.filter(card=>scope==='top'?card.dataset.top==='true':card.dataset.hasData==='true');
-  channelButtons.forEach(button=>{button.querySelector('[data-channel-count]').textContent=scoped.filter(card=>card.dataset.channel===button.dataset.channelFilter).length});
-  let visible=scoped.filter(card=>card.dataset.channel===channel&&(!personal||personal.allows(card))&&(!query||card.dataset.search.includes(query))&&(planFilter.value==='all'||card.dataset.planStatus===planFilter.value));
+  channelButtons.forEach(button=>{button.querySelector('[data-channel-count]').textContent=scoped.filter(card=>card.dataset.channel===button.dataset.channelFilter&&(!typeFilter||typeFilter.value==='all'||card.dataset.surveyType===typeFilter.value)).length});
+  let visible=scoped.filter(card=>card.dataset.channel===channel&&(!personal||personal.allows(card))&&(!query||card.dataset.search.includes(query))&&(planFilter.value==='all'||card.dataset.planStatus===planFilter.value)&&(!typeFilter||typeFilter.value==='all'||card.dataset.surveyType===typeFilter.value));
   const key=sort.value;
   visible.sort((a,b)=>key==='top'?Number(a.dataset.rank)-Number(b.dataset.rank):key==='id'?Number(a.dataset.id)-Number(b.dataset.id):key==='change'?Number(b.dataset.change)-Number(a.dataset.change):Number(b.dataset.latest)-Number(a.dataset.latest));
   cards.forEach(card=>card.hidden=true);
@@ -26,10 +27,11 @@ function update(){
 }
 scopeButtons.forEach(button=>button.addEventListener('click',()=>{scope=button.dataset.scope;scopeButtons.forEach(item=>{item.classList.toggle('active',item===button);item.setAttribute('aria-pressed',String(item===button))});update()}));
 channelButtons.forEach(button=>button.addEventListener('click',()=>{channel=button.dataset.channelFilter;channelButtons.forEach(item=>{item.classList.toggle('active',item===button);item.setAttribute('aria-pressed',String(item===button))});update()}));
-search.addEventListener('input',update);sort.addEventListener('change',update);planFilter.addEventListener('change',update);update();
-personal=window.createEventsWorkspace?.({cards,refresh:update,readFilters:()=>({scope,channel,query:search.value,sort:sort.value,plan:planFilter.value}),applyFilters:filters=>{
+search.addEventListener('input',update);sort.addEventListener('change',update);planFilter.addEventListener('change',update);typeFilter?.addEventListener('change',update);update();
+personal=window.createEventsWorkspace?.({cards,refresh:update,readFilters:()=>({scope,channel,query:search.value,sort:sort.value,plan:planFilter.value,type:typeFilter?.value||'all'}),applyFilters:filters=>{
   scope=filters.scope==='all'?'all':'top';channel=filters.channel==='success_screen'?'success_screen':'communication';
   search.value=typeof filters.query==='string'?filters.query:'';sort.value=['latest','top','id','change'].includes(filters.sort)?filters.sort:'latest';planFilter.value=['all','risk','ontrack'].includes(filters.plan)?filters.plan:'all';
+  if(typeFilter)typeFilter.value=['all','csi','csat'].includes(filters.type)?filters.type:'all';
   scopeButtons.forEach(b=>{b.classList.toggle('active',b.dataset.scope===scope);b.setAttribute('aria-pressed',String(b.dataset.scope===scope));});
   channelButtons.forEach(b=>{b.classList.toggle('active',b.dataset.channelFilter===channel);b.setAttribute('aria-pressed',String(b.dataset.channelFilter===channel));});
 }})??null;
