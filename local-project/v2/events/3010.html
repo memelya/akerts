@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Графики status_det по event_type_id 3010.">
+  <meta name="theme-color" content="#11251f">
+  <title>Событие 3010 — динамика статусов</title>
+  <link rel="stylesheet" href="../assets/styles.css?v=20261021-ux2-17">
+<link rel="stylesheet" href="../assets/elaya-design.css?v=20261026-2"><link rel="icon" type="image/svg+xml" href="../assets/elaya-favicon.svg"><meta name="robots" content="noindex"><link rel="stylesheet" href="../assets/v2.css?v=20261030-groups-1"></head>
+<body class="detail-page elaya-design v2-design"><a class="elaya-skip" href="#main-content">Перейти к содержимому</a>
+  <aside class="sidebar">
+    <a class="brand brand--light" href="../index.html">
+      <span class="brand__mark"><i></i><i></i><i></i></span>
+      <span><b>Events</b><small>status monitor</small></span>
+    </a>
+    <nav>
+      <a href="../index.html"><span>⌂</span> Обзор</a>
+      <a class="active" href="#top"><span>⌁</span> Динамика</a>
+      <a href="#alerts"><span>⚑</span> Алерты</a>
+      <a href="#charts"><span>⌗</span> Статусы</a>
+    </nav>
+    <div class="sidebar-note"><span>Период данных</span><b>2026-01 — 2026-10</b><small>10 месяцев · 6 статусов</small></div>
+  </aside>
+  <main class="detail-main" id="top"><!--local-static-warning:start--><section style="margin:16px;padding:16px;border:1px solid #a82a3c;border-radius:8px;background:#fff5f6;color:#832337;font:16px/24px sans-serif" role="alert"><b>CSV сейчас не подключены.</b> Эта страница показывает сохранённые данные. Для обновления из папки date запустите START_LOCAL.cmd или python start_local.py и откройте адрес из окна сервера.</section><!--local-static-warning:end-->
+    <div class="detail-topbar">
+      <a class="back-link" href="../index.html">← Все события</a>
+      <label class="event-jump"><span>Перейти к ID</span><select id="eventJump" aria-label="Перейти к другому event_type_id"></select></label>
+    </div>
+    <section class="event-hero">
+      <div>
+        <p class="eyebrow">EVENT_TYPE_ID </p>
+        <h1>3010</h1><h2 class="survey-detail-name">Опрос №3010</h2><a class="detail-metrics-link" href="#charts">Ответы и CSI →</a>
+        <p>Детальная динамика обработки по каждому статусу.</p>
+      </div>
+      <div class="hero-stamp"><span>АКТУАЛЬНЫЙ ПЕРИОД</span><b>2026-10</b><small>175 820 событий</small></div>
+    </section>
+    <section class="kpi-grid" aria-label="Показатели события">
+      <article><span>Сумма событий за 2026-10</span><b>175 820</b><small>сумма всех событий</small></article>
+      <article><span>Изменение суммы событий к 2026-09</span><b class="neutral">Не считается</b><small>2026-10 — неполный месяц</small></article>
+      <article><span>Коммуникации</span><b>25 383</b><small>14,4% от объёма</small></article>
+      <article><span>CSI</span><b>4,27</b><small>средняя оценка за 2026-10</small></article>
+    </section>
+    <p class="source-note" role="note"><b>Дневная выборка 16.10.2026–28.10.2026</b>. В выгрузке 13 дат. Месячный итог — только переданные даты. Нет данных за 01.10.2026, 02.10.2026, 05.10.2026, 06.10.2026, 07.10.2026, 08.10.2026, 09.10.2026, 12.10.2026, 13.10.2026, 14.10.2026, 15.10.2026; пропуски не считаются нулевыми. Ответы учитываются по answers; CSI — Σ(answer_csi_sum) / Σ(events с оценкой).</p>
+    <section class="alert-panel" id="alerts" aria-labelledby="alerts-title">
+    <header class="alert-panel__header">
+      <div><p class="eyebrow">ПАНЕЛЬ АЛЕРТОВ</p><h2 id="alerts-title">Изменения больше 10%</h2></div>
+      <span class="alert-count">6 алертов</span>
+    </header>
+    <div class="alert-summary"><div class="alert-filter-group" aria-label="Направление изменения"><button class="alert-summary__down active" type="button" data-alert-filter="down" aria-pressed="true">↓ 6 снижений</button><button class="alert-summary__up active" type="button" data-alert-filter="up" aria-pressed="true">↑ 0 ростов</button></div><div class="alert-filter-group alert-filter-group--period" aria-label="Период сравнения"><button class="active" type="button" data-alert-period-filter="latest" aria-pressed="true">Последний полный месяц</button><button type="button" data-alert-period-filter="other" aria-pressed="false">Остальное</button></div><small>Последний полный месяц: август → сентябрь</small></div>
+    <div class="alert-list"><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Сумма всех событий</b><strong>-100,0%</strong></div>
+        <p>Снижение на 100,0%: с июля 2026 года к августу 2026 года.</p>
+        <small>1 594 → 0 событий · общий объём</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Коммуникации с клиентом</b><strong>-100,0%</strong></div>
+        <p>Снижение на 100,0%: с июля 2026 года к августу 2026 года.</p>
+        <small>345 → 0 событий · статус 0</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Интеграция со стоплистами массперс: Найден в стоплисте</b><strong>-100,0%</strong></div>
+        <p>Снижение на 100,0%: с июля 2026 года к августу 2026 года.</p>
+        <small>942 → 0 событий · статус 1002</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Интеграция с ЕПК: Не найден в ЕПК</b><strong>-100,0%</strong></div>
+        <p>Снижение на 100,0%: с июля 2026 года к августу 2026 года.</p>
+        <small>24 → 0 событий · статус 1004</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Проверка УК по групповой политике: Недавно участвовал в опросе группы</b><strong>-100,0%</strong></div>
+        <p>Снижение на 100,0%: с июля 2026 года к августу 2026 года.</p>
+        <small>162 → 0 событий · статус 1011</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Описание не предоставлено в исходных данных</b><strong>-100,0%</strong></div>
+        <p>Снижение на 100,0%: с июля 2026 года к августу 2026 года.</p>
+        <small>121 → 0 событий · статус 9898</small>
+      </div>
+    </article></div>
+  </section>
+    <section class="chart-section" id="charts">
+      <div class="section-heading section-heading--charts"><div><p class="eyebrow">STATUS_DET</p><h2>Кривые изменения</h2></div><span>8 отдельных графиков</span></div>
+      <div class="chart-grid" id="chartGrid" aria-live="polite"></div>
+    </section>
+    <footer><span>event_type_id 3010</span><span>Пропуски по месяцам отображаются как 0</span><a href="../../index.html">Основная версия сайта</a></footer>
+  </main>
+  <div class="chart-tooltip" id="chartTooltip" hidden></div>
+  <script>window.EVENT_DATA={"csiValues":[null,null,null,null,null,null,4,null,4.03805668,4.274894810659187],"channel":"communication","statusModel":"status_det","responseTotals":[null,null,null,null,null,null,7,null,1234,713],"sendTotals":[0,0,0,0,0,0,345,0,32109,25383],"id":3010,"hasData":true,"isTop":false,"months":["2026-01","2026-02","2026-03","2026-04","2026-05","2026-06","2026-07","2026-08","2026-09","2026-10"],"statuses":[{"code":0,"description":"По событию после всех проверок совершена коммуникация с клиентом","values":[0,0,0,0,0,0,345,0,32109,25384],"qaValues":[null,null,null,null,null,null,7,null,1234,713],"csiValues":[null,null,null,null,null,null,4,null,4.03805668,4.274894810659187],"sendValues":[0,0,0,0,0,0,345,0,32109,25383],"total":57838,"latest":25384},{"code":1002,"description":"Интеграция со стоплистами массперс: Найден в стоплисте","values":[0,0,0,0,0,0,942,0,53501,70799],"qaValues":null,"csiValues":null,"sendValues":null,"total":125242,"latest":70799},{"code":1004,"description":"Интеграция с ЕПК: Не найден в ЕПК","values":[0,0,0,0,0,0,24,0,1387,1556],"qaValues":null,"csiValues":null,"sendValues":null,"total":2967,"latest":1556},{"code":1006,"description":"Интеграция с ЕПК: Не соответствует сегменту","values":[0,0,0,0,0,0,0,0,1351,1269],"qaValues":null,"csiValues":null,"sendValues":null,"total":2620,"latest":1269},{"code":1011,"description":"Проверка УК по групповой политике: Недавно участвовал в опросе группы","values":[0,0,0,0,0,0,162,0,49967,51092],"qaValues":null,"csiValues":null,"sendValues":null,"total":101221,"latest":51092},{"code":9898,"description":"Описание не предоставлено в исходных данных","values":[0,0,0,0,0,0,121,0,20647,25720],"qaValues":null,"csiValues":null,"sendValues":null,"total":46488,"latest":25720}],"totals":[0,0,0,0,0,0,1594,0,158962,175820],"latest":175820,"previous":158962,"change":null,"communicated":25383,"communicationShare":14.436924126948014,"dailySource":{"file":"3010.csv","dates":["2026-10-16","2026-10-17","2026-10-18","2026-10-19","2026-10-20","2026-10-21","2026-10-22","2026-10-23","2026-10-24","2026-10-25","2026-10-26","2026-10-27","2026-10-28"],"through":"2026-10-28","from":"2026-10-16","missingBusinessDates":["2026-10-01","2026-10-02","2026-10-05","2026-10-06","2026-10-07","2026-10-08","2026-10-09","2026-10-12","2026-10-13","2026-10-14","2026-10-15"]}};</script>
+  <script src="../assets/events-list.js"></script>
+  <!--current-period:start--><script type="application/json" id="currentPeriodData">{"id":3010,"month":"2026-10","channel":"communication","dailyAvailable":true,"through":"2026-10-28","summary":{"sends":25383,"answers":713,"csi":4.274894810659187},"days":[{"key":"2026-10-01","date":"2026-10-01","missing":true,"sends":null,"answers":null,"csi":null},{"key":"2026-10-02","date":"2026-10-02","missing":true,"sends":null,"answers":null,"csi":null},{"key":"2026-10-05","date":"2026-10-05","missing":true,"sends":null,"answers":null,"csi":null},{"key":"2026-10-06","date":"2026-10-06","missing":true,"sends":null,"answers":null,"csi":null},{"key":"2026-10-07","date":"2026-10-07","missing":true,"sends":null,"answers":null,"csi":null},{"key":"2026-10-08","date":"2026-10-08","missing":true,"sends":null,"answers":null,"csi":null},{"key":"2026-10-09","date":"2026-10-09","missing":true,"sends":null,"answers":null,"csi":null},{"key":"2026-10-12","date":"2026-10-12","missing":true,"sends":null,"answers":null,"csi":null},{"key":"2026-10-13","date":"2026-10-13","missing":true,"sends":null,"answers":null,"csi":null},{"key":"2026-10-14","date":"2026-10-14","missing":true,"sends":null,"answers":null,"csi":null},{"key":"2026-10-15","date":"2026-10-15","missing":true,"sends":null,"answers":null,"csi":null},{"key":"2026-10-16","date":"2026-10-16","missing":false,"sends":2863,"answers":92,"csi":4.282608695652174},{"key":"2026-10-17","date":"2026-10-17","missing":false,"sends":0,"answers":0,"csi":null},{"key":"2026-10-18","date":"2026-10-18","missing":false,"sends":0,"answers":0,"csi":null},{"key":"2026-10-19","date":"2026-10-19","missing":false,"sends":3313,"answers":106,"csi":4.339622641509434},{"key":"2026-10-20","date":"2026-10-20","missing":false,"sends":3258,"answers":100,"csi":4.36},{"key":"2026-10-21","date":"2026-10-21","missing":false,"sends":3390,"answers":82,"csi":4.317073170731708},{"key":"2026-10-22","date":"2026-10-22","missing":false,"sends":2763,"answers":73,"csi":4.205479452054795},{"key":"2026-10-23","date":"2026-10-23","missing":false,"sends":2355,"answers":68,"csi":4.220588235294118},{"key":"2026-10-24","date":"2026-10-24","missing":false,"sends":0,"answers":0,"csi":null},{"key":"2026-10-25","date":"2026-10-25","missing":false,"sends":0,"answers":0,"csi":null},{"key":"2026-10-26","date":"2026-10-26","missing":false,"sends":2760,"answers":77,"csi":4.12987012987013},{"key":"2026-10-27","date":"2026-10-27","missing":false,"sends":3380,"answers":94,"csi":4.329787234042553},{"key":"2026-10-28","date":"2026-10-28","missing":false,"sends":1301,"answers":21,"csi":4.0476190476190474}],"weeks":[{"key":"2026-09-28","start":"2026-10-01","end":"2026-10-04","sends":null,"answers":null,"csi":null,"observedDays":0,"expectedDays":2,"missingDates":["2026-10-01","2026-10-02"]},{"key":"2026-10-05","start":"2026-10-05","end":"2026-10-11","sends":null,"answers":null,"csi":null,"observedDays":0,"expectedDays":5,"missingDates":["2026-10-05","2026-10-06","2026-10-07","2026-10-08","2026-10-09"]},{"key":"2026-10-12","start":"2026-10-12","end":"2026-10-18","sends":2863,"answers":92,"csi":4.282608695652174,"observedDays":3,"expectedDays":7,"missingDates":["2026-10-12","2026-10-13","2026-10-14","2026-10-15"]},{"key":"2026-10-19","start":"2026-10-19","end":"2026-10-25","sends":15079,"answers":429,"csi":4.298368298368298,"observedDays":7,"expectedDays":7,"missingDates":[]},{"key":"2026-10-26","start":"2026-10-26","end":"2026-10-28","sends":7441,"answers":192,"csi":4.21875,"observedDays":3,"expectedDays":3,"missingDates":[]}],"csiMethod":"ratings","missingDates":["2026-10-01","2026-10-02","2026-10-05","2026-10-06","2026-10-07","2026-10-08","2026-10-09","2026-10-12","2026-10-13","2026-10-14","2026-10-15"]}</script><!--current-period:end--><script type="application/json" id="surveyOverviewData">{"id":3010,"channel":"communication","monthly":[{"key":"2026-01","month":"2026-01","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-02","month":"2026-02","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-03","month":"2026-03","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-04","month":"2026-04","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-05","month":"2026-05","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-06","month":"2026-06","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-07","month":"2026-07","events":1594,"sends":345,"answers":7,"stop":942,"contactPolicy":162},{"key":"2026-08","month":"2026-08","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-09","month":"2026-09","events":158962,"sends":32109,"answers":1234,"stop":53501,"contactPolicy":49967},{"key":"2026-10","month":"2026-10","events":175820,"sends":25383,"answers":713,"stop":70799,"contactPolicy":51092}],"latest":{"key":"2026-10","month":"2026-10","events":175820,"sends":25383,"answers":713,"stop":70799,"contactPolicy":51092},"hasStop":true,"hasPolicy":true,"policyCodes":[1003,1011,1016,1017,1018,1019,1020,1021,1022,1023,1024],"dailyAvailable":true,"through":"2026-10-28","missingDates":["2026-10-01","2026-10-02","2026-10-05","2026-10-06","2026-10-07","2026-10-08","2026-10-09","2026-10-12","2026-10-13","2026-10-14","2026-10-15"],"days":[{"key":"2026-10-01","date":"2026-10-01","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-10-02","date":"2026-10-02","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-10-05","date":"2026-10-05","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-10-06","date":"2026-10-06","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-10-07","date":"2026-10-07","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-10-08","date":"2026-10-08","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-10-09","date":"2026-10-09","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-10-12","date":"2026-10-12","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-10-13","date":"2026-10-13","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-10-14","date":"2026-10-14","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-10-15","date":"2026-10-15","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-10-16","date":"2026-10-16","missing":false,"events":16737,"sends":2863,"answers":92,"stop":6813,"contactPolicy":6677},{"key":"2026-10-17","date":"2026-10-17","missing":false,"events":12416,"sends":0,"answers":0,"stop":5012,"contactPolicy":0},{"key":"2026-10-18","date":"2026-10-18","missing":false,"events":11721,"sends":0,"answers":0,"stop":4563,"contactPolicy":0},{"key":"2026-10-19","date":"2026-10-19","missing":false,"events":16666,"sends":3313,"answers":106,"stop":6629,"contactPolicy":6331},{"key":"2026-10-20","date":"2026-10-20","missing":false,"events":16341,"sends":3258,"answers":100,"stop":6606,"contactPolicy":6091},{"key":"2026-10-21","date":"2026-10-21","missing":false,"events":18117,"sends":3390,"answers":82,"stop":7446,"contactPolicy":6947},{"key":"2026-10-22","date":"2026-10-22","missing":false,"events":14607,"sends":2763,"answers":73,"stop":5951,"contactPolicy":5600},{"key":"2026-10-23","date":"2026-10-23","missing":false,"events":12186,"sends":2355,"answers":68,"stop":4738,"contactPolicy":4840},{"key":"2026-10-24","date":"2026-10-24","missing":false,"events":5180,"sends":0,"answers":0,"stop":2110,"contactPolicy":0},{"key":"2026-10-25","date":"2026-10-25","missing":false,"events":13444,"sends":0,"answers":0,"stop":5356,"contactPolicy":0},{"key":"2026-10-26","date":"2026-10-26","missing":false,"events":14014,"sends":2760,"answers":77,"stop":5607,"contactPolicy":5351},{"key":"2026-10-27","date":"2026-10-27","missing":false,"events":17366,"sends":3380,"answers":94,"stop":7128,"contactPolicy":6502},{"key":"2026-10-28","date":"2026-10-28","missing":false,"events":7025,"sends":1301,"answers":21,"stop":2840,"contactPolicy":2753}],"weeks":[{"key":"2026-09-28","start":"2026-10-01","end":"2026-10-04","observedDays":0,"expectedDays":2,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null,"missing":true},{"key":"2026-10-05","start":"2026-10-05","end":"2026-10-11","observedDays":0,"expectedDays":5,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null,"missing":true},{"key":"2026-10-12","start":"2026-10-12","end":"2026-10-18","observedDays":3,"expectedDays":7,"events":40874,"sends":2863,"answers":92,"stop":16388,"contactPolicy":6677},{"key":"2026-10-19","start":"2026-10-19","end":"2026-10-25","observedDays":7,"expectedDays":7,"events":96541,"sends":15079,"answers":429,"stop":38836,"contactPolicy":29809},{"key":"2026-10-26","start":"2026-10-26","end":"2026-10-28","observedDays":3,"expectedDays":3,"events":38405,"sends":7441,"answers":192,"stop":15575,"contactPolicy":14606}]}</script><script type="application/json" id="v2Meta">{"id":3010,"surveyType":"Триггерный (CSAT)","surveyTypeKey":"csat","triggerGroup":"без группы","name":"Опрос 3010","channel":"communication","month":"2026-10","sourceMonth":"2026-10","sourceFrom":"2026-10-16","sourceThrough":"2026-10-28","missingDates":["2026-10-01","2026-10-02","2026-10-05","2026-10-06","2026-10-07","2026-10-08","2026-10-09","2026-10-12","2026-10-13","2026-10-14","2026-10-15"],"dailyAvailable":true,"hasCurrent":true,"plan":null,"actual":713,"sends":25383,"csi":4.274894810659187,"forecast":784,"action":"Месячный план не задан.","elapsed":0,"total":22,"calendarThrough":null,"remaining":null,"average":null,"csiProof":{"numerator":3048,"denominator":713},"latest":{"sends":25383,"answers":713,"csi":4.274894810659187},"availableMonths":["2026-07","2026-09","2026-10"]}</script><script src="../assets/v2-ui.js?v=20261030-groups-1"></script><script src="../assets/v2-charts.js?v=20261030-groups-1"></script></body>
+</html>

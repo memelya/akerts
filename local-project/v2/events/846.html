@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Графики status_det по event_type_id 846.">
+  <meta name="theme-color" content="#11251f">
+  <title>Событие 846 — динамика статусов</title>
+  <link rel="stylesheet" href="../assets/styles.css?v=20261021-ux2-17">
+<link rel="stylesheet" href="../assets/elaya-design.css?v=20261026-2"><link rel="icon" type="image/svg+xml" href="../assets/elaya-favicon.svg"><meta name="robots" content="noindex"><link rel="stylesheet" href="../assets/v2.css?v=20261030-groups-1"></head>
+<body class="detail-page elaya-design v2-design"><a class="elaya-skip" href="#main-content">Перейти к содержимому</a>
+  <aside class="sidebar">
+    <a class="brand brand--light" href="../index.html">
+      <span class="brand__mark"><i></i><i></i><i></i></span>
+      <span><b>Events</b><small>status monitor</small></span>
+    </a>
+    <nav>
+      <a href="../index.html"><span>⌂</span> Обзор</a>
+      <a class="active" href="#top"><span>⌁</span> Динамика</a>
+      <a href="#alerts"><span>⚑</span> Алерты</a>
+      <a href="#charts"><span>⌗</span> Статусы</a>
+    </nav>
+    <div class="sidebar-note"><span>Период данных</span><b>2026-01 — 2026-10</b><small>10 месяцев · 8 статусов</small></div>
+  </aside>
+  <main class="detail-main" id="top"><!--local-static-warning:start--><section style="margin:16px;padding:16px;border:1px solid #a82a3c;border-radius:8px;background:#fff5f6;color:#832337;font:16px/24px sans-serif" role="alert"><b>CSV сейчас не подключены.</b> Эта страница показывает сохранённые данные. Для обновления из папки date запустите START_LOCAL.cmd или python start_local.py и откройте адрес из окна сервера.</section><!--local-static-warning:end-->
+    <div class="detail-topbar">
+      <a class="back-link" href="../index.html">← Все события</a>
+      <label class="event-jump"><span>Перейти к ID</span><select id="eventJump" aria-label="Перейти к другому event_type_id"></select></label>
+    </div>
+    <section class="event-hero">
+      <div>
+        <p class="eyebrow">EVENT_TYPE_ID </p>
+        <h1>846</h1><h2 class="survey-detail-name">Опрос №846</h2><a class="detail-metrics-link" href="#charts">Ответы и CSI →</a>
+        <p>Детальная динамика обработки по каждому статусу.</p>
+      </div>
+      <div class="hero-stamp"><span>АКТУАЛЬНЫЙ ПЕРИОД</span><b>2026-10</b><small>688 событий</small></div>
+    </section>
+    <section class="kpi-grid" aria-label="Показатели события">
+      <article><span>Сумма событий за 2026-10</span><b>688</b><small>сумма всех событий</small></article>
+      <article><span>Изменение суммы событий к 2026-09</span><b class="neutral">Не считается</b><small>2026-10 — неполный месяц</small></article>
+      <article><span>Коммуникации</span><b>201</b><small>29,2% от объёма</small></article>
+      <article><span>CSI</span><b>4,63</b><small>средняя оценка за 2026-10</small></article>
+    </section>
+    <p class="source-note" role="note"><b>Дневная выборка 16.10.2026–23.10.2026</b>. В выгрузке 6 дат. Месячный итог — только переданные даты. Нет данных за 01.10.2026, 02.10.2026, 05.10.2026, 06.10.2026, 07.10.2026, 08.10.2026, 09.10.2026, 12.10.2026, 13.10.2026, 14.10.2026, 15.10.2026; пропуски не считаются нулевыми. Ответы учитываются по answers; CSI — Σ(answer_csi_sum) / Σ(events с оценкой).</p>
+    <section class="alert-panel" id="alerts" aria-labelledby="alerts-title">
+    <header class="alert-panel__header">
+      <div><p class="eyebrow">ПАНЕЛЬ АЛЕРТОВ</p><h2 id="alerts-title">Изменения больше 10%</h2></div>
+      <span class="alert-count">46 алертов</span>
+    </header>
+    <div class="alert-summary"><div class="alert-filter-group" aria-label="Направление изменения"><button class="alert-summary__down active" type="button" data-alert-filter="down" aria-pressed="true">↓ 22 снижений</button><button class="alert-summary__up active" type="button" data-alert-filter="up" aria-pressed="true">↑ 24 ростов</button></div><div class="alert-filter-group alert-filter-group--period" aria-label="Период сравнения"><button class="active" type="button" data-alert-period-filter="latest" aria-pressed="true">Последний полный месяц</button><button type="button" data-alert-period-filter="other" aria-pressed="false">Остальное</button></div><small>Последний полный месяц: август → сентябрь</small></div>
+    <div class="alert-list"><article class="alert-item alert-item--down" data-alert-period="latest">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Канал исключен (SecondGroup)</b><strong>-86,5%</strong></div>
+        <p>Снижение на 86,5%: с августа 2026 года к сентябрю 2026 года.</p>
+        <small>52 → 7 событий · статус 1023</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="latest">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Политика коммуникаций по группам не пройдена (SecondGroup)</b><strong>-33,7%</strong></div>
+        <p>Снижение на 33,7%: с августа 2026 года к сентябрю 2026 года.</p>
+        <small>178 → 118 событий · статус 1020</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="latest">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Сегмент исключен (SecondGroup)</b><strong>-31,6%</strong></div>
+        <p>Снижение на 31,6%: с августа 2026 года к сентябрю 2026 года.</p>
+        <small>57 → 39 событий · статус 1021</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="latest">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Не пройдена ПК по каналу коммуникации (FirstGroup)</b><strong>-14,2%</strong></div>
+        <p>Снижение на 14,2%: с августа 2026 года к сентябрю 2026 года.</p>
+        <small>295 → 253 событий · статус 1024</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="latest">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Интеграция со стоплистами массперс: Найден в стоплисте</b><strong>-13,9%</strong></div>
+        <p>Снижение на 13,9%: с августа 2026 года к сентябрю 2026 года.</p>
+        <small>231 → 199 событий · статус 1002</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="latest">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Коммуникации с клиентом</b><strong>+11,8%</strong></div>
+        <p>Рост на 11,8%: с августа 2026 года к сентябрю 2026 года.</p>
+        <small>423 → 473 событий · статус 0</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Интеграция с ЕПК: Не найден в ЕПК</b><strong>-100,0%</strong></div>
+        <p>Снижение на 100,0%: с июля 2026 года к августу 2026 года.</p>
+        <small>36 → 0 событий · статус 1004</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Описание не предоставлено в исходных данных</b><strong>-100,0%</strong></div>
+        <p>Снижение на 100,0%: с июля 2026 года к августу 2026 года.</p>
+        <small>120 → 0 событий · статус 9898</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Канал исключен (SecondGroup)</b><strong>-59,4%</strong></div>
+        <p>Снижение на 59,4%: с июля 2026 года к августу 2026 года.</p>
+        <small>128 → 52 событий · статус 1023</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Не пройдена ПК по каналу коммуникации (FirstGroup)</b><strong>-40,4%</strong></div>
+        <p>Снижение на 40,4%: с июля 2026 года к августу 2026 года.</p>
+        <small>495 → 295 событий · статус 1024</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Сумма всех событий</b><strong>-37,1%</strong></div>
+        <p>Снижение на 37,1%: с июля 2026 года к августу 2026 года.</p>
+        <small>1 965 → 1 236 событий · общий объём</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Коммуникации с клиентом</b><strong>-33,4%</strong></div>
+        <p>Снижение на 33,4%: с июля 2026 года к августу 2026 года.</p>
+        <small>635 → 423 событий · статус 0</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Сегмент исключен (SecondGroup)</b><strong>+21,3%</strong></div>
+        <p>Рост на 21,3%: с июля 2026 года к августу 2026 года.</p>
+        <small>47 → 57 событий · статус 1021</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Интеграция со стоплистами массперс: Найден в стоплисте</b><strong>-18,9%</strong></div>
+        <p>Снижение на 18,9%: с июля 2026 года к августу 2026 года.</p>
+        <small>285 → 231 событий · статус 1002</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Политика коммуникаций по группам не пройдена (SecondGroup)</b><strong>-18,7%</strong></div>
+        <p>Снижение на 18,7%: с июля 2026 года к августу 2026 года.</p>
+        <small>219 → 178 событий · статус 1020</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Интеграция с ЕПК: Не найден в ЕПК</b><strong>+3500,0%</strong></div>
+        <p>Рост на 3500,0%: с июня 2026 года к июлю 2026 года.</p>
+        <small>1 → 36 событий · статус 1004</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Не пройдена ПК по каналу коммуникации (FirstGroup)</b><strong>+184,5%</strong></div>
+        <p>Рост на 184,5%: с июня 2026 года к июлю 2026 года.</p>
+        <small>174 → 495 событий · статус 1024</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Сумма всех событий</b><strong>+62,8%</strong></div>
+        <p>Рост на 62,8%: с июня 2026 года к июлю 2026 года.</p>
+        <small>1 207 → 1 965 событий · общий объём</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Канал исключен (SecondGroup)</b><strong>+50,6%</strong></div>
+        <p>Рост на 50,6%: с июня 2026 года к июлю 2026 года.</p>
+        <small>85 → 128 событий · статус 1023</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Интеграция со стоплистами массперс: Найден в стоплисте</b><strong>+36,4%</strong></div>
+        <p>Рост на 36,4%: с июня 2026 года к июлю 2026 года.</p>
+        <small>209 → 285 событий · статус 1002</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Коммуникации с клиентом</b><strong>+24,0%</strong></div>
+        <p>Рост на 24,0%: с июня 2026 года к июлю 2026 года.</p>
+        <small>512 → 635 событий · статус 0</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Политика коммуникаций по группам не пройдена (SecondGroup)</b><strong>+18,4%</strong></div>
+        <p>Рост на 18,4%: с июня 2026 года к июлю 2026 года.</p>
+        <small>185 → 219 событий · статус 1020</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Сегмент исключен (SecondGroup)</b><strong>+14,6%</strong></div>
+        <p>Рост на 14,6%: с июня 2026 года к июлю 2026 года.</p>
+        <small>41 → 47 событий · статус 1021</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Политика коммуникаций по группам не пройдена (SecondGroup)</b><strong>+160,6%</strong></div>
+        <p>Рост на 160,6%: с мая 2026 года к июню 2026 года.</p>
+        <small>71 → 185 событий · статус 1020</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Сегмент исключен (SecondGroup)</b><strong>-53,9%</strong></div>
+        <p>Снижение на 53,9%: с мая 2026 года к июню 2026 года.</p>
+        <small>89 → 41 событий · статус 1021</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Не пройдена ПК по каналу коммуникации (FirstGroup)</b><strong>-31,8%</strong></div>
+        <p>Снижение на 31,8%: с мая 2026 года к июню 2026 года.</p>
+        <small>255 → 174 событий · статус 1024</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Канал исключен (SecondGroup)</b><strong>+3800,0%</strong></div>
+        <p>Рост на 3800,0%: с апреля 2026 года к маю 2026 года.</p>
+        <small>2 → 78 событий · статус 1023</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Не пройдена ПК по каналу коммуникации (FirstGroup)</b><strong>+779,3%</strong></div>
+        <p>Рост на 779,3%: с апреля 2026 года к маю 2026 года.</p>
+        <small>29 → 255 событий · статус 1024</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Коммуникации с клиентом</b><strong>+626,8%</strong></div>
+        <p>Рост на 626,8%: с апреля 2026 года к маю 2026 года.</p>
+        <small>71 → 516 событий · статус 0</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Сумма всех событий</b><strong>+577,3%</strong></div>
+        <p>Рост на 577,3%: с апреля 2026 года к маю 2026 года.</p>
+        <small>181 → 1 226 событий · общий объём</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Интеграция со стоплистами массперс: Найден в стоплисте</b><strong>+502,8%</strong></div>
+        <p>Рост на 502,8%: с апреля 2026 года к маю 2026 года.</p>
+        <small>36 → 217 событий · статус 1002</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Политика коммуникаций по группам не пройдена (SecondGroup)</b><strong>+65,1%</strong></div>
+        <p>Рост на 65,1%: с апреля 2026 года к маю 2026 года.</p>
+        <small>43 → 71 событий · статус 1020</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Сегмент исключен (SecondGroup)</b><strong>-100,0%</strong></div>
+        <p>Снижение на 100,0%: с марта 2026 года к апрелю 2026 года.</p>
+        <small>175 → 0 событий · статус 1021</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Канал исключен (SecondGroup)</b><strong>-99,3%</strong></div>
+        <p>Снижение на 99,3%: с марта 2026 года к апрелю 2026 года.</p>
+        <small>269 → 2 событий · статус 1023</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Не пройдена ПК по каналу коммуникации (FirstGroup)</b><strong>-97,5%</strong></div>
+        <p>Снижение на 97,5%: с марта 2026 года к апрелю 2026 года.</p>
+        <small>1 148 → 29 событий · статус 1024</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Сумма всех событий</b><strong>-95,4%</strong></div>
+        <p>Снижение на 95,4%: с марта 2026 года к апрелю 2026 года.</p>
+        <small>3 913 → 181 событий · общий объём</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Коммуникации с клиентом</b><strong>-93,6%</strong></div>
+        <p>Снижение на 93,6%: с марта 2026 года к апрелю 2026 года.</p>
+        <small>1 108 → 71 событий · статус 0</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Политика коммуникаций по группам не пройдена (SecondGroup)</b><strong>-93,5%</strong></div>
+        <p>Снижение на 93,5%: с марта 2026 года к апрелю 2026 года.</p>
+        <small>661 → 43 событий · статус 1020</small>
+      </div>
+    </article><article class="alert-item alert-item--down" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↓</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Интеграция со стоплистами массперс: Найден в стоплисте</b><strong>-93,5%</strong></div>
+        <p>Снижение на 93,5%: с марта 2026 года к апрелю 2026 года.</p>
+        <small>552 → 36 событий · статус 1002</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Сегмент исключен (SecondGroup)</b><strong>+573,1%</strong></div>
+        <p>Рост на 573,1%: с февраля 2026 года к марту 2026 года.</p>
+        <small>26 → 175 событий · статус 1021</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Политика коммуникаций по группам не пройдена (SecondGroup)</b><strong>+204,6%</strong></div>
+        <p>Рост на 204,6%: с февраля 2026 года к марту 2026 года.</p>
+        <small>217 → 661 событий · статус 1020</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Интеграция со стоплистами массперс: Найден в стоплисте</b><strong>+165,4%</strong></div>
+        <p>Рост на 165,4%: с февраля 2026 года к марту 2026 года.</p>
+        <small>208 → 552 событий · статус 1002</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Коммуникации с клиентом</b><strong>+140,3%</strong></div>
+        <p>Рост на 140,3%: с февраля 2026 года к марту 2026 года.</p>
+        <small>461 → 1 108 событий · статус 0</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Канал исключен (SecondGroup)</b><strong>+133,9%</strong></div>
+        <p>Рост на 133,9%: с февраля 2026 года к марту 2026 года.</p>
+        <small>115 → 269 событий · статус 1023</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Сумма всех событий</b><strong>+123,0%</strong></div>
+        <p>Рост на 123,0%: с февраля 2026 года к марту 2026 года.</p>
+        <small>1 755 → 3 913 событий · общий объём</small>
+      </div>
+    </article><article class="alert-item alert-item--up" data-alert-period="other">
+      <span class="alert-item__icon" aria-hidden="true">↑</span>
+      <div class="alert-item__content">
+        <div class="alert-item__top"><b>Не пройдена ПК по каналу коммуникации (FirstGroup)</b><strong>+57,7%</strong></div>
+        <p>Рост на 57,7%: с февраля 2026 года к марту 2026 года.</p>
+        <small>728 → 1 148 событий · статус 1024</small>
+      </div>
+    </article></div>
+  </section>
+    <section class="chart-section" id="charts">
+      <div class="section-heading section-heading--charts"><div><p class="eyebrow">STATUS_DET</p><h2>Кривые изменения</h2></div><span>10 отдельных графиков</span></div>
+      <div class="chart-grid" id="chartGrid" aria-live="polite"></div>
+    </section>
+    <footer><span>event_type_id 846</span><span>Пропуски по месяцам отображаются как 0</span><a href="../../index.html">Основная версия сайта</a></footer>
+  </main>
+  <div class="chart-tooltip" id="chartTooltip" hidden></div>
+  <script>window.EVENT_DATA={"csiValues":[null,4,4.255555556,null,4.352941176,4.135135135,3.78125,4.227272727,4,4.625],"channel":"communication","statusModel":"status_det","responseTotals":[null,34,90,5,34,37,32,22,19,8],"sendTotals":[0,461,1108,71,516,512,635,423,473,201],"id":846,"hasData":true,"isTop":false,"months":["2026-01","2026-02","2026-03","2026-04","2026-05","2026-06","2026-07","2026-08","2026-09","2026-10"],"statuses":[{"code":0,"description":"По событию после всех проверок совершена коммуникация с клиентом","values":[0,461,1108,71,516,512,635,423,473,201],"qaValues":[null,34,90,5,34,37,32,22,19,8],"csiValues":[null,4,4.255555556,null,4.352941176,4.135135135,3.78125,4.227272727,4,4.625],"sendValues":[0,461,1108,71,516,512,635,423,473,201],"total":4400,"latest":201},{"code":1002,"description":"Интеграция со стоплистами массперс: Найден в стоплисте","values":[0,208,552,36,217,209,285,231,199,148],"qaValues":null,"csiValues":null,"sendValues":null,"total":2085,"latest":148},{"code":1004,"description":"Интеграция с ЕПК: Не найден в ЕПК","values":[0,0,0,0,0,1,36,0,84,13],"qaValues":null,"csiValues":null,"sendValues":null,"total":134,"latest":13},{"code":1020,"description":"Политика коммуникаций по группам не пройдена (SecondGroup)","values":[0,217,661,43,71,185,219,178,118,41],"qaValues":null,"csiValues":null,"sendValues":null,"total":1733,"latest":41},{"code":1021,"description":"Сегмент исключен (SecondGroup)","values":[0,26,175,0,89,41,47,57,39,75],"qaValues":null,"csiValues":null,"sendValues":null,"total":549,"latest":75},{"code":1023,"description":"Канал исключен (SecondGroup)","values":[0,115,269,2,78,85,128,52,7,35],"qaValues":null,"csiValues":null,"sendValues":null,"total":771,"latest":35},{"code":1024,"description":"Не пройдена ПК по каналу коммуникации (FirstGroup)","values":[0,728,1148,29,255,174,495,295,253,175],"qaValues":null,"csiValues":null,"sendValues":null,"total":3552,"latest":175},{"code":9898,"description":"Описание не предоставлено в исходных данных","values":[0,0,0,0,0,0,120,0,0,0],"qaValues":null,"csiValues":null,"sendValues":null,"total":120,"latest":0}],"totals":[0,1755,3913,181,1226,1207,1965,1236,1173,688],"latest":688,"previous":1173,"change":null,"communicated":201,"communicationShare":29.21511627906977,"dailySource":{"file":"846.csv","dates":["2026-10-16","2026-10-19","2026-10-20","2026-10-21","2026-10-22","2026-10-23"],"through":"2026-10-23","from":"2026-10-16","missingBusinessDates":["2026-10-01","2026-10-02","2026-10-05","2026-10-06","2026-10-07","2026-10-08","2026-10-09","2026-10-12","2026-10-13","2026-10-14","2026-10-15"]}};</script>
+  <script src="../assets/events-list.js"></script>
+  <!--current-period:start--><script type="application/json" id="currentPeriodData">{"id":846,"month":"2026-10","channel":"communication","dailyAvailable":true,"through":"2026-10-23","summary":{"sends":201,"answers":8,"csi":4.625},"days":[{"key":"2026-10-01","date":"2026-10-01","missing":true,"sends":null,"answers":null,"csi":null},{"key":"2026-10-02","date":"2026-10-02","missing":true,"sends":null,"answers":null,"csi":null},{"key":"2026-10-05","date":"2026-10-05","missing":true,"sends":null,"answers":null,"csi":null},{"key":"2026-10-06","date":"2026-10-06","missing":true,"sends":null,"answers":null,"csi":null},{"key":"2026-10-07","date":"2026-10-07","missing":true,"sends":null,"answers":null,"csi":null},{"key":"2026-10-08","date":"2026-10-08","missing":true,"sends":null,"answers":null,"csi":null},{"key":"2026-10-09","date":"2026-10-09","missing":true,"sends":null,"answers":null,"csi":null},{"key":"2026-10-12","date":"2026-10-12","missing":true,"sends":null,"answers":null,"csi":null},{"key":"2026-10-13","date":"2026-10-13","missing":true,"sends":null,"answers":null,"csi":null},{"key":"2026-10-14","date":"2026-10-14","missing":true,"sends":null,"answers":null,"csi":null},{"key":"2026-10-15","date":"2026-10-15","missing":true,"sends":null,"answers":null,"csi":null},{"key":"2026-10-16","date":"2026-10-16","missing":false,"sends":52,"answers":2,"csi":3.5},{"key":"2026-10-19","date":"2026-10-19","missing":false,"sends":1,"answers":0,"csi":null},{"key":"2026-10-20","date":"2026-10-20","missing":false,"sends":8,"answers":1,"csi":5},{"key":"2026-10-21","date":"2026-10-21","missing":false,"sends":1,"answers":0,"csi":null},{"key":"2026-10-22","date":"2026-10-22","missing":false,"sends":92,"answers":1,"csi":5},{"key":"2026-10-23","date":"2026-10-23","missing":false,"sends":47,"answers":4,"csi":5}],"weeks":[{"key":"2026-09-28","start":"2026-10-01","end":"2026-10-04","sends":null,"answers":null,"csi":null,"observedDays":0,"expectedDays":2,"missingDates":["2026-10-01","2026-10-02"]},{"key":"2026-10-05","start":"2026-10-05","end":"2026-10-11","sends":null,"answers":null,"csi":null,"observedDays":0,"expectedDays":5,"missingDates":["2026-10-05","2026-10-06","2026-10-07","2026-10-08","2026-10-09"]},{"key":"2026-10-12","start":"2026-10-12","end":"2026-10-18","sends":52,"answers":2,"csi":3.5,"observedDays":1,"expectedDays":5,"missingDates":["2026-10-12","2026-10-13","2026-10-14","2026-10-15"]},{"key":"2026-10-19","start":"2026-10-19","end":"2026-10-23","sends":149,"answers":6,"csi":5,"observedDays":5,"expectedDays":5,"missingDates":[]}],"csiMethod":"ratings","missingDates":["2026-10-01","2026-10-02","2026-10-05","2026-10-06","2026-10-07","2026-10-08","2026-10-09","2026-10-12","2026-10-13","2026-10-14","2026-10-15"]}</script><!--current-period:end--><script type="application/json" id="surveyOverviewData">{"id":846,"channel":"communication","monthly":[{"key":"2026-01","month":"2026-01","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-02","month":"2026-02","events":1755,"sends":461,"answers":34,"stop":208,"contactPolicy":1086},{"key":"2026-03","month":"2026-03","events":3913,"sends":1108,"answers":90,"stop":552,"contactPolicy":2253},{"key":"2026-04","month":"2026-04","events":181,"sends":71,"answers":5,"stop":36,"contactPolicy":74},{"key":"2026-05","month":"2026-05","events":1226,"sends":516,"answers":34,"stop":217,"contactPolicy":493},{"key":"2026-06","month":"2026-06","events":1207,"sends":512,"answers":37,"stop":209,"contactPolicy":485},{"key":"2026-07","month":"2026-07","events":1965,"sends":635,"answers":32,"stop":285,"contactPolicy":889},{"key":"2026-08","month":"2026-08","events":1236,"sends":423,"answers":22,"stop":231,"contactPolicy":582},{"key":"2026-09","month":"2026-09","events":1173,"sends":473,"answers":19,"stop":199,"contactPolicy":417},{"key":"2026-10","month":"2026-10","events":688,"sends":201,"answers":8,"stop":148,"contactPolicy":326}],"latest":{"key":"2026-10","month":"2026-10","events":688,"sends":201,"answers":8,"stop":148,"contactPolicy":326},"hasStop":true,"hasPolicy":true,"policyCodes":[1003,1011,1016,1017,1018,1019,1020,1021,1022,1023,1024],"dailyAvailable":true,"through":"2026-10-23","missingDates":["2026-10-01","2026-10-02","2026-10-05","2026-10-06","2026-10-07","2026-10-08","2026-10-09","2026-10-12","2026-10-13","2026-10-14","2026-10-15"],"days":[{"key":"2026-10-01","date":"2026-10-01","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-10-02","date":"2026-10-02","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-10-05","date":"2026-10-05","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-10-06","date":"2026-10-06","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-10-07","date":"2026-10-07","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-10-08","date":"2026-10-08","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-10-09","date":"2026-10-09","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-10-12","date":"2026-10-12","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-10-13","date":"2026-10-13","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-10-14","date":"2026-10-14","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-10-15","date":"2026-10-15","missing":true,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null},{"key":"2026-10-16","date":"2026-10-16","missing":false,"events":124,"sends":52,"answers":2,"stop":26,"contactPolicy":46},{"key":"2026-10-19","date":"2026-10-19","missing":false,"events":124,"sends":1,"answers":0,"stop":26,"contactPolicy":97},{"key":"2026-10-20","date":"2026-10-20","missing":false,"events":24,"sends":8,"answers":1,"stop":7,"contactPolicy":9},{"key":"2026-10-21","date":"2026-10-21","missing":false,"events":19,"sends":1,"answers":0,"stop":5,"contactPolicy":13},{"key":"2026-10-22","date":"2026-10-22","missing":false,"events":200,"sends":92,"answers":1,"stop":44,"contactPolicy":64},{"key":"2026-10-23","date":"2026-10-23","missing":false,"events":197,"sends":47,"answers":4,"stop":40,"contactPolicy":97}],"weeks":[{"key":"2026-09-28","start":"2026-10-01","end":"2026-10-04","observedDays":0,"expectedDays":2,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null,"missing":true},{"key":"2026-10-05","start":"2026-10-05","end":"2026-10-11","observedDays":0,"expectedDays":5,"events":null,"sends":null,"answers":null,"stop":null,"contactPolicy":null,"missing":true},{"key":"2026-10-12","start":"2026-10-12","end":"2026-10-18","observedDays":1,"expectedDays":5,"events":124,"sends":52,"answers":2,"stop":26,"contactPolicy":46},{"key":"2026-10-19","start":"2026-10-19","end":"2026-10-23","observedDays":5,"expectedDays":5,"events":564,"sends":149,"answers":6,"stop":122,"contactPolicy":280}]}</script><script type="application/json" id="v2Meta">{"id":846,"surveyType":"Триггерный (CSAT)","surveyTypeKey":"csat","triggerGroup":"Свободная группа 1","name":"Опрос 846","channel":"communication","month":"2026-10","sourceMonth":"2026-10","sourceFrom":"2026-10-16","sourceThrough":"2026-10-23","missingDates":["2026-10-01","2026-10-02","2026-10-05","2026-10-06","2026-10-07","2026-10-08","2026-10-09","2026-10-12","2026-10-13","2026-10-14","2026-10-15"],"dailyAvailable":true,"hasCurrent":true,"plan":null,"actual":8,"sends":201,"csi":4.625,"forecast":10,"action":"Месячный план не задан.","elapsed":0,"total":22,"calendarThrough":null,"remaining":null,"average":24.333333333333332,"csiProof":{"numerator":37,"denominator":8},"latest":{"sends":201,"answers":8,"csi":4.625},"availableMonths":["2026-02","2026-03","2026-04","2026-05","2026-06","2026-07","2026-08","2026-09","2026-10"]}</script><script src="../assets/v2-ui.js?v=20261030-groups-1"></script><script src="../assets/v2-charts.js?v=20261030-groups-1"></script></body>
+</html>
