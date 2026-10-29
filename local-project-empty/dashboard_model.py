@@ -180,7 +180,10 @@ def build_state(baseline, updates):
         if ident in records and records[ident]['meta']['channel'] != row['channel']:
             raise DataError('Опрос %s уже находится в другом канале. Один ID нельзя неявно объединить между пуш/СМС и экранами успеха.' % ident)
         if ident not in records:
-            records[ident] = {'event': {'id': ident, 'channel': row['channel'], 'statuses': [], 'months': months, 'totals': [0]*len(months), 'isTop': False, 'hasData': True}, 'meta': {'id': ident, 'name': row.get('name') or 'Опрос %s' % ident, 'channel': row['channel'], 'plan': None, 'availableMonths': []}}
+            reference = baseline.get('surveyCatalog', {}).get(str(ident), {})
+            if reference.get('channel', row['channel']) != row['channel']:
+                raise DataError('Опрос %s относится к другому каналу в справочнике. Проверьте выбранный CSV.' % ident)
+            records[ident] = {'event': {'id': ident, 'channel': row['channel'], 'statuses': [], 'months': months, 'totals': [0]*len(months), 'isTop': reference.get('isTop', False), 'hasData': True}, 'meta': {'id': ident, 'name': row.get('name') or reference.get('name') or 'Опрос %s' % ident, 'channel': row['channel'], 'plan': reference.get('plan'), 'surveyType': reference.get('surveyType', 'Триггерный (CSAT)'), 'availableMonths': []}}
         if row.get('name'):
             records[ident]['meta']['name'] = row['name']
     by_id_days = defaultdict(list)

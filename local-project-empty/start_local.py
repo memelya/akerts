@@ -34,6 +34,13 @@ class Engine:
         baseline_file = self.directory / 'baseline.json'
         baseline_text = baseline_file.read_text(encoding='utf-8-sig').strip() if baseline_file.exists() else ''
         self.baseline = json.loads(baseline_text) if baseline_text else empty_baseline()
+        reference_file = self.directory / 'reference.json'
+        if reference_file.exists():
+            reference = json.loads(reference_file.read_text(encoding='utf-8-sig'))
+            if reference.get('version') != 1:
+                raise DataError('Неизвестный формат справочников reference.json')
+            for key in ('surveyCatalog', 'ranks', 'statusDescriptions', 'surveyTypes', 'triggerGroups'):
+                self.baseline[key] = reference.get(key, {})
         self.cache = self.directory / 'updates.json'
         self.lock = threading.RLock()
         self.fingerprint = None
