@@ -1,5 +1,9 @@
 # Events: дашборд опросов
 
+[Скачать GEN UI мониторинг с поддержкой GigaCode CLI](https://github.com/memelya/akerts/raw/refs/heads/gh-pages/downloads/genui-gigacode.zip)
+
+Запуск на ноутбуке: распакуйте архив и откройте `START_GIGACODE.cmd`. Установленная CLI и её авторизация используются локальным сервером. Поддерживаются отправки, ответы и CSI на одном графике.
+
 [Скачать чистую локальную версию ZIP](https://github.com/memelya/akerts/raw/refs/heads/gh-pages/downloads/alerts-local-empty.zip)
 
 [Исходный код чистой локальной версии](local-project-empty/) · [Открыть опубликованный V2](https://memelya.github.io/akerts/v2/)
