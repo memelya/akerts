@@ -1,0 +1,8 @@
+{
+  "command": ["C:/path/to/gigacode.exe", "--prompt", "{prompt}", "--approval-mode", "plan", "--output-format", "text"],
+  "input": "argument",
+  "timeoutSeconds": 120,
+  "planningTimeoutSeconds": 120,
+  "codeTimeoutSeconds": 240,
+  "responsePath": ""
+}
