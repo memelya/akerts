@@ -19,15 +19,15 @@
 .pulse-card{background:var(--surface,#181818);border:1px solid var(--line,#313131);border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;gap:10px;min-width:0}
 .pulse-card h3{margin:0;font-size:15px}
 .pulse-card p{margin:0}
-.pulse-narrative{border-color:#5a3a22;background:linear-gradient(135deg,#1d1610,#181818 60%)}
+.pulse-narrative{border-color:var(--accent-line,#5a3a22);background:linear-gradient(135deg,var(--accent-soft,#1b1611),var(--surface,#181818) 60%)}
 .pulse-narrative h2{font-size:20px;line-height:28px;margin:0}
 .pulse-narrative ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px}
 .pulse-refs{margin-left:6px;display:inline-flex;gap:4px;color:var(--muted,#9a9a9a);font-size:11px}
-.pulse-ref{font-size:11px;color:var(--accent,#ff8a35);text-decoration:none;border:1px solid #4a3220;border-radius:4px;padding:0 4px;cursor:help}
+.pulse-ref{font-size:11px;color:var(--accent,#ff8a35);text-decoration:none;border:1px solid var(--accent-line,#5a3a22);border-radius:4px;padding:0 4px;cursor:help}
 .pulse-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .pulse-btn{border:1px solid var(--line,#313131);background:var(--raised,#1f1f1f);color:var(--text,#ededed);border-radius:8px;padding:8px 12px;font:inherit;font-size:12px;cursor:pointer}
 .pulse-btn:hover{background:var(--hover,#272727)}
-.pulse-btn.accent{background:var(--accent,#ff8a35);border-color:var(--accent,#ff8a35);color:#111}
+.pulse-btn.accent{background:var(--accent,#ff8a35);border-color:var(--accent,#ff8a35);color:var(--on-accent,#111)}
 .pulse-btn.accent:hover{filter:brightness(1.08)}
 .pulse-btn.ghost{background:transparent}
 .pulse-btn:disabled{opacity:.6;cursor:progress}
@@ -50,15 +50,15 @@ h3.good{color:var(--positive,#81b598)}
 .pulse-change.good{border-top-color:var(--positive,#81b598)}
 .pulse-change-item{display:flex;flex-direction:column;gap:2px;font-size:12px;padding-top:8px;border-top:1px solid var(--line,#313131)}
 .pulse-tag{display:inline-block;font-size:11px;line-height:18px;padding:0 8px;border-radius:99px;background:var(--raised,#1f1f1f);border:1px solid var(--line,#313131);color:var(--text-secondary,#b5b5b5);width:max-content;max-width:100%}
-.pulse-tag.bad{color:var(--negative,#f39b8e);border-color:#5b3a35}
-.pulse-tag.good{color:var(--positive,#81b598);border-color:#35503f}
-.pulse-tag.warn{color:var(--accent,#ff8a35);border-color:#5a3a22}
+.pulse-tag.bad{color:var(--negative,#f39b8e);border-color:color-mix(in srgb,var(--negative,#f39b8e) 45%,transparent)}
+.pulse-tag.good{color:var(--positive,#81b598);border-color:color-mix(in srgb,var(--positive,#81b598) 45%,transparent)}
+.pulse-tag.warn{color:var(--accent,#ff8a35);border-color:var(--accent-line,#5a3a22)}
 .pulse-shift.down{border-left:3px solid var(--negative,#f39b8e)}
 .pulse-shift.up{border-left:3px solid var(--positive,#81b598)}
 .pulse-cluster{border-left:3px solid var(--accent,#ff8a35)}
 .pulse-members{margin:0;padding-left:18px;font-size:12px;display:flex;flex-direction:column;gap:2px}
 .pulse-signal.urgent{border-left:3px solid var(--negative,#f39b8e)}
-.pulse-memory{border:1px dashed #5a3a22;border-radius:8px;padding:10px 12px;font-size:12px;display:flex;flex-direction:column;gap:4px;background:#1b1611}
+.pulse-memory{border:1px dashed var(--accent-line,#5a3a22);border-radius:8px;padding:10px 12px;font-size:12px;display:flex;flex-direction:column;gap:4px;background:var(--accent-soft,#1b1611)}
 .pulse-memory b{color:var(--accent,#ff8a35)}
 .pulse-output:empty{display:none}
 .pulse-subcard{border-top:1px solid var(--line,#313131);padding-top:12px;display:flex;flex-direction:column;gap:8px;font-size:12px}
@@ -92,12 +92,12 @@ h3.good{color:var(--positive,#81b598)}
 .pulse-page input,.pulse-page select,.pulse-page textarea,.pulse-dialog input,.pulse-dialog textarea{background:var(--raised,#1f1f1f);color:var(--text,#ededed);border:1px solid var(--line,#313131);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;min-width:0;width:100%;box-sizing:border-box}
 .pulse-ask input{width:auto}
 .pulse-scenario h3{font-size:17px}
-.pulse-onboarding{border-color:#5a3a22}
+.pulse-onboarding{border-color:var(--accent-line,#5a3a22)}
 .pulse-onboarding h2{margin:0;font-size:22px}
 .pulse-steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:16px}
 .pulse-steps li{display:flex;flex-direction:column;gap:6px}
-.pulse-drop{border:2px dashed #5a3a22;border-radius:12px;padding:28px 16px;text-align:center;color:var(--text-secondary,#b5b5b5);cursor:pointer;font-size:13px}
-.pulse-drop.is-over,.pulse-drop:hover{border-color:var(--accent,#ff8a35);color:var(--text,#ededed);background:#1b1611}
+.pulse-drop{border:2px dashed var(--accent-line,#5a3a22);border-radius:12px;padding:28px 16px;text-align:center;color:var(--text-secondary,#b5b5b5);cursor:pointer;font-size:13px}
+.pulse-drop.is-over,.pulse-drop:hover{border-color:var(--accent,#ff8a35);color:var(--text,#ededed);background:var(--accent-soft,#1b1611)}
 .pulse-upload-row{margin:4px 0;font-size:12px}
 .pulse-upload-row.good{color:var(--positive,#81b598)}
 .pulse-upload-row.bad{color:var(--negative,#f39b8e)}
@@ -110,11 +110,11 @@ h3.good{color:var(--positive,#81b598)}
 .pulse-dialog h2{margin:0;font-size:18px}
 .pulse-notes{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
 .pulse-deck{display:flex;flex-direction:column;gap:16px}
-.pulse-slide{position:relative;aspect-ratio:16/9;max-width:960px;background:#111;border:1px solid var(--line,#313131);border-radius:12px;padding:28px 32px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.pulse-slide{position:relative;aspect-ratio:16/9;max-width:960px;background:var(--surface,#111);border:1px solid var(--line,#313131);border-radius:12px;padding:28px 32px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
 .pulse-slide h3{margin:0;font-size:22px}
 .pulse-slide.cover h3{font-size:30px}
 .pulse-slide ul{margin:0;padding-left:18px;font-size:13px;display:flex;flex-direction:column;gap:4px}
-.pulse-slide [contenteditable]:hover{outline:1px dashed #5a3a22}
+.pulse-slide [contenteditable]:hover{outline:1px dashed var(--accent-line,#5a3a22)}
 .pulse-slide [contenteditable]:focus{outline:1px solid var(--accent,#ff8a35)}
 .pulse-slide-no{position:absolute;right:16px;top:12px;font-size:11px;color:var(--muted,#9a9a9a)}
 .pulse-conclusion{color:var(--accent,#ff8a35);font-weight:600;margin-top:auto!important}

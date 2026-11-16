@@ -157,6 +157,8 @@ class Pulse:
         self.error = None
         self.stop_event = threading.Event()
         self.thread = None
+        self.local = threading.local()
+        self.jobs = {}
         with self.db() as db:
             db.executescript('''
                 CREATE TABLE IF NOT EXISTS pulse_briefs(revision TEXT PRIMARY KEY, created TEXT NOT NULL, document TEXT NOT NULL);
@@ -399,7 +401,8 @@ class Pulse:
 
     def brief_response(self, force=False):
         brief = self.ensure_brief(force)
-        return dict(brief, settings=self.settings(), modelReady=self.model_ready())
+        demo = self.demo()
+        return dict(brief, settings=self.settings(), modelReady=self.model_ready(), demo=bool(demo), demoStories=(demo or {}).get('stories'))
 
     # -- background preparation --------------------------------------------
     def start(self, interval=30):
@@ -407,6 +410,10 @@ class Pulse:
             return
 
         def loop():
+            try:
+                self.demo_seed()
+            except Exception as error:
+                self.error = str(error)
             while not self.stop_event.is_set():
                 try:
                     brief = self.ensure_brief()
@@ -445,16 +452,39 @@ class Pulse:
         return text.strip()
 
     def narrate(self, request):
+        return self.with_fallback(lambda: self.narrate_live(request), self.narrate_canned)
+
+    def narrate_canned(self):
         brief = self.ensure_brief()
         if brief.get('empty'):
             raise ValueError('Нет данных для резюме.')
         facts = brief_facts(brief)
+        narrative = canned_narrative(brief, facts)
+        narrative.update(facts=facts, generatedAt=now(), revision=brief['revision'],
+                         trust={'facts': len(facts), 'refs': sum(len(b['refs']) for b in narrative['bullets']), 'rejected': 0})
+        self.save_narrative(brief['revision'], narrative)
+        return narrative
+
+    def save_narrative(self, revision, narrative):
+        with self.lock:
+            current = self.cached_brief(revision)
+            if current:
+                current['narrative'] = narrative
+                self.store_brief(current)
+
+    def narrate_live(self, request):
+        brief = self.ensure_brief()
+        if brief.get('empty'):
+            raise ValueError('Нет данных для резюме.')
+        facts = brief_facts(brief)
+        self.stage('Отправляю факты в GigaCode')
         result = self.call_model('pulse-brief',
             'Ты аналитик мониторинга опросов. По facts составь утреннее резюме руководителю на русском языке. '
             'Верни один JSON {"headline":"...","bullets":[{"text":"...","refs":["F1"]}]}: headline до 160 символов, '
             'от 2 до 5 bullets до 220 символов, в каждом refs — ссылки на использованные факты. '
             'Используй только числа из facts, ничего не вычисляй, не утверждай причины — только гипотезы для проверки.',
             {'facts': facts}, 'Утреннее резюме')
+        self.stage('Проверяю ссылки и числа по фактам')
         refs = {f['ref'] for f in facts}
         if not isinstance(result, dict) or set(result) - {'headline', 'bullets'} or not isinstance(result.get('bullets'), list) or not 1 <= len(result['bullets']) <= 6:
             raise ValueError('Ответ модели не соответствует формату резюме.')
@@ -465,12 +495,10 @@ class Pulse:
             used = [f for f in facts if f['ref'] in bullet['refs']]
             bullets.append({'text': self.check_text(bullet.get('text'), used, 'Пункт резюме'), 'refs': bullet['refs']})
         narrative = {'headline': self.check_text(result.get('headline'), facts, 'Заголовок резюме'), 'bullets': bullets,
-                     'facts': facts, 'generatedAt': now(), 'revision': brief['revision']}
-        with self.lock:
-            current = self.cached_brief(brief['revision'])
-            if current:
-                current['narrative'] = narrative
-                self.store_brief(current)
+                     'facts': facts, 'generatedAt': now(), 'revision': brief['revision'],
+                     'source': 'GigaCode CLI · числа проверены по фактам',
+                     'trust': {'facts': len(facts), 'refs': sum(len(b['refs']) for b in bullets), 'rejected': 0}}
+        self.save_narrative(brief['revision'], narrative)
         return narrative
 
     def explain(self, request):
@@ -481,28 +509,12 @@ class Pulse:
         shift = next((s for s in self.shifts(state, revision, channel, ident) if s['metric'] == metric), None)
         if not shift:
             raise ValueError('Сдвиг больше не обнаруживается в текущей версии данных.')
+        self.stage('Собираю факты по сдвигу')
         facts = shift_facts(self, state, revision, shift)
         notes = self.recall(shift)
         options = [{'id': 'C' + str(i + 1), 'label': label, 'refs': refs} for i, (label, refs) in enumerate(check_options(facts))]
-        payload = {'facts': facts, 'options': options,
-                   'memory': [{'title': n['title'], 'cause': n['cause']} for n in notes[:3]]}
-        result = self.call_model('pulse-explain',
-            'Объясни устойчивый сдвиг показателя опроса. Верни один JSON {"summary":"...","hypotheses":[{"text":"...","refs":["F1"]}],"checks":["C1"]}. '
-            'summary до 300 символов, 1–3 hypotheses до 240 символов со ссылками refs на facts, checks — до трёх ID из options. '
-            'Если в memory есть похожий прошлый случай, упомяни его как гипотезу. Используй только числа из facts. Причины — только гипотезы.',
-            payload, 'Объяснить сдвиг #' + str(ident))
-        refs = {f['ref'] for f in facts}
-        allowed_checks = {o['id']: o for o in options}
-        if not isinstance(result, dict) or not isinstance(result.get('hypotheses'), list) or not isinstance(result.get('checks'), list):
-            raise ValueError('Ответ модели не соответствует формату объяснения.')
-        hypotheses = []
-        for item in result['hypotheses'][:3]:
-            if not isinstance(item, dict) or not isinstance(item.get('refs'), list) or not item['refs'] or any(r not in refs for r in item['refs']):
-                raise ValueError('Модель сослалась на несуществующий факт. Объяснение отклонено.')
-            hypotheses.append({'text': self.check_text(item.get('text'), [f for f in facts if f['ref'] in item['refs']], 'Гипотеза'), 'refs': item['refs']})
-        checks = [allowed_checks[c] for c in dict.fromkeys(result['checks']) if isinstance(c, str) and c in allowed_checks][:3]
-        return {'summary': self.check_text(result.get('summary'), facts, 'Объяснение'), 'hypotheses': hypotheses,
-                'checks': checks, 'facts': facts, 'source': 'GigaCode CLI · проверено по фактам'}
+        return self.with_fallback(lambda: self.model_explain(facts, options, notes, 'Объяснить сдвиг #' + str(ident)),
+                                  lambda: canned_explain(facts, options, notes))
 
     def explain_local(self, request):
         state, revision = self.snapshot()
@@ -730,6 +742,8 @@ class Pulse:
         scored = []
         products = {p.casefold() for p in shift.get('products', [])}
         for note in self.notes()['notes']:
+            if note.get('direction') and shift.get('direction') and note['direction'] != shift['direction']:
+                continue
             score = 0
             if note.get('surveyId') == shift.get('id'):
                 score += 3
@@ -738,8 +752,8 @@ class Pulse:
             if note.get('direction') and note.get('direction') == shift.get('direction'):
                 score += 1
             if products & {p.casefold() for p in note.get('products', [])}:
-                score += 1
-            if score >= 3:
+                score += 2
+            if score >= 4:
                 scored.append((score, note))
         scored.sort(key=lambda pair: pair[1]['created'], reverse=True)
         scored.sort(key=lambda pair: -pair[0])
@@ -756,10 +770,13 @@ class Pulse:
             return not product or product.casefold() in {p.casefold() for p in products}
 
         slides = []
+        seen_groups = set()
         for cluster in brief.get('clusters', []):
             members = [m for m in cluster['members'] if keep(m['products'])]
-            if len(members) < 2:
+            group = (cluster['channel'], cluster['direction'], frozenset(m['id'] for m in members))
+            if len(members) < 2 or group in seen_groups:
                 continue
+            seen_groups.add(group)
             slides.append({'kind': 'cluster', 'title': cluster['title'],
                            'subtitle': cluster['channelLabel'] + ' · ' + cluster['from'] + (' — ' + cluster['to'] if cluster['to'] != cluster['from'] else ''),
                            'kpis': [['Опросов', str(len(members))],
@@ -828,6 +845,283 @@ class Pulse:
         rows = max(len(text.splitlines()) - 1, 0)
         return {'saved': name, 'rows': rows, 'message': name + ' сохранён в папку date: строк ' + fmt_int(rows) + '.'}
 
+
+    # -- demo mode ------------------------------------------------------------
+    def demo(self):
+        try:
+            value = json.loads((self.root / '.local-data' / 'demo.json').read_text(encoding='utf-8'))
+            return value if value.get('demo') is True else None
+        except (OSError, ValueError, AttributeError):
+            return None
+
+    def demo_seed(self):
+        """Календарь и память для демо-папки. Ничего не делает в рабочем проекте."""
+        marker = self.demo()
+        if not marker:
+            return
+        from demo_data import MEMORY, calendar_events
+        try:
+            existing = {e.get('title') for e in self.engine.workflows.list().get('events', [])}
+            for event in calendar_events(marker):
+                if event['title'] not in existing:
+                    self.engine.workflows.save_event(event)
+        except (ValueError, OSError, KeyError):
+            pass
+        if not self.notes()['notes']:
+            for note in MEMORY:
+                try:
+                    self.add_note(dict(note))
+                except ValueError:
+                    pass
+
+    def demo_reset(self, request):
+        marker = self.demo()
+        if not marker:
+            raise ValueError('Сброс доступен только в демо-папке. Рабочие данные не изменены.')
+        from demo_data import generate
+        with self.engine.lock:
+            generate(self.root, dt.date.fromisoformat(marker['anchor']))
+            with self.db() as db:
+                db.execute('DELETE FROM pulse_notes')
+                db.execute('DELETE FROM pulse_briefs')
+            self.settings_path.unlink(missing_ok=True)
+        self.demo_seed()
+        return self.brief_response(True)
+
+    def stage(self, text):
+        job = getattr(self.local, 'job', None)
+        if job is not None:
+            job['stages'].append({'text': text, 'at': round(time.monotonic() - job['started'], 2)})
+
+    def with_fallback(self, live, canned):
+        """В демо-папке при недоступной модели показывает сохранённый ответ с явной пометкой."""
+        if not self.demo():
+            return live()
+        reason, rejected = 'модель не вызывалась', 0
+        try:
+            if self.model_ready():
+                return live()
+        except Exception as error:  # в демо показ не должен срываться из-за CLI
+            rejected = 1 if 'отклон' in str(error).lower() else 0
+            reason = ('ответ GigaCode не принят проверкой — ' if rejected else 'GigaCode недоступна — ') + str(error)[:160]
+        for text in ('Отправляю факты в GigaCode', 'Проверяю ссылки и числа по фактам'):
+            self.stage(text)
+            time.sleep(.6)
+        result = canned()
+        result['source'] = 'Демо: сохранённый ответ, ' + reason
+        result['canned'] = True
+        if isinstance(result.get('trust'), dict):
+            result['trust']['rejected'] = rejected
+        return result
+
+    # -- jobs: пошаговый статус --------------------------------------------------
+    JOB_ACTIONS = ('explain', 'point', 'narrate', 'whatif-parse', 'route')
+
+    def job_start(self, request):
+        job_request = request.get('job')
+        if not isinstance(job_request, dict) or job_request.get('action') not in self.JOB_ACTIONS:
+            raise ValueError('Это действие не поддерживает пошаговый статус.')
+        ident = uuid.uuid4().hex
+        job = {'id': ident, 'stages': [], 'done': False, 'result': None, 'error': None, 'started': time.monotonic()}
+        with self.lock:
+            self.jobs = {k: v for k, v in getattr(self, 'jobs', {}).items() if time.monotonic() - v['started'] < 900}
+            self.jobs[ident] = job
+
+        def run():
+            self.local.job = job
+            try:
+                self.stage('Понял запрос')
+                job['result'] = self.action(job_request)
+                self.stage('Готово')
+            except (ValueError, TypeError, KeyError, OSError, IndexError) as error:
+                job['error'] = str(error)
+            except Exception as error:  # ошибки модели и CLI показываем пользователю как есть
+                job['error'] = str(error) or error.__class__.__name__
+            finally:
+                job['done'] = True
+        threading.Thread(target=run, name='pulse-job', daemon=True).start()
+        return {'id': ident}
+
+    def job_status(self, request):
+        job = getattr(self, 'jobs', {}).get(request.get('id'))
+        if not job:
+            raise ValueError('Задача не найдена. Повторите запрос.')
+        return {'id': job['id'], 'stages': job['stages'], 'done': job['done'], 'result': job['result'] if job['done'] else None,
+                'error': job['error'], 'elapsed': round(time.monotonic() - job['started'], 1)}
+
+    # -- compare ------------------------------------------------------------------
+    def compare(self, request):
+        state, revision = self.snapshot()
+        metric = request.get('metric', 'answers')
+        if metric not in ('sends', 'answers', 'events', 'csi', 'responseRate'):
+            raise ValueError('Выберите показатель для сравнения.')
+        days = request.get('days', 60)
+        if days not in (14, 30, 60, 90):
+            raise ValueError('Период: 14, 30, 60 или 90 дней.')
+        items = request.get('items')
+        if not isinstance(items, list) or not 1 <= len(items) <= 5:
+            raise ValueError('Добавьте от одного до пяти объектов сравнения.')
+        resolved = []
+        for item in items:
+            if not isinstance(item, dict):
+                raise ValueError('Некорректный объект сравнения.')
+            channel = item.get('channel') or 'communication'
+            if channel not in CHANNELS:
+                raise ValueError('Выберите канал.')
+            ident, product = item.get('id'), clean_text(item.get('product'), 'Продукт', 200) or None
+            if ident is not None and (type(ident) is not int or not 1 <= ident <= 9999999):
+                raise ValueError('Некорректный номер опроса.')
+            selected = self.surveys(state, channel, ident, product)
+            if not selected:
+                raise ValueError('Нет данных: ' + ('опрос #' + str(ident) if ident else product or CHANNEL_LABELS[channel]) + ' · ' + CHANNEL_LABELS[channel])
+            label = ('#' + str(ident) + ' · ' + selected[0]['meta']['name']) if ident else (product or 'Все опросы · ' + CHANNEL_LABELS[channel])
+            resolved.append({'label': label, 'channel': channel, 'id': ident, 'product': product,
+                             'keys': [(channel, s['event']['id']) for s in selected], 'surveys': len(selected)})
+        latest = max((self.last_day(revision, r['keys']) or '' for r in resolved), default='')
+        if not latest:
+            raise ValueError('Для сравнения нужны дневные строки.')
+        end = dt.date.fromisoformat(latest)
+        start = (end - dt.timedelta(days=days - 1)).isoformat()
+        output = []
+        for r in resolved:
+            by_day = defaultdict(list)
+            for row in self.daily(revision, r['keys'], start, latest):
+                by_day[row['date']].append(row)
+            series = []
+            for date in sorted(by_day):
+                value = aggregate(by_day[date], metric)
+                if value is not None:
+                    series.append([date, round(value, 3)])
+            rows = [row for part in by_day.values() for row in part]
+            cut = (end - dt.timedelta(days=6)).isoformat()
+            prior_cut = (end - dt.timedelta(days=13)).isoformat()
+            current = aggregate([x for x in rows if x['date'] >= cut], metric, True)
+            previous = aggregate([x for x in rows if prior_cut <= x['date'] < cut], metric, True)
+            if metric in ('csi', 'responseRate'):
+                delta, relative = (current - previous if current is not None and previous is not None else None), None
+            else:
+                delta = current - previous if current is not None and previous is not None else None
+                relative = (current - previous) / previous * 100 if previous else None
+            dates = sorted(by_day)
+            first = aggregate([x for x in rows if x['date'] in set(dates[:7])], metric, True)
+            last = aggregate([x for x in rows if x['date'] in set(dates[-7:])], metric, True)
+            if metric in ('csi', 'responseRate'):
+                period_delta, period_relative = (last - first if last is not None and first is not None else None), None
+            else:
+                period_delta = last - first if last is not None and first is not None else None
+                period_relative = (last - first) / first * 100 if first else None
+            output.append({'label': r['label'], 'channel': r['channel'], 'id': r['id'], 'product': r['product'], 'surveys': r['surveys'],
+                           'series': series, 'total': aggregate(rows, metric, True), 'current': current, 'previous': previous,
+                           'delta': delta, 'relative': relative, 'periodDelta': period_delta, 'periodRelative': period_relative})
+        ranked = [o for o in output if (o['periodRelative'] if o['periodRelative'] is not None else o['periodDelta']) is not None]
+        conclusion = ''
+        if ranked:
+            key = lambda o: o['periodRelative'] if o['periodRelative'] is not None else o['periodDelta'] * 100
+            show = lambda o: (signed_pct(o['periodRelative']) if o['periodRelative'] is not None else signed_num(o['periodDelta']))
+            worst, best = min(ranked, key=key), max(ranked, key=key)
+            span = 'За ' + str(days) + ' дней (последняя неделя к первой) '
+            if len(ranked) == 1:
+                conclusion = span + '«' + worst['label'] + '»: ' + show(worst) + '.'
+            elif key(worst) < 0:
+                conclusion = span + 'сильнее всего просел «' + worst['label'] + '» (' + show(worst) + '), лучше всех — «' + best['label'] + '» (' + show(best) + ').'
+            else:
+                conclusion = span + 'снижений нет: минимум у «' + worst['label'] + '» (' + show(worst) + '), максимум у «' + best['label'] + '» (' + show(best) + ').'
+        return {'metric': metric, 'label': METRIC_LABELS[metric], 'days': days, 'from': start, 'to': latest, 'items': output,
+                'conclusion': conclusion,
+                'method': 'Дневные значения за ' + str(days) + ' дней по ' + latest + '. «За период» — последние 7 дней с данными к первым 7; «за неделю» — к предыдущим 7. Пропуски не считаются нулями.'}
+
+    # -- point ----------------------------------------------------------------------
+    def point_facts(self, state, revision, channel, ident, product, metric, date):
+        selected = self.surveys(state, channel, ident, product)
+        if not selected:
+            raise ValueError('Нет данных по выбранному объекту.')
+        keys = [(channel, s['event']['id']) for s in selected]
+        anchor = dt.date.fromisoformat(date)
+        rows = self.daily(revision, keys, (anchor - dt.timedelta(days=14)).isoformat(), date)
+        today = [r for r in rows if r['date'] == date]
+        if not today:
+            raise ValueError('За ' + date + ' нет наблюдений.')
+        week = [r for r in rows if (anchor - dt.timedelta(days=7)).isoformat() <= r['date'] < date]
+        same_weekday = [r for r in rows if r['date'] == (anchor - dt.timedelta(days=7)).isoformat()]
+        facts = []
+
+        def add(label, value, unit='', period=''):
+            if value is not None:
+                facts.append({'ref': 'F' + str(len(facts) + 1), 'label': label, 'value': round(value, 2) if isinstance(value, float) else value, 'unit': unit, 'period': period})
+
+        name = METRIC_LABELS[metric]
+        value = aggregate(today, metric)
+        base = aggregate(week, metric, False, True)
+        add(name + ' за день', value, '', date)
+        add(name + ': среднее за 7 предыдущих дней', base)
+        if value is not None and base:
+            if metric in ('csi', 'responseRate'):
+                add('Изменение к среднему', signed_num(value - base))
+            else:
+                add('Изменение к среднему', signed_pct((value - base) / base * 100))
+        add(name + ' в тот же день недели неделей раньше', aggregate(same_weekday, metric))
+        if channel == 'communication':
+            for key, label in (('events', 'События'), ('stop', 'Стоп-лист 1002'), ('contactPolicy', 'Политика контактов')):
+                if key == metric:
+                    continue
+                now_value = aggregate(today, key)
+                base_value = aggregate(week, key, False, True)
+                if now_value is not None and base_value is not None:
+                    add(label + ' за день', now_value, '', date)
+                    add(label + ': среднее за 7 предыдущих дней', base_value)
+        try:
+            events = self.engine.workflows.list().get('events', [])
+        except Exception:
+            events = []
+        ids = {k[1] for k in keys}
+        for item in events[:300]:
+            start, end = str(item.get('from') or '')[:10], str(item.get('to') or item.get('from') or '')[:10]
+            if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', start) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', end):
+                continue
+            if item.get('ids') and not ids & set(item['ids']):
+                continue
+            if dt.date.fromisoformat(start) - dt.timedelta(days=3) <= anchor <= dt.date.fromisoformat(end) + dt.timedelta(days=3):
+                add('Событие календаря запусков рядом с датой (совпадение — не доказательство причины)', str(item.get('title') or 'событие')[:120], '', start)
+        return facts
+
+    def point(self, request):
+        state, revision = self.snapshot()
+        channel, ident, metric, date = request.get('channel'), request.get('id'), request.get('metric'), request.get('date')
+        product = clean_text(request.get('product'), 'Продукт', 200) or None
+        if channel not in CHANNELS or metric not in METRIC_LABELS or not isinstance(date, str) or (ident is not None and type(ident) is not int):
+            raise ValueError('Выберите точку на графике.')
+        self.stage('Собираю факты за ' + date)
+        facts = self.point_facts(state, revision, channel, ident, product, metric, date[:10])
+        options = [{'id': 'C' + str(i + 1), 'label': label, 'refs': refs} for i, (label, refs) in enumerate(point_checks(facts))]
+        base = {'facts': facts, 'checks': options, 'date': date[:10], 'source': 'Локальный расчёт без модели'}
+        if not request.get('useModel'):
+            return base
+        query = 'Объяснить точку ' + date[:10]
+        return self.with_fallback(lambda: self.model_explain(facts, options, [], query), lambda: canned_explain(facts, options))
+
+    def model_explain(self, facts, options, notes, query):
+        payload = {'facts': facts, 'options': options, 'memory': [{'title': n['title'], 'cause': n['cause']} for n in notes[:3]]}
+        self.stage('Отправляю факты в GigaCode')
+        result = self.call_model('pulse-explain',
+            'Объясни изменение показателя опроса. Верни один JSON {"summary":"...","hypotheses":[{"text":"...","refs":["F1"]}],"checks":["C1"]}. '
+            'summary до 300 символов, 1–3 hypotheses до 240 символов со ссылками refs на facts, checks — до трёх ID из options. '
+            'Если в memory есть похожий прошлый случай, упомяни его как гипотезу. Используй только числа из facts. Причины — только гипотезы.',
+            payload, query)
+        self.stage('Проверяю ссылки и числа по фактам')
+        refs = {f['ref'] for f in facts}
+        allowed = {o['id']: o for o in options}
+        if not isinstance(result, dict) or not isinstance(result.get('hypotheses'), list) or not isinstance(result.get('checks'), list):
+            raise ValueError('Ответ модели не соответствует формату объяснения.')
+        hypotheses = []
+        for item in result['hypotheses'][:3]:
+            if not isinstance(item, dict) or not isinstance(item.get('refs'), list) or not item['refs'] or any(r not in refs for r in item['refs']):
+                raise ValueError('Модель сослалась на несуществующий факт. Объяснение отклонено.')
+            hypotheses.append({'text': self.check_text(item.get('text'), [f for f in facts if f['ref'] in item['refs']], 'Гипотеза'), 'refs': item['refs']})
+        checks = [allowed[c] for c in dict.fromkeys(result['checks']) if isinstance(c, str) and c in allowed][:3]
+        return {'summary': self.check_text(result.get('summary'), facts, 'Объяснение'), 'hypotheses': hypotheses, 'checks': checks,
+                'facts': facts, 'source': 'GigaCode CLI · проверено по фактам',
+                'trust': {'facts': len(facts), 'refs': sum(len(h['refs']) for h in hypotheses), 'rejected': 0}}
+
     # -- dispatcher ------------------------------------------------------------
     def action(self, request):
         action = request.get('action')
@@ -857,6 +1151,16 @@ class Pulse:
             return self.route(request)
         if action == 'catalog':
             return self.catalog()
+        if action == 'compare':
+            return self.compare(request)
+        if action == 'point':
+            return self.point(request)
+        if action == 'job-start':
+            return self.job_start(request)
+        if action == 'job-status':
+            return self.job_status(request)
+        if action == 'demo-reset':
+            return self.demo_reset(request)
         raise ValueError('Неизвестное действие пульса.')
 
     def catalog(self):
@@ -1075,3 +1379,112 @@ def parse_whatif(query, state):
     if params['id'] is None and params['product'] is None:
         notes.append('Опрос или продукт не указан — сценарий считается по всем опросам канала.')
     return {'params': params, 'understood': understood, 'notes': notes}
+
+
+METRIC_LABELS = {'sends': 'Отправки', 'answers': 'Ответы', 'events': 'События', 'csi': 'CSI', 'responseRate': 'Отклик, %',
+                 'stop': 'Стоп-лист 1002', 'contactPolicy': 'Политика контактов'}
+
+
+def aggregate(rows, metric, total=False, per_day=False):
+    """Сумма (или взвешенное значение) по строкам feedback_days; per_day — среднее на день с данными."""
+    if not rows:
+        return None
+    if metric == 'csi':
+        return weighted_csi(rows)[0]
+    if metric == 'responseRate':
+        sends = sum(r.get('sends') or 0 for r in rows)
+        return sum(r.get('answers') or 0 for r in rows) / sends * 100 if sends else None
+    values = [r[metric] for r in rows if r.get(metric) is not None]
+    if not values:
+        return None
+    amount = float(sum(values))
+    if per_day:
+        return amount / max(len({r['date'] for r in rows}), 1)
+    return amount
+
+
+def signed_pct(value):
+    return ('+' if value > 0 else '') + f'{value:.1f}'.replace('.', ',') + '%'
+
+
+def signed_num(value):
+    return ('+' if value > 0 else '') + f'{value:.2f}'.replace('.', ',')
+
+
+def point_checks(facts):
+    labels = [f['label'] for f in facts]
+    options = []
+    if any(l.startswith('Стоп-лист') for l in labels):
+        options.append(('Сверить отсечение по стоп-листу 1002 в этот день', [f['ref'] for f in facts if f['label'].startswith('Стоп-лист')]))
+    if any(l.startswith('Политика') for l in labels):
+        options.append(('Проверить срабатывание политики контактов', [f['ref'] for f in facts if f['label'].startswith('Политика')]))
+    if any(l.startswith('События') for l in labels):
+        options.append(('Проверить входящий поток событий', [f['ref'] for f in facts if f['label'].startswith('События')]))
+    if any(l.startswith('Событие календаря') for l in labels):
+        options.append(('Уточнить у владельца события календаря, что именно менялось', [f['ref'] for f in facts if f['label'].startswith('Событие календаря')]))
+    options.append(('Проверить полноту выгрузки за этот день', [facts[0]['ref']]))
+    return options
+
+
+def fact_value(fact):
+    value = fact['value']
+    text = fmt_int(value) if isinstance(value, (int, float)) and abs(value) >= 100 else (str(value).replace('.', ',') if isinstance(value, float) else str(value))
+    return text + (' ' + fact['unit'] if fact.get('unit') else '')
+
+
+def canned_explain(facts, options, notes=()):
+    """Сохранённый ответ демо: собирается из тех же фактов, чисел сверх фактов не содержит."""
+    by = {f['label']: f for f in facts}
+    change = next((f for f in facts if f['label'].startswith('Изменение')), None)
+    stop = [f for f in facts if f['label'].startswith('Стоп-лист')]
+    events = [f for f in facts if f['label'].startswith('События')]
+    calendar = [f for f in facts if f['label'].startswith('Событие календаря')]
+    hypotheses = []
+    if len(stop) >= 2 and isinstance(stop[0]['value'], (int, float)) and isinstance(stop[1]['value'], (int, float)):
+        first, second = stop[0]['value'], stop[1]['value']
+        low, high = min(first, second), max(first, second)
+        if low and high / low >= 1.3:
+            hypotheses.append({'text': 'Отсечение по стоп-листу 1002 заметно изменилось: ' + fact_value(stop[0]) + ' против ' + fact_value(stop[1])
+                               + '. Вероятно, изменение связано со стоп-листом.', 'refs': [f['ref'] for f in stop[:2]]})
+    if len(events) >= 2 and not hypotheses and isinstance(events[0]['value'], (int, float)) and isinstance(events[1]['value'], (int, float)) \
+            and min(events[0]['value'], events[1]['value']) and max(events[0]['value'], events[1]['value']) / min(events[0]['value'], events[1]['value']) >= 1.3:
+        hypotheses.append({'text': 'Входящий поток событий: ' + fact_value(events[0]) + ' против ' + fact_value(events[1])
+                           + '. Стоит проверить источник событий.', 'refs': [f['ref'] for f in events[:2]]})
+    if calendar:
+        hypotheses.append({'text': 'Рядом с датой в календаре есть событие «' + str(calendar[0]['value']) + '». Совпадение по времени — гипотеза, не доказательство.',
+                           'refs': [calendar[0]['ref']]})
+    if notes:
+        hypotheses.append({'text': 'Похожий прошлый случай из памяти расследований: ' + notes[0]['title'] + '.', 'refs': [facts[0]['ref']]})
+    if not hypotheses:
+        hypotheses.append({'text': 'Сопутствующие показатели изменились слабо — вероятна локальная причина этого опроса.', 'refs': [facts[0]['ref']]})
+    summary = facts[0]['label'] + ': ' + fact_value(facts[0]) + ('; ' + facts[1]['label'].lower() + ': ' + fact_value(facts[1]) if len(facts) > 1 else '') \
+        + ('. Изменение: ' + str(change['value']) if change else '') + '.'
+    return {'summary': summary[:300], 'hypotheses': hypotheses[:3], 'checks': options[:3], 'facts': facts,
+            'trust': {'facts': len(facts), 'refs': sum(len(h['refs']) for h in hypotheses[:3]), 'rejected': 0}}
+
+
+def canned_narrative(brief, facts):
+    down = [s for s in brief.get('shifts', []) if s['direction'] == 'down']
+    urgent = [s for s in brief.get('signals', []) if s['severity'] == 'urgent']
+    clusters = brief.get('clusters', [])
+    parts = []
+    if urgent:
+        parts.append('срочных сигналов: ' + str(len(urgent)))
+    if clusters:
+        parts.append('групповых инцидентов: ' + str(len(clusters)))
+    if down:
+        parts.append('устойчивых снижений: ' + str(len(down)))
+    headline = ('В фокусе — ' + ', '.join(parts) + '.') if parts else 'Существенных отклонений нет, показатели стабильны.'
+    bullets = []
+    for fact in facts:
+        if fact['label'].startswith('Групповое') and len(bullets) < 2:
+            bullets.append({'text': fact['label'] + ': вероятна общая причина, проверьте её один раз.', 'refs': [fact['ref']]})
+    for fact in facts:
+        if 'после сдвига' in fact['label'] and len(bullets) < 4:
+            bullets.append({'text': fact['label'] + ' — ' + fact_value(fact) + ' (' + fact.get('period', '') + ').', 'refs': [fact['ref']]})
+    for fact in facts:
+        if fact['label'].startswith('#') and isinstance(fact['value'], str) and len(bullets) < 5:
+            bullets.append({'text': fact['label'] + ': ' + fact['value'], 'refs': [fact['ref']]})
+    if not bullets:
+        bullets.append({'text': facts[0]['label'] + ': ' + fact_value(facts[0]) + '.', 'refs': [facts[0]['ref']]})
+    return {'headline': headline, 'bullets': bullets, 'source': 'Демо: сохранённый ответ, модель не вызывалась', 'canned': True}
