@@ -144,3 +144,52 @@ td .pulse-chip{border:0;background:transparent;padding:0 6px 0 0}
 .pulse-tabs{overflow-x:auto;flex-wrap:nowrap}
 @media (max-width:850px){.pulse-tile.wide{grid-column:auto}.pulse-sens-row{grid-template-columns:1fr}}
 .pulse-chart svg>*:not(.hit):not(.event-hit){pointer-events:none}
+/* фокус руководителя, портфель */
+.trust-card>strong,.pulse-kpi b,.pulse-tile-value{display:block;white-space:nowrap;overflow:hidden;max-width:100%}
+.pulse-status-card{gap:12px;border-color:var(--accent-line);background:linear-gradient(135deg,var(--accent-soft),var(--surface) 65%)}
+.pulse-status-line{margin:0;font-size:22px;line-height:30px;color:var(--text)}
+.pulse-bank{display:flex;flex-wrap:wrap;gap:8px}
+.pulse-bank-chip{font-size:12px;border:1px solid var(--line);border-radius:99px;padding:4px 12px;color:var(--text-secondary);background:var(--raised)}
+.pulse-bank-chip b{color:var(--text);font-weight:600}
+.pulse-bank-chip.ok{border-color:color-mix(in srgb,var(--positive) 35%,transparent)}
+.pulse-bank-chip.bad{border-color:var(--negative);color:var(--negative)}
+.pulse-problem{gap:6px}
+.pulse-problem.urgent{border-left:3px solid var(--negative)}.pulse-problem.shift{border-left:3px solid var(--accent)}.pulse-problem.weekly{border-left:3px solid #d5a53f}.pulse-problem.growth{border-left:3px solid var(--positive)}
+.pulse-problem-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pulse-problem-head h3{font-size:16px;margin:0 6px 0 0}
+.pulse-problem-line{font-size:15px;line-height:22px;color:var(--text);margin:0}
+.pulse-problem-note{font-size:13px;color:var(--text-secondary);margin:0}
+.pulse-problem-more{display:flex;flex-direction:column;gap:10px}
+.pulse-page button.pulse-star{border:0;background:transparent;color:var(--accent);font-size:18px;line-height:1;padding:2px 4px;cursor:pointer;min-height:0;width:auto}
+.pulse-more>summary,.pulse-analyst>summary{cursor:pointer;font-weight:600;color:var(--text-secondary);padding:4px 0}
+.pulse-more{display:flex;flex-direction:column;gap:10px}
+.pulse-analyst{gap:12px}
+.pulse-focus-dialog{width:min(680px,calc(100vw - 32px))}
+.pulse-focus-dialog input[type=search]{width:100%;box-sizing:border-box;margin:8px 0}
+.pulse-focus-list{max-height:50vh;overflow:auto;display:flex;flex-direction:column;gap:2px;margin-bottom:12px}
+.pulse-focus-row{display:grid;grid-template-columns:44px 1fr auto;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--line);font-size:13px}
+.pulse-focus-dialog button.pulse-star{border:0;background:transparent;color:var(--accent);font-size:18px;cursor:pointer}
+.pulse-table-wrap{overflow-x:auto}
+.pulse-heat td,.pulse-heat th{white-space:nowrap}
+.pulse-heat-row{cursor:pointer}
+.pulse-heat-row:hover td{background:var(--hover)}
+.pulse-heat-row.bad .pulse-heat-name{box-shadow:inset 3px 0 var(--negative)}
+.pulse-heat-row.warn .pulse-heat-name{box-shadow:inset 3px 0 #d5a53f}
+.pulse-heat-row.ok .pulse-heat-name{box-shadow:inset 3px 0 var(--positive)}
+.pulse-heat-name{font-weight:600;padding-left:12px!important}
+.pulse-heat-member td{font-size:12px;background:var(--raised)}
+.pulse-heat-member .pulse-heat-name{font-weight:400;padding-left:24px!important}
+.pulse-heat .heat-bad{background:color-mix(in srgb,var(--negative) 22%,transparent);color:var(--text);font-weight:600}
+.pulse-heat .heat-warn{background:color-mix(in srgb,#d5a53f 22%,transparent);color:var(--text)}
+.pulse-heat .heat-good{background:color-mix(in srgb,var(--positive) 16%,transparent);color:var(--text)}
+.pulse-heat-toggle{color:var(--muted);width:18px}
+.pulse-page button.pulse-linkbtn{border:0;background:transparent;color:var(--text);padding:0;font:inherit;cursor:pointer;text-align:left;min-height:0;width:auto;text-decoration:underline;text-decoration-color:var(--line-strong)}
+.pulse-heat .pulse-tag{margin-left:6px}
+.pulse-heat .pulse-star{font-size:15px}
+/* графики диалога: пояснения свёрнуты */
+.v2-chart-help-toggle{border:1px solid var(--line);background:var(--raised);color:var(--text-secondary);border-radius:99px;width:22px;height:22px;padding:0;font:600 12px/1 inherit;cursor:pointer}
+.v2-help-folded .v2-chart-help:not(.is-warning){display:none}
+.pulse-tag.pulse-top{color:var(--accent);border-color:var(--accent-line)}
+.pulse-problem .pulse-row .pulse-btn{padding:6px 10px}
+.pulse-save-skill{white-space:nowrap;align-self:center}
+.v2-chart-help-toggle{vertical-align:middle;margin-left:4px}

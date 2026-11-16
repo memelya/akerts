@@ -105,11 +105,18 @@ def detect_shift(days, metric):
     if len(points) < 2 * MIN_SIDE + 3:
         return None
     values = [p[1] for p in points]
+    n = len(values)
+    s1, s2 = [0.0], [0.0]
+    for v in values:  # накопленные суммы: поиск точки разрыва за O(n)
+        s1.append(s1[-1] + v)
+        s2.append(s2[-1] + v * v)
     best = None
-    for k in range(MIN_SIDE, len(points) - MIN_SIDE + 1):
-        before, after = values[:k], values[k:]
-        mb, ma = mean(before), mean(after)
-        noise = math.sqrt(variance(before, mb) / len(before) + variance(after, ma) / len(after)) or 1e-9
+    for k in range(MIN_SIDE, n - MIN_SIDE + 1):
+        nb, na = k, n - k
+        mb, ma = s1[k] / nb, (s1[n] - s1[k]) / na
+        vb = max((s2[k] - nb * mb * mb) / (nb - 1), 0.0)
+        va = max((s2[n] - s2[k] - na * ma * ma) / (na - 1), 0.0)
+        noise = math.sqrt(vb / nb + va / na) or 1e-9
         score = abs(ma - mb) / noise
         if best is None or score > best[0]:
             best = (score, k, mb, ma)
@@ -297,6 +304,8 @@ class Pulse:
                     if not shift:
                         continue
                     info = meta.get(sid, {})
+                    answered = [r.get('answers') or 0 for r in days.values()]
+                    shift['avgAnswers'] = round(sum(answered) / len(answered), 2) if answered else 0
                     shift.update(
                         key=f'shift:{ch}:{sid}:{metric}:{shift["direction"]}', channel=ch, channelLabel=CHANNEL_LABELS[ch],
                         id=sid, name=info.get('name', 'Опрос ' + str(sid)), products=info.get('products', []),
@@ -400,6 +409,16 @@ class Pulse:
                  'kpis': self.kpis(state, revision), 'signals': signals, 'shifts': shifts[:60], 'shiftTotal': len(shifts),
                  'candidates': candidates[:150], 'candidateTotal': len(candidates), 'sensitivity': settings['sensitivity'],
                  'clusters': clusters[:12], 'narrative': None, 'events': self.calendar_marks()}
+        focus = self.focus_keys(state)
+        favorites = {tuple(k) for k in self.focus_store()['favorites']}
+        for item in candidates[:150] + signals:
+            key = (item['channel'], item['id'])
+            item['inFocus'] = key in focus
+            item['favorite'] = key in favorites
+        brief['problems'] = build_problems(shifts, signals, focus, favorites)
+        brief['focus'] = {'total': len(focus), 'top': sum(1 for s in state['surveys'] if s['event'].get('isTop')),
+                          'favorites': len(favorites), 'minAnswers': MIN_FOCUS_ANSWERS}
+        brief['bank'] = self.bank_status(state, revision)
         brief['computeSeconds'] = round(time.monotonic() - started + 0.0, 2)
         self.journal_detected(brief)
         previous = self.previous_brief(revision)
@@ -531,14 +550,20 @@ class Pulse:
         self.log('model-check', outcome='accepted')
         return result
 
+    def narrative_items(self, brief):
+        items = [p for p in brief.get('problems', []) if p['inFocus'] and not p['lowVolume'] and p['kind'] != 'growth'][:5]
+        facts = [{'ref': 'I' + str(i + 1), 'label': p['title'] + ' — ' + p['line'], 'value': p['kindLabel'], 'unit': '', 'period': p.get('since') or ''}
+                 for i, p in enumerate(items)]
+        return items, facts
+
     def narrate_canned(self):
         brief = self.ensure_brief()
         if brief.get('empty'):
             raise ValueError('Нет данных для резюме.')
-        facts = brief_facts(brief)
-        narrative = canned_narrative(brief, facts)
-        narrative.update(facts=facts, generatedAt=now(), revision=brief['revision'],
-                         trust={'facts': len(facts), 'refs': sum(len(b['refs']) for b in narrative['bullets']), 'rejected': 0})
+        items, facts = self.narrative_items(brief)
+        narrative = {'status': canned_status(brief, items), 'items': [{'ref': f['ref'], 'key': p['key'], 'note': p['hint']} for f, p in zip(facts, items)],
+                     'facts': facts, 'generatedAt': now(), 'revision': brief['revision'], 'source': 'Демо: сохранённый ответ, модель не вызывалась',
+                     'canned': True, 'trust': {'facts': len(facts), 'refs': len(facts), 'rejected': 0, 'platformNumbers': True}}
         self.save_narrative(brief['revision'], narrative)
         return narrative
 
@@ -553,28 +578,41 @@ class Pulse:
         brief = self.ensure_brief()
         if brief.get('empty'):
             raise ValueError('Нет данных для резюме.')
-        facts = brief_facts(brief)
-        self.stage('Отправляю факты в GigaCode')
+        items, facts = self.narrative_items(brief)
+        if not facts:
+            narrative = {'status': canned_status(brief, items), 'items': [], 'facts': [], 'generatedAt': now(), 'revision': brief['revision'],
+                         'source': 'Проблем в фокусе нет — модель не вызывалась', 'trust': {'facts': 0, 'refs': 0, 'rejected': 0, 'platformNumbers': True}}
+            self.save_narrative(brief['revision'], narrative)
+            return narrative
+        self.stage('Отправляю темы в GigaCode')
         result = self.call_model('pulse-brief',
-            'Ты аналитик мониторинга опросов. По facts составь утреннее резюме руководителю на русском языке. '
-            'Верни один JSON {"headline":"...","bullets":[{"text":"...","refs":["F1"]}]}: headline до 160 символов, '
-            'от 2 до 5 bullets до 220 символов, в каждом refs — ссылки на использованные факты. '
-            'Используй только числа из facts, ничего не вычисляй, не утверждай причины — только гипотезы для проверки.',
+            'Ты помощник руководителя. В facts — проблемы опросов из его фокуса (I1…). Верни один JSON '
+            '{"status":"...","items":[{"ref":"I1","note":"..."}]}. status — одна фраза до 110 символов: общий вывод для руководителя. '
+            'items — те же ref в порядке важности, note — до 110 символов: что это скорее всего значит и что проверить, как гипотеза. '
+            'НЕ ПИШИ НИКАКИХ ЦИФР, дат, номеров и названий опросов: их подставит платформа. Без вступлений.',
             {'facts': facts}, 'Утреннее резюме')
-        self.stage('Проверяю ссылки и числа по фактам')
-        refs = {f['ref'] for f in facts}
-        if not isinstance(result, dict) or set(result) - {'headline', 'bullets'} or not isinstance(result.get('bullets'), list) or not 1 <= len(result['bullets']) <= 6:
+        self.stage('Проверяю ответ: ссылки и отсутствие цифр')
+        refs = {f['ref']: p for f, p in zip(facts, items)}
+        if not isinstance(result, dict) or set(result) - {'status', 'items'} or not isinstance(result.get('items'), list):
             raise ValueError('Ответ модели не соответствует формату резюме.')
-        bullets = []
-        for bullet in result['bullets']:
-            if not isinstance(bullet, dict) or not isinstance(bullet.get('refs'), list) or not bullet['refs'] or any(r not in refs for r in bullet['refs']):
-                raise ValueError('Модель сослалась на несуществующий факт. Резюме отклонено.')
-            used = [f for f in facts if f['ref'] in bullet['refs']]
-            bullets.append({'text': self.check_text(bullet.get('text'), used, 'Пункт резюме'), 'refs': bullet['refs']})
-        narrative = {'headline': self.check_text(result.get('headline'), facts, 'Заголовок резюме'), 'bullets': bullets,
-                     'facts': facts, 'generatedAt': now(), 'revision': brief['revision'],
-                     'source': 'GigaCode CLI · числа проверены по фактам',
-                     'trust': {'facts': len(facts), 'refs': sum(len(b['refs']) for b in bullets), 'rejected': 0}}
+        def words(text, label, limit):
+            if not isinstance(text, str) or not text.strip() or len(text) > limit:
+                raise ValueError(label + ': модель вернула пустой или слишком длинный текст. Ответ отклонён.')
+            if re.search(r'\d', text):
+                raise ValueError(label + ': модель написала число, хотя числа подставляет платформа. Ответ отклонён.')
+            return text.strip()
+        ordered, seen = [], set()
+        for item in result['items']:
+            if not isinstance(item, dict) or item.get('ref') not in refs or item['ref'] in seen:
+                raise ValueError('Модель сослалась на несуществующую тему. Резюме отклонено.')
+            seen.add(item['ref'])
+            ordered.append({'ref': item['ref'], 'key': refs[item['ref']]['key'], 'note': words(item.get('note'), 'Комментарий', 160)})
+        for ref, problem in refs.items():
+            if ref not in seen:
+                ordered.append({'ref': ref, 'key': problem['key'], 'note': problem['hint']})
+        narrative = {'status': words(result.get('status'), 'Вывод', 160), 'items': ordered, 'facts': facts, 'generatedAt': now(),
+                     'revision': brief['revision'], 'source': 'GigaCode CLI · числа подставлены платформой',
+                     'trust': {'facts': len(facts), 'refs': len(ordered), 'rejected': 0, 'platformNumbers': True}}
         self.save_narrative(brief['revision'], narrative)
         return narrative
 
@@ -895,7 +933,7 @@ class Pulse:
         cover = {'kind': 'cover', 'title': 'Мониторинг опросов' + (' · ' + product if product else ''),
                  'subtitle': 'Данные по ' + max((k['through'] for k in brief.get('kpis', [])), default='—') + ' · версия ' + str(brief['revision'])[:8],
                  'kpis': kpi_lines, 'bullets': ['Тем для обсуждения: ' + str(len(slides))]
-                 + ([brief['narrative']['headline']] if brief.get('narrative') else []),
+                 + ([brief['narrative'].get('status') or brief['narrative'].get('headline')] if brief.get('narrative') and (brief['narrative'].get('status') or brief['narrative'].get('headline')) else []),
                  'conclusion': '', 'series': None}
         self.log('meeting-built', slides=len(slides) + 1, product=product)
         return {'slides': [cover] + slides, 'revision': brief['revision'], 'product': product,
@@ -947,6 +985,10 @@ class Pulse:
         except (ValueError, OSError, KeyError):
             pass
         self.demo_baseline()
+        if not self.focus_path.exists():
+            from data_trust import atomic_json
+            from demo_data import FAVORITES
+            atomic_json(self.focus_path, {'favorites': FAVORITES})
         if not self.notes()['notes']:
             for note in MEMORY:
                 try:
@@ -968,6 +1010,7 @@ class Pulse:
                 db.execute('DELETE FROM pulse_skills')
             self.settings_path.unlink(missing_ok=True)
             self.screen_path.unlink(missing_ok=True)
+            self.focus_path.unlink(missing_ok=True)
             try:
                 for event in self.engine.workflows.list().get('events', []):
                     self.engine.workflows.delete_event(event['id'])
@@ -1510,6 +1553,178 @@ class Pulse:
         atomic_json(self.screen_path, value)
         return value
 
+
+    # -- мой фокус: топ + избранные ---------------------------------------------------
+    @property
+    def focus_path(self):
+        return self.root / '.local-data' / 'pulse-focus.json'
+
+    def focus_store(self):
+        try:
+            value = json.loads(self.focus_path.read_text(encoding='utf-8'))
+            favorites = [[c, i] for c, i in value.get('favorites', []) if c in CHANNELS and type(i) is int]
+            return {'favorites': favorites}
+        except (OSError, ValueError, AttributeError, TypeError):
+            return {'favorites': []}
+
+    def focus_keys(self, state):
+        favorites = {tuple(k) for k in self.focus_store()['favorites']}
+        return {(s['meta']['channel'], s['event']['id']) for s in state['surveys']
+                if s['event'].get('isTop') or (s['meta']['channel'], s['event']['id']) in favorites}
+
+    def focus_get(self, request=None):
+        state, _ = self.snapshot()
+        favorites = {tuple(k) for k in self.focus_store()['favorites']}
+        rows = [{'channel': s['meta']['channel'], 'channelLabel': CHANNEL_LABELS[s['meta']['channel']], 'id': s['event']['id'], 'name': s['meta']['name'],
+                 'products': s['meta'].get('products', []), 'top': bool(s['event'].get('isTop')),
+                 'favorite': (s['meta']['channel'], s['event']['id']) in favorites}
+                for s in state['surveys'] if s['event'].get('isTop') or (s['meta']['channel'], s['event']['id']) in favorites]
+        rows.sort(key=lambda r: (not r['favorite'], r['channel'], r['id']))
+        return {'surveys': rows, 'favorites': len(favorites), 'top': sum(r['top'] for r in rows)}
+
+    def focus_toggle(self, request):
+        from data_trust import atomic_json
+        channel, ident = request.get('channel'), request.get('id')
+        if channel not in CHANNELS or type(ident) is not int:
+            raise ValueError('Выберите опрос для избранного.')
+        store = self.focus_store()
+        key = [channel, ident]
+        on = request.get('on')
+        present = key in store['favorites']
+        if on is None:
+            on = not present
+        if on and not present:
+            store['favorites'].append(key)
+        if not on and present:
+            store['favorites'].remove(key)
+        atomic_json(self.focus_path, store)
+        self.ensure_brief(True)
+        return {'favorite': bool(on), 'favorites': len(store['favorites'])}
+
+    # -- статус банка: показываем, только если есть серьёзная проблема -------------------------
+    BANK_ANSWERS_ALERT = -10.0
+    BANK_CSI_ALERT = -0.1
+
+    def bank_status(self, state, revision):
+        output = []
+        for channel in CHANNELS:
+            keys = [(channel, s['event']['id']) for s in self.surveys(state, channel)]
+            latest = self.last_day(revision, keys)
+            if not latest:
+                continue
+            end = dt.date.fromisoformat(latest)
+            rows = self.daily(revision, keys, (end - dt.timedelta(days=27)).isoformat(), latest)
+            cut = (end - dt.timedelta(days=13)).isoformat()
+            current = [r for r in rows if r['date'] >= cut]
+            previous = [r for r in rows if r['date'] < cut]
+            a_now = sum(r['answers'] or 0 for r in current)
+            a_prev = sum(r['answers'] or 0 for r in previous)
+            csi_now, _ = weighted_csi(current)
+            csi_prev, _ = weighted_csi(previous)
+            answers_change = (a_now - a_prev) / a_prev * 100 if a_prev else None
+            csi_change = csi_now - csi_prev if csi_now is not None and csi_prev is not None else None
+            reasons = []
+            if answers_change is not None and answers_change <= self.BANK_ANSWERS_ALERT:
+                reasons.append('ответы ' + signed_pct(answers_change))
+            if csi_change is not None and csi_change <= self.BANK_CSI_ALERT:
+                reasons.append('CSI ' + signed_num(csi_change))
+            output.append({'channel': channel, 'label': CHANNEL_LABELS[channel], 'through': latest, 'surveys': len(keys),
+                           'answers': a_now, 'answersPrevious': a_prev, 'answersChange': answers_change,
+                           'csi': csi_now, 'csiChange': csi_change, 'alert': bool(reasons), 'reasons': reasons,
+                           'window': [(end - dt.timedelta(days=13)).isoformat(), latest]})
+        return output
+
+    # -- портфель групп --------------------------------------------------------------------
+    GROUPINGS = {'product': 'Продукт', 'surveyType': 'Тип опроса', 'triggerGroup': 'Группа триггеров', 'top': 'Топ / остальные'}
+
+    def portfolio(self, request):
+        state, revision = self.snapshot()
+        channel = request.get('channel') or 'communication'
+        group_by = request.get('groupBy') or 'product'
+        if channel not in CHANNELS or group_by not in self.GROUPINGS:
+            raise ValueError('Выберите канал и группировку.')
+        selected = self.surveys(state, channel)
+        keys = [(channel, s['event']['id']) for s in selected]
+        latest = self.last_day(revision, keys)
+        if not latest:
+            raise ValueError('Нет дневных данных по каналу «' + CHANNEL_LABELS[channel] + '».')
+        end = dt.date.fromisoformat(latest)
+        month_start = end.replace(day=1)
+        month_days = calendar.monthrange(end.year, end.month)[1]
+        start = min(month_start, end - dt.timedelta(days=13))
+        rows = self.daily(revision, keys, start.isoformat(), latest)
+        by_survey = defaultdict(list)
+        for row in rows:
+            by_survey[row['survey_id']].append(row)
+        cut, prior = (end - dt.timedelta(days=6)).isoformat(), (end - dt.timedelta(days=13)).isoformat()
+        brief = self.cached_brief(revision) or {}
+        shift_ids = defaultdict(int)
+        for shift in brief.get('shifts', []):
+            if shift['channel'] == channel and shift['direction'] == 'down':
+                shift_ids[shift['id']] += 1
+        signal_ids = {s['id'] for s in brief.get('signals', []) if s['channel'] == channel}
+        favorites = {tuple(k) for k in self.focus_store()['favorites']}
+        members = []
+        for survey in selected:
+            ident, meta = survey['event']['id'], survey['meta']
+            items = by_survey.get(ident, [])
+            now_rows = [r for r in items if r['date'] >= cut]
+            prev_rows = [r for r in items if prior <= r['date'] < cut]
+            mtd = [r for r in items if r['date'] >= month_start.isoformat()]
+            csi_now, sample_now = weighted_csi(now_rows)
+            csi_prev, sample_prev = weighted_csi(prev_rows)
+            members.append({'id': ident, 'name': meta['name'], 'products': meta.get('products', []) or ['без продукта'],
+                            'surveyType': meta.get('surveyType') or 'без типа', 'triggerGroup': meta.get('triggerGroup') or 'без группы',
+                            'top': bool(survey['event'].get('isTop')), 'favorite': (channel, ident) in favorites,
+                            'observed': bool(items), 'answers': sum(r['answers'] or 0 for r in now_rows),
+                            'answersPrevious': sum(r['answers'] or 0 for r in prev_rows), 'sends': sum(r['sends'] or 0 for r in now_rows),
+                            'csiWeight': sum(r.get('csiWeight') or 0 for r in now_rows), 'csiSample': sample_now,
+                            'csiWeightPrevious': sum(r.get('csiWeight') or 0 for r in prev_rows), 'csiSamplePrevious': sample_prev,
+                            'csi': csi_now, 'csiPrevious': csi_prev, 'mtdAnswers': sum(r['answers'] or 0 for r in mtd),
+                            'plan': meta.get('plan'), 'shifts': shift_ids.get(ident, 0), 'signal': ident in signal_ids})
+        def keys_of(member):
+            if group_by == 'product':
+                return member['products']
+            if group_by == 'top':
+                return ['Топ-опросы' if member['top'] else 'Остальные']
+            return [member[group_by]]
+        groups = defaultdict(list)
+        for member in members:
+            for key in keys_of(member):
+                groups[key].append(member)
+        elapsed = end.day / month_days
+        output = []
+        for name, items in groups.items():
+            answers = sum(m['answers'] for m in items)
+            previous = sum(m['answersPrevious'] for m in items)
+            sample = sum(m['csiSample'] for m in items)
+            sample_prev = sum(m['csiSamplePrevious'] for m in items)
+            csi = sum(m['csiWeight'] for m in items) / sample if sample else None
+            csi_prev = sum(m['csiWeightPrevious'] for m in items) / sample_prev if sample_prev else None
+            planned = [m for m in items if m['plan']]
+            expected = sum(m['plan'] * elapsed for m in planned)
+            pace = sum(m['mtdAnswers'] for m in planned) / expected * 100 if expected else None
+            change = (answers - previous) / previous * 100 if previous else None
+            csi_delta = csi - csi_prev if csi is not None and csi_prev is not None else None
+            problems = sum(1 for m in items if m['shifts'] or m['signal'])
+            level = 'ok'
+            if (change is not None and change <= -15) or (csi_delta is not None and csi_delta <= -.1) or (pace is not None and pace < 75):
+                level = 'bad'
+            elif (change is not None and change <= -5) or (csi_delta is not None and csi_delta <= -.05) or (pace is not None and pace < 90) or problems:
+                level = 'warn'
+            output.append({'name': name, 'surveys': len(items), 'observed': sum(m['observed'] for m in items), 'answers': answers,
+                           'answersPrevious': previous, 'answersChange': change, 'sends': sum(m['sends'] for m in items),
+                           'responseRate': answers / sum(m['sends'] for m in items) * 100 if sum(m['sends'] for m in items) else None,
+                           'csi': csi, 'csiChange': csi_delta, 'planPace': pace, 'planned': len(planned), 'problems': problems,
+                           'level': level, 'members': sorted(items, key=lambda m: (-(m['shifts'] + m['signal']), -m['answers']))})
+        output.sort(key=lambda g: ({'bad': 0, 'warn': 1, 'ok': 2}[g['level']], -g['answers']))
+        return {'channel': channel, 'channelLabel': CHANNEL_LABELS[channel], 'groupBy': group_by, 'groupLabel': self.GROUPINGS[group_by],
+                'groupings': self.GROUPINGS, 'through': latest, 'window': [cut, latest], 'previousWindow': [prior, (end - dt.timedelta(days=7)).isoformat()],
+                'month': end.strftime('%Y-%m'), 'groups': output, 'surveys': len(members),
+                'method': 'Ответы — последние 7 дней к предыдущим 7 по ' + latest + '. CSI — средневзвешенный по оценкам 1–5. '
+                          'Темп плана — ответы с начала месяца к плану, распределённому по календарным дням (только опросы с планом). '
+                          'Красный: ответы −15% и хуже, CSI −0,1 и хуже или темп плана ниже 75%. Жёлтый: ответы −5%, CSI −0,05, темп ниже 90% или есть проблемы.'}
+
     # -- dispatcher ------------------------------------------------------------
     def action(self, request):
         action = request.get('action')
@@ -1551,6 +1766,12 @@ class Pulse:
             return self.demo_reset(request)
         if action == 'effect':
             return self.effect(request)
+        if action == 'focus-get':
+            return self.focus_get(request)
+        if action == 'focus-toggle':
+            return self.focus_toggle(request)
+        if action == 'portfolio':
+            return self.portfolio(request)
         if action == 'journal-add':
             return self.journal_add(request)
         if action == 'event-add':
@@ -1898,3 +2119,115 @@ def canned_narrative(brief, facts):
     if not bullets:
         bullets.append({'text': facts[0]['label'] + ': ' + fact_value(facts[0]) + '.', 'refs': [facts[0]['ref']]})
     return {'headline': headline, 'bullets': bullets, 'source': 'Демо: сохранённый ответ, модель не вызывалась', 'canned': True}
+
+
+MIN_FOCUS_ANSWERS = 5   # опросы с меньшим числом ответов в день не выносятся руководителю
+
+
+def compact(value, metric=''):
+    """Число для руководителя: без лишних знаков, крупные — в тыс. и млн."""
+    if value is None:
+        return '—'
+    if metric == 'csi':
+        return f'{value:.2f}'.replace('.', ',')
+    magnitude = abs(value)
+    if magnitude >= 1_000_000:
+        return f'{value / 1_000_000:.1f}'.replace('.', ',').replace(',0', '') + ' млн'
+    if magnitude >= 10_000:
+        return f'{value / 1000:.0f} тыс.'
+    if magnitude >= 1000:
+        return f'{value / 1000:.1f}'.replace('.', ',').replace(',0', '') + ' тыс.'
+    if magnitude >= 10:
+        return str(round(value))
+    return f'{value:.1f}'.replace('.', ',').replace(',0', '')
+
+
+MONTHS_GENITIVE = ['янв.', 'февр.', 'марта', 'апр.', 'мая', 'июня', 'июля', 'авг.', 'сент.', 'окт.', 'нояб.', 'дек.']
+
+
+def human_date(value):
+    if not value:
+        return ''
+    date = dt.date.fromisoformat(value[:10])
+    return str(date.day) + ' ' + MONTHS_GENITIVE[date.month - 1]
+
+
+def short_pct(value):
+    return ('+' if value > 0 else '−' if value < 0 else '') + str(abs(round(value))) + '%'
+
+
+def build_problems(shifts, signals, focus, favorites):
+    """Одна проблема на опрос: сдвиги и сигналы одного опроса объединяются."""
+    by_key = {}
+    for shift in shifts:
+        key = (shift['channel'], shift['id'])
+        by_key.setdefault(key, {'shifts': [], 'signals': [], 'name': shift['name'], 'products': shift.get('products', []),
+                                'avgAnswers': shift.get('avgAnswers')})['shifts'].append(shift)
+    for signal in signals:
+        key = (signal['channel'], signal['id'])
+        by_key.setdefault(key, {'shifts': [], 'signals': [], 'name': signal['name'], 'products': [], 'avgAnswers': None})['signals'].append(signal)
+    output = []
+    for (channel, ident), group in by_key.items():
+        down = [s for s in group['shifts'] if s['direction'] == 'down']
+        urgent = [s for s in group['signals'] if s['severity'] == 'urgent']
+        main = None
+        if down:
+            main = max(down, key=lambda s: (s['metric'] == 'answers', abs(s['relative'] if s['relative'] is not None else s['delta'] * 100)))
+        score, kind, line, since, hint = 0, '', '', None, ''
+        if urgent:
+            score, kind = 100, 'urgent'
+            line = urgent[0]['reasons'][0]
+            hint = 'Похоже на остановку коммуникаций — проверьте запуск и стоп-листы.'
+        if main:
+            change = short_pct(main['relative']) if main['relative'] is not None else signed_num(main['delta']).replace('-', '−') + ' балла'
+            shift_line = main['label'] + ' ' + change + ' с ' + human_date(main['date']) + ' (' + compact(main['before'], main['metric']) + ' → ' + compact(main['after'], main['metric']) + (' в день' if main['metric'] != 'csi' else '') + ')'
+            if not kind:
+                score = (80 if main['severity'] == 'high' else 55) + min(abs(main['relative'] or main['delta'] * 100), 100) / 10
+                kind = 'shift'
+                line, since = shift_line, main['date']
+                if main['relative'] is not None and main['relative'] <= -90:
+                    hint = 'Почти полная остановка — проверьте, не выключен ли опрос или триггер.'
+                elif main['metric'] == 'csi':
+                    hint = 'Снизилась оценка — проверьте изменения в продукте или анкете в эту дату.'
+                elif main['metric'] == 'sends':
+                    hint = 'Меньше отправок — проверьте стоп-листы, политику контактов и входящий поток событий.'
+                else:
+                    hint = 'Меньше ответов — проверьте отправки и отклик, затем запуск коммуникаций.'
+            else:
+                line += ' · ' + shift_line
+                since = main['date']
+        if not kind and group['signals']:
+            score, kind = 40, 'weekly'
+            line = group['signals'][0]['reasons'][0]
+            hint = 'Свежее изменение за неделю — посмотрите динамику по дням.'
+        if not kind:
+            up = group['shifts'][0]
+            score, kind = 5, 'growth'
+            line = up['label'] + ' ' + (short_pct(up['relative']) if up['relative'] is not None else signed_num(up['delta'])) + ' с ' + human_date(up['date'])
+            since, hint = up['date'], 'Рост — убедитесь, что он ожидаем (кампания, новый триггер).'
+        avg = group['avgAnswers']
+        low = avg is not None and avg < MIN_FOCUS_ANSWERS and kind != 'urgent'
+        output.append({'key': 'problem:' + channel + ':' + str(ident), 'channel': channel, 'channelLabel': CHANNEL_LABELS[channel], 'id': ident,
+                       'name': group['name'], 'title': '#' + str(ident) + ' · ' + group['name'], 'products': group['products'],
+                       'kind': kind, 'kindLabel': {'urgent': 'срочно', 'shift': 'устойчивый сдвиг', 'weekly': 'изменение недели', 'growth': 'рост'}[kind],
+                       'score': round(score, 1), 'line': line, 'since': since, 'hint': hint,
+                       'inFocus': (channel, ident) in focus, 'favorite': (channel, ident) in favorites, 'lowVolume': low,
+                       'avgAnswers': avg, 'shiftKeys': [s['key'] for s in group['shifts']], 'metrics': sorted({s['metric'] for s in group['shifts']})})
+    output.sort(key=lambda p: (-p['score'], p['id']))
+    return output
+
+
+def canned_status(brief, items):
+    focus = [p for p in brief.get('problems', []) if p['inFocus'] and not p['lowVolume'] and p['kind'] != 'growth']
+    bank = [b for b in brief.get('bank', []) if b['alert']]
+    head = ('В вашем фокусе требуют решения ' + str(len(focus)) + ' ' + plural(len(focus), 'опрос', 'опроса', 'опросов')) if focus else 'В вашем фокусе проблем нет'
+    tail = '; по банку — ' + ', '.join(b['label'] + ': ' + ', '.join(b['reasons']) for b in bank) if bank else '; по банку существенных изменений нет'
+    return head + tail + '.'
+
+
+def plural(n, one, few, many):
+    n = abs(n) % 100
+    if 11 <= n <= 14:
+        return many
+    n %= 10
+    return one if n == 1 else few if 2 <= n <= 4 else many

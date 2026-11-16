@@ -156,7 +156,17 @@ def execute_query(state,spec,source,include_details=True,day_dates=None):
         result['blocks']=[];result['totals']=[];result['table']=[]
         for metric in core['metrics']:
             blocks=[b for r in results for b in r['blocks'] if b['metric']==metric]
-            if metric=='csi': raise ValueError('Для CSI укажите конкретный опрос; общий CSI требует взвешивания.')
+            if metric=='csi':
+                # CSI группы — средневзвешенный по допустимым оценкам 1–5 всех опросов отбора, не среднее средних
+                from metric_registry import calculate as _calc
+                pooled=[r for s in chosen for r in record_groups.get((s['meta']['channel'],s['event']['id']),[])]
+                values=[]
+                for month_key in result['months']:
+                    rows=[r for r in pooled if r['date'][:7]==month_key]
+                    values.append(_calc(rows,'csi','month') if rows else None)
+                result['blocks'].append({'id':None,'name':filters.get('product','Выбранные опросы'),'metric':'csi','label':METRICS['csi'],'values':values})
+                result.setdefault('methods',[]).append('CSI группы — средневзвешенный по всем допустимым оценкам 1–5 выбранных опросов (не среднее из средних).')
+                continue
             values=[sum(b['values'][j] for b in blocks if b['values'][j] is not None) if any(b['values'][j] is not None for b in blocks) else None for j in range(len(result['months']))]
             result['blocks'].append(dict(blocks[0] if blocks else {'metric':metric,'label':METRICS[metric]},id=None,name=filters.get('product','Выбранные опросы'),values=values))
     if spec.get('grain')=='day':

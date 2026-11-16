@@ -22,6 +22,11 @@ PUSH = {514: (190, 4.2, 4.72), 895: (55, 3.6, 4.61), 578: (175, 4.0, 4.58), 1805
         1007: (2100, 4.3, 4.63)}
 SCREEN = {3434: (520, 4.05), 480: (36, 4.42), 1598: (30, 3.92)}
 DAYS = 100
+# Не-топ опросы: фон для «Остальных» и портфеля групп. Номера — из справочника, данные синтетические.
+OTHERS = {56: 'Кредиты', 57: 'Кредиты', 76: 'Вклады и сбережения', 77: 'Вклады и сбережения', 86: 'Платежи и переводы',
+          87: 'Платежи и переводы', 134: 'Карты', 135: 'Карты', 137: 'Карты', 138: 'Страхование', 139: 'Страхование',
+          165: 'Страхование', 166: 'Премьер', 168: 'Премьер', 177: 'Карты', 187: 'Кредиты', 188: 'Платежи и переводы',
+          211: 'Вклады и сбережения', 221: 'Страхование', 222: 'Карты'}
 
 
 def stories(anchor):
@@ -84,6 +89,25 @@ def generate(root, anchor=None):
                 push.append(f'{stamp};{ident};0;;{sends - used};{sends - used};0')
             push.append(f'{stamp};{ident};1002;;{int(events * stop_share)};0;0')
             push.append(f'{stamp};{ident};1011;;{int(events * policy_share)};0;0')
+        for ident, product in OTHERS.items():
+            r2 = random.Random(ident * 1000 + offset)
+            base = 20 + (ident * 37) % 140
+            rate, csi = 3.2 + (ident % 7) * .25, 4.35 + (ident % 5) * .1
+            sends = base / (rate / 100) * season * r2.uniform(.9, 1.1)
+            if ident == 137 and day >= story['csi']:      # Карты: падение ответов вне фокуса руководителя
+                sends *= .55
+            if ident == 221:                              # малый опрос: обвал при объёме ниже порога фокуса
+                sends *= .05 if day < story['growth'] else .004
+            sends = int(sends)
+            answered = int(sends * rate / 100 * r2.uniform(.9, 1.1))
+            used = 0
+            for score, count in csi_split(answered, csi, r2):
+                if count:
+                    push.append(f'{stamp};{ident};0;{score};{count};{count};{count}')
+                    used += count
+            if sends - used > 0:
+                push.append(f'{stamp};{ident};0;;{sends - used};{sends - used};0')
+            push.append(f'{stamp};{ident};1002;;{int(sends / .36 * .22)};0;0')
         for ident, (answers, csi) in SCREEN.items():
             trend = 1 + (DAYS - offset) / DAYS * .25 if ident == 480 else 1
             got = int(answers * season * trend * rnd.uniform(.92, 1.08))
@@ -93,7 +117,7 @@ def generate(root, anchor=None):
                 if count:
                     screen.append(f'{stamp};{ident};CLOSE_FORM;{score};{count};{count}')
             screen.append(f'{stamp};{ident};CLOSE_WIDGET;;{int(shown * .62)};0')
-    products = ['Опрос;Продукт'] + [f'{ident};{name}' for name, ids in PRODUCTS.items() for ident in ids]
+    products = ['Опрос;Продукт'] + [f'{ident};{name}' for name, ids in PRODUCTS.items() for ident in ids] + [f'{i};{p}' for i, p in OTHERS.items()]
     folder = root / 'date'
     folder.mkdir(parents=True, exist_ok=True)
     for name, lines in (('push-sms.csv', push), ('success-screen.csv', screen), ('products.csv', products)):
@@ -115,6 +139,8 @@ def calendar_events(marker):
          'ids': [589], 'channel': 'communication', 'note': 'Демо-событие.'},
     ]
 
+
+FAVORITES = [['communication', 137]]   # пример избранного не-топ опроса
 
 MEMORY = [{'surveyId': 1427, 'channel': 'communication', 'metric': 'sends', 'direction': 'down', 'products': ['Платежи и переводы'],
            'title': 'Переводы: падение отправок после обновления стоп-листа',
