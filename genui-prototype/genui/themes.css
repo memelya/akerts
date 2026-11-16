@@ -93,3 +93,54 @@ td .pulse-chip{border:0;background:transparent;padding:0 6px 0 0}
 .pulse-page .pulse-row select{width:auto}
 .pulse-page button.pulse-chip-x{border:0;background:transparent;padding:2px 4px;min-height:0;width:auto;box-shadow:none}
 .pulse-table td.bad{color:var(--negative);font-weight:600}
+/* этап 3: события, чувствительность, мой экран, скилы, эффект */
+.pulse-chart .event-hit{fill:transparent;cursor:pointer;outline:none}
+.pulse-chart .event-hit:hover,.pulse-chart .event-hit:focus-visible{fill:#8da9c4;fill-opacity:.18}
+.pulse-chart .event{stroke-width:1.5}
+.pulse-sens{gap:8px}
+.pulse-sens-count{font-size:15px;color:var(--text)}
+.pulse-sens-row{display:grid;grid-template-columns:auto minmax(160px,1fr) auto minmax(150px,220px);gap:12px;align-items:center}
+.pulse-page .pulse-sens-row input[type=range]{padding:0;border:0;background:transparent;accent-color:var(--accent);height:24px}
+.pulse-impact .pulse-summary{font-weight:600}
+.pulse-table td.good{color:var(--positive);font-weight:600}
+.pulse-event-form{border:1px dashed var(--line-strong);border-radius:10px;padding:8px 12px}
+.pulse-event-form summary{cursor:pointer;font-size:12px;color:var(--text-secondary)}
+.pulse-event-form .pulse-row{margin-top:8px}
+.pulse-event-form input[type=text]{flex:1;min-width:220px}
+.pulse-page .pulse-event-form select{width:auto}
+.pulse-extra{display:flex;flex-direction:column;gap:8px}
+.pulse-extra>.pulse-btn{align-self:flex-start}
+.pulse-verdict{border-top:1px solid var(--line);padding-top:8px}
+.pulse-trust-demo{display:flex;flex-direction:column;gap:8px}
+.pulse-trust-demo>.pulse-btn{align-self:flex-start}
+.pulse-trust-result{display:flex;flex-direction:column;gap:8px}
+.pulse-trust-row{border:1px solid var(--line);border-left:3px solid var(--line);border-radius:8px;padding:8px 12px;display:flex;flex-direction:column;gap:2px}
+.pulse-trust-row.good{border-left-color:var(--positive)}.pulse-trust-row.good b{color:var(--positive)}
+.pulse-trust-row.bad{border-left-color:var(--negative)}.pulse-trust-row.bad b{color:var(--negative)}
+.pulse-screen-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.pulse-tile.wide{grid-column:span 2}
+.pulse-tile-body{display:flex;flex-direction:column;gap:6px;min-width:0}
+.pulse-tile-value{font-size:30px;line-height:36px;font-variant-numeric:tabular-nums;color:var(--text)}
+.pulse-tile-value.bad,.pulse-tile-list li.bad{color:var(--negative)}.pulse-tile-value.good,.pulse-tile-list li.good{color:var(--positive)}
+.pulse-tile-list{margin:0;padding-left:16px;font-size:12px;display:flex;flex-direction:column;gap:3px}
+.pulse-screen-grid.is-edit .pulse-tile{cursor:grab;border-style:dashed}
+.pulse-tile.is-drag{opacity:.4}.pulse-tile.is-over{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.pulse-tile-bar{display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:4px}
+.pulse-tile-grip{flex:1;font-size:11px;color:var(--muted)}
+.pulse-page button.pulse-tile-btn{border:1px solid var(--line);background:var(--raised);color:var(--text);border-radius:6px;width:28px;height:26px;padding:0;cursor:pointer;font:inherit;font-size:12px}
+.pulse-tile-form{align-items:end;border:1px dashed var(--line-strong);border-radius:10px;padding:12px}
+.pulse-skill-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+.pulse-skill.mine{border-color:var(--accent-line)}
+.pulse-skill p{font-size:12px}
+.pulse-save-skill{margin-right:auto}
+.pulse-effect-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.pulse-effect-pair{display:flex;align-items:center;gap:14px}
+.pulse-effect-pair>div{display:flex;flex-direction:column}
+.pulse-effect-pair small{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.pulse-effect-pair .was b{font-size:20px;color:var(--text-secondary);text-decoration:line-through;text-decoration-color:var(--line-strong)}
+.pulse-effect-pair .now b{font-size:26px;color:var(--accent)}
+.pulse-effect-arrow{font-size:20px;color:var(--muted)}
+.pulse-baseline summary{cursor:pointer;font-weight:600}
+.pulse-tabs{overflow-x:auto;flex-wrap:nowrap}
+@media (max-width:850px){.pulse-tile.wide{grid-column:auto}.pulse-sens-row{grid-template-columns:1fr}}
+.pulse-chart svg>*:not(.hit):not(.event-hit){pointer-events:none}

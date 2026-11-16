@@ -21,6 +21,8 @@ from metric_registry import POLICY
 VERSION = '1'
 WINDOW_DAYS = 56
 MIN_SIDE = 7
+LOOSEST = 0.6   # кандидаты сдвигов ищутся при самом мягком пороге; отбор по чувствительности — в apply_sensitivity
+SENSITIVITY_RANGE = (0.6, 2.0)
 CHANNELS = ('communication', 'success_screen')
 CHANNEL_LABELS = {'communication': 'Пуш + СМС', 'success_screen': 'Экран успеха'}
 METRICS = {
@@ -34,7 +36,7 @@ UPLOADS = {
     'success-screen.csv': ['day_part', 'event_type_id', 'mp_status', 'answer_csi', 'sends', 'answers'],
     'products.csv': ['Опрос', 'Продукт'],
 }
-NUMBER = re.compile(r'(?<![\w])[-+−]?\d+(?:[.,]\d+)?')
+NUMBER = re.compile(r'(?<![\w])[-+−]?(?:\d{1,3}(?:[ \u00a0\u202f]\d{3})+|\d+)(?:[.,]\d+)?')
 
 
 def now():
@@ -120,8 +122,9 @@ def detect_shift(days, metric):
             return None
         delta = csi_a - csi_b
         persist = mean(tail) - csi_b
-        if abs(delta) < .25 or score < 4 or persist * delta <= 0 or abs(persist) < .2:
+        if persist * delta <= 0:
             return None
+        strength = min(abs(delta) / .25, score / 4, abs(persist) / .2)
         before_value, after_value, relative = csi_b, csi_a, None
         severity = 'high' if abs(delta) >= .4 else 'medium'
     else:
@@ -130,19 +133,32 @@ def detect_shift(days, metric):
         base = max(mb, 1e-9)
         relative = (ma - mb) / base
         persist = (mean(tail) - mb) / base
-        if abs(relative) < .25 or score < 5 or persist * relative <= 0 or abs(persist) < .2:
+        if persist * relative <= 0:
             return None
+        strength = min(abs(relative) / .25, score / 5, abs(persist) / .2)
         before_value, after_value, delta = mb, ma, ma - mb
         severity = 'high' if abs(relative) >= .4 else 'medium'
+    if strength < LOOSEST:
+        return None
     return {
         'metric': metric, 'label': spec['label'], 'unit': spec['unit'],
         'date': points[k][0], 'lastBefore': points[k - 1][0],
         'before': round(before_value, 4), 'after': round(after_value, 4), 'delta': round(delta, 4),
         'relative': round(relative * 100, 1) if relative is not None else None,
         'direction': 'down' if delta < 0 else 'up', 'score': round(score, 1), 'severity': severity,
-        'daysBefore': k, 'daysAfter': len(points) - k,
+        'daysBefore': k, 'daysAfter': len(points) - k, 'strength': round(strength, 3),
         'series': [[p[0], round(p[1], 3)] for p in points],
     }
+
+
+def sensitivity_for(shift, levels):
+    """Порог чувствительности: настройка продукта сдвига (самая мягкая из его продуктов) или общая."""
+    own = [levels[p] for p in shift.get('products', []) if p in levels]
+    return min(own) if own else levels.get('', 1.0)
+
+
+def apply_sensitivity(shifts, levels):
+    return [s for s in shifts if s['strength'] >= sensitivity_for(s, levels) - 1e-9]
 
 
 # --------------------------------------------------------------- the core ---
@@ -163,6 +179,9 @@ class Pulse:
             db.executescript('''
                 CREATE TABLE IF NOT EXISTS pulse_briefs(revision TEXT PRIMARY KEY, created TEXT NOT NULL, document TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS pulse_notes(id TEXT PRIMARY KEY, created TEXT NOT NULL, document TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS pulse_journal(id TEXT PRIMARY KEY, at TEXT NOT NULL, kind TEXT NOT NULL, document TEXT NOT NULL);
+                CREATE INDEX IF NOT EXISTS pulse_journal_kind ON pulse_journal(kind, at);
+                CREATE TABLE IF NOT EXISTS pulse_skills(id TEXT PRIMARY KEY, created TEXT NOT NULL, document TEXT NOT NULL);
             ''')
 
     # -- settings ---------------------------------------------------------
@@ -170,19 +189,58 @@ class Pulse:
     def settings_path(self):
         return self.root / '.local-data' / 'pulse-settings.json'
 
+    BASELINE_FIELDS = {'detectDays': (0, 365), 'closeDays': (0, 365), 'meetingHours': (0, 200),
+                       'checkHoursPerDay': (0, 24), 'meetingsPerMonth': (0, 100), 'people': (0, 500)}
+
     def settings(self):
         try:
             value = json.loads(self.settings_path.read_text(encoding='utf-8'))
-            return {'autoNarrate': value.get('autoNarrate') is True}
-        except (OSError, ValueError, AttributeError):
-            return {'autoNarrate': False}
+            if not isinstance(value, dict):
+                raise ValueError
+        except (OSError, ValueError):
+            value = {}
+        levels = value.get('sensitivity') if isinstance(value.get('sensitivity'), dict) else {}
+        levels = {k: float(v) for k, v in levels.items() if isinstance(k, str) and type(v) in (int, float)
+                  and SENSITIVITY_RANGE[0] <= v <= SENSITIVITY_RANGE[1]}
+        levels.setdefault('', 1.0)
+        baseline = value.get('baseline') if isinstance(value.get('baseline'), dict) else {}
+        baseline = {k: float(v) for k, v in baseline.items() if k in self.BASELINE_FIELDS and type(v) in (int, float)}
+        return {'autoNarrate': value.get('autoNarrate') is True, 'sensitivity': levels, 'baseline': baseline,
+                'baselineDemo': value.get('baselineDemo') is True}
 
     def save_settings(self, request):
         from data_trust import atomic_json
-        value = request.get('autoNarrate')
-        if type(value) is not bool:
-            raise ValueError('Укажите, готовить ли AI-резюме заранее.')
-        atomic_json(self.settings_path, {'autoNarrate': value})
+        current = self.settings()
+        recompute = False
+        if 'autoNarrate' in request:
+            if type(request['autoNarrate']) is not bool:
+                raise ValueError('Укажите, готовить ли AI-резюме заранее.')
+            current['autoNarrate'] = request['autoNarrate']
+        if 'sensitivity' in request:
+            level = number_or_none(request['sensitivity'], 'Чувствительность', *SENSITIVITY_RANGE)
+            product = clean_text(request.get('product'), 'Продукт', 200)
+            if level is None or request.get('reset'):
+                if product:
+                    current['sensitivity'].pop(product, None)
+                else:
+                    current['sensitivity'] = {'': 1.0}
+            else:
+                current['sensitivity'][product] = round(level, 2)
+            recompute = True
+        if 'baseline' in request:
+            raw = request['baseline']
+            if not isinstance(raw, dict):
+                raise ValueError('Базовые значения: нужен набор полей.')
+            baseline = {}
+            for key, (low, high) in self.BASELINE_FIELDS.items():
+                value = number_or_none(raw.get(key), 'Базовое значение', low, high)
+                if value is not None:
+                    baseline[key] = value
+            current['baseline'] = baseline
+            current['baselineDemo'] = False
+        atomic_json(self.settings_path, current)
+        if recompute:
+            self.ensure_brief(True)
         return self.settings()
 
     def model_ready(self):
@@ -330,13 +388,20 @@ class Pulse:
                                 'reasons': signal['reasons'], 'through': signal['through'],
                                 'answers': [signal['baseline'].get('answers'), signal['current'].get('answers')],
                                 'sendShare': [signal['baseline'].get('sendShare'), signal['current'].get('sendShare')]})
-        shifts = self.shifts(state, revision)
+        started = time.monotonic()
+        candidates = self.shifts(state, revision)
+        settings = self.settings()
+        shifts = apply_sensitivity(candidates, settings['sensitivity'])
         clusters = self.clusters(shifts)
-        for shift in shifts:
-            shift['memory'] = self.recall(shift)
+        notes = self.notes()['notes']
+        for shift in candidates[:150]:
+            shift['memory'] = self.recall(shift, notes)
         brief = {'version': VERSION, 'revision': revision, 'generatedAt': now(), 'empty': False,
                  'kpis': self.kpis(state, revision), 'signals': signals, 'shifts': shifts[:60], 'shiftTotal': len(shifts),
-                 'clusters': clusters[:12], 'narrative': None}
+                 'candidates': candidates[:150], 'candidateTotal': len(candidates), 'sensitivity': settings['sensitivity'],
+                 'clusters': clusters[:12], 'narrative': None, 'events': self.calendar_marks()}
+        brief['computeSeconds'] = round(time.monotonic() - started + 0.0, 2)
+        self.journal_detected(brief)
         previous = self.previous_brief(revision)
         brief['changes'] = self.diff(previous, brief) if previous else None
         brief['previousAt'] = previous.get('generatedAt') if previous else None
@@ -447,12 +512,24 @@ class Pulse:
         for value in facts_numbers(facts):
             allowed.add(value)
         for token in NUMBER.findall(text):
-            if normalise_number(token) not in allowed:
+            parts = re.split(r'[ \u00a0\u202f]', token)
+            if normalise_number(token) not in allowed and not (len(parts) > 1 and all(normalise_number(x) in allowed for x in parts)):
                 raise ValueError(label + ': модель добавила число «' + token + '», которого нет в фактах. Ответ отклонён.')
         return text.strip()
 
     def narrate(self, request):
         return self.with_fallback(lambda: self.narrate_live(request), self.narrate_canned)
+
+    def checked(self, live):
+        """Журнал проверок: каждый ответ модели принят или отклонён проверкой фактов."""
+        try:
+            result = live()
+        except Exception as error:
+            if 'отклон' in str(error).lower():
+                self.log('model-check', outcome='rejected', reason=str(error)[:240])
+            raise
+        self.log('model-check', outcome='accepted')
+        return result
 
     def narrate_canned(self):
         brief = self.ensure_brief()
@@ -714,6 +791,7 @@ class Pulse:
                 'action': clean_text(request.get('resolution'), 'Что помогло', 1000)}
         with self.db() as db:
             db.execute('INSERT INTO pulse_notes VALUES(?,?,?)', (note['id'], note['created'], json.dumps(note, ensure_ascii=False)))
+        self.log('note', surveyId=ident, metric=metric, direction=direction, channel=channel, noteId=note['id'])
         self.refresh_memory()
         return note
 
@@ -738,10 +816,10 @@ class Pulse:
                     shift['memory'] = self.recall(shift)
                 self.store_brief(brief)
 
-    def recall(self, shift):
+    def recall(self, shift, notes=None):
         scored = []
         products = {p.casefold() for p in shift.get('products', [])}
-        for note in self.notes()['notes']:
+        for note in (self.notes()['notes'] if notes is None else notes):
             if note.get('direction') and shift.get('direction') and note['direction'] != shift['direction']:
                 continue
             score = 0
@@ -819,6 +897,7 @@ class Pulse:
                  'kpis': kpi_lines, 'bullets': ['Тем для обсуждения: ' + str(len(slides))]
                  + ([brief['narrative']['headline']] if brief.get('narrative') else []),
                  'conclusion': '', 'series': None}
+        self.log('meeting-built', slides=len(slides) + 1, product=product)
         return {'slides': [cover] + slides, 'revision': brief['revision'], 'product': product,
                 'note': 'Черновик собран из сигналов пульса. Тексты можно править перед выгрузкой; числа взяты из локального расчёта.'}
 
@@ -867,6 +946,7 @@ class Pulse:
                     self.engine.workflows.save_event(event)
         except (ValueError, OSError, KeyError):
             pass
+        self.demo_baseline()
         if not self.notes()['notes']:
             for note in MEMORY:
                 try:
@@ -884,7 +964,15 @@ class Pulse:
             with self.db() as db:
                 db.execute('DELETE FROM pulse_notes')
                 db.execute('DELETE FROM pulse_briefs')
+                db.execute('DELETE FROM pulse_journal')
+                db.execute('DELETE FROM pulse_skills')
             self.settings_path.unlink(missing_ok=True)
+            self.screen_path.unlink(missing_ok=True)
+            try:
+                for event in self.engine.workflows.list().get('events', []):
+                    self.engine.workflows.delete_event(event['id'])
+            except (AttributeError, ValueError, KeyError):
+                pass
         self.demo_seed()
         return self.brief_response(True)
 
@@ -896,11 +984,11 @@ class Pulse:
     def with_fallback(self, live, canned):
         """В демо-папке при недоступной модели показывает сохранённый ответ с явной пометкой."""
         if not self.demo():
-            return live()
+            return self.checked(live)
         reason, rejected = 'модель не вызывалась', 0
         try:
             if self.model_ready():
-                return live()
+                return self.checked(live)
         except Exception as error:  # в демо показ не должен срываться из-за CLI
             rejected = 1 if 'отклон' in str(error).lower() else 0
             reason = ('ответ GigaCode не принят проверкой — ' if rejected else 'GigaCode недоступна — ') + str(error)[:160]
@@ -1122,6 +1210,306 @@ class Pulse:
                 'facts': facts, 'source': 'GigaCode CLI · проверено по фактам',
                 'trust': {'facts': len(facts), 'refs': sum(len(h['refs']) for h in hypotheses), 'rejected': 0}}
 
+
+    # -- журнал эффекта --------------------------------------------------------------
+    def log(self, kind, **document):
+        document.update(kind=kind, at=now())
+        try:
+            with self.db() as db:
+                db.execute('INSERT INTO pulse_journal VALUES(?,?,?,?)', (uuid.uuid4().hex, document['at'], kind, json.dumps(document, ensure_ascii=False, default=str)))
+        except Exception:
+            pass
+
+    def journal(self, kinds=None, limit=5000):
+        with self.db() as db:
+            if kinds:
+                rows = db.execute('SELECT document FROM pulse_journal WHERE kind IN (%s) ORDER BY at DESC LIMIT ?' % ','.join('?' * len(kinds)), (*kinds, limit)).fetchall()
+            else:
+                rows = db.execute('SELECT document FROM pulse_journal ORDER BY at DESC LIMIT ?', (limit,)).fetchall()
+        return [json.loads(r[0]) for r in rows]
+
+    def journal_detected(self, brief):
+        """Первое появление каждого сдвига и сигнала: с этой минуты отклонение известно команде."""
+        seen = {row['key'] for row in self.journal(['detected'])}
+        self.log('brief', revision=brief['revision'], computeSeconds=brief.get('computeSeconds'), shifts=brief['shiftTotal'], signals=len(brief['signals']))
+        for shift in brief['shifts']:
+            key = shift['key'] + ':' + shift['date']
+            if key not in seen:
+                self.log('detected', key=key, source='shift', id=shift['id'], channel=shift['channel'], metric=shift['metric'],
+                         direction=shift['direction'], startDate=shift['date'], dataThrough=shift['through'], name=shift['name'])
+        for signal in brief['signals']:
+            key = signal['key'] + ':' + signal['through']
+            if key not in seen:
+                self.log('detected', key=key, source='signal', id=signal['id'], channel=signal['channel'], metric='answers',
+                         direction='down', startDate=None, dataThrough=signal['through'], name=signal['name'])
+
+    def journal_add(self, request):
+        kind = request.get('kind')
+        if kind == 'meeting-exported':
+            seconds = number_or_none(request.get('seconds'), 'Время', 0, 86400)
+            self.log(kind, seconds=seconds, format=clean_text(request.get('format'), 'Формат', 20))
+        elif kind == 'ai-verdict':
+            verdict = request.get('verdict')
+            if verdict not in ('accepted', 'edited', 'rejected'):
+                raise ValueError('Оценка разбора: принять, исправить или отклонить.')
+            self.log(kind, verdict=verdict, target=clean_text(request.get('target'), 'Объект', 160), canned=bool(request.get('canned')),
+                     comment=clean_text(request.get('comment'), 'Комментарий', 500))
+        else:
+            raise ValueError('Неизвестное событие журнала.')
+        return {'ok': True}
+
+    def effect(self, request=None):
+        settings = self.settings()
+        rows = self.journal()
+        detected = [r for r in rows if r['kind'] == 'detected']
+        notes = [r for r in rows if r['kind'] == 'note']
+        briefs = [r for r in rows if r['kind'] == 'brief']
+        built = [r for r in rows if r['kind'] == 'meeting-built']
+        exported = [r for r in rows if r['kind'] == 'meeting-exported' and r.get('seconds') is not None]
+        verdicts = [r for r in rows if r['kind'] == 'ai-verdict']
+        checks = [r for r in rows if r['kind'] == 'model-check' and not r.get('synthetic')]
+        protection = sum(1 for r in rows if r['kind'] == 'model-check' and r.get('synthetic'))
+        median = lambda values: sorted(values)[len(values) // 2] if values else None
+        age = []
+        for row in detected:
+            if row.get('startDate'):
+                found = dt.datetime.fromisoformat(row['at']).date()
+                through = dt.date.fromisoformat(row['dataThrough'])
+                age.append(((min(found, through) if through else found) - dt.date.fromisoformat(row['startDate'])).days)
+        closures = []
+        for row in detected:
+            match = [n for n in notes if n.get('surveyId') == row.get('id') and n['at'] >= row['at']
+                     and (n.get('metric') in (row.get('metric'), 'other') or row.get('source') == 'signal')]
+            if match:
+                first = min(match, key=lambda n: n['at'])
+                closures.append((dt.datetime.fromisoformat(first['at']) - dt.datetime.fromisoformat(row['at'])).total_seconds() / 3600)
+        accepted = sum(v['verdict'] == 'accepted' for v in verdicts)
+        result = {
+            'baseline': settings['baseline'], 'baselineDemo': settings['baselineDemo'],
+            'detection': {'count': len(detected), 'shifts': sum(r.get('source') == 'shift' for r in detected),
+                          'medianAgeDays': median(age), 'computeSeconds': median([b['computeSeconds'] for b in briefs if b.get('computeSeconds') is not None]),
+                          'briefs': len(briefs)},
+            'closure': {'closed': len(closures), 'open': len(detected) - len(closures), 'medianHours': median(closures),
+                        'share': len(closures) / len(detected) * 100 if detected else None},
+            'meeting': {'built': len(built), 'exported': len(exported), 'medianMinutes': (median([e['seconds'] for e in exported]) or 0) / 60 if exported else None},
+            'ai': {'verdicts': len(verdicts), 'accepted': accepted, 'edited': sum(v['verdict'] == 'edited' for v in verdicts),
+                   'rejected': sum(v['verdict'] == 'rejected' for v in verdicts), 'acceptedShare': accepted / len(verdicts) * 100 if verdicts else None,
+                   'checksAccepted': sum(c.get('outcome') == 'accepted' for c in checks), 'checksRejected': sum(c.get('outcome') == 'rejected' for c in checks),
+                   'protectionTests': protection},
+            'since': rows[-1]['at'] if rows else None,
+            'method': 'Все значения «стало» считаются по журналу этой папки: появление сдвигов и сигналов в брифинге, записи выводов, '
+                      'сборка и выгрузка встреч, оценки AI-разборов и проверки ответов модели. Значения «было» вводятся вручную.',
+        }
+        base = settings['baseline']
+        saved = None
+        if base.get('meetingHours') and result['meeting']['medianMinutes'] is not None and base.get('meetingsPerMonth'):
+            saved = max(base['meetingHours'] - result['meeting']['medianMinutes'] / 60, 0) * base['meetingsPerMonth']
+        result['savedMeetingHoursPerMonth'] = saved
+        return result
+
+    def demo_baseline(self):
+        """Пример базовых значений для демо-папки с явной пометкой. В рабочем проекте их нет."""
+        from data_trust import atomic_json
+        current = self.settings()
+        if current['baseline'] or not self.demo():
+            return
+        current['baseline'] = {'detectDays': 14, 'closeDays': 10, 'meetingHours': 6, 'checkHoursPerDay': 3, 'meetingsPerMonth': 4, 'people': 3}
+        current['baselineDemo'] = True
+        atomic_json(self.settings_path, current)
+
+    # -- события на графиках ----------------------------------------------------------
+    def calendar_marks(self):
+        try:
+            events = self.engine.workflows.list().get('events', [])
+        except Exception:
+            return []
+        marks = []
+        for item in events[:500]:
+            start = str(item.get('from') or '')[:10]
+            if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', start):
+                continue
+            marks.append({'id': item.get('id'), 'date': start, 'to': str(item.get('to') or start)[:10], 'title': item.get('title') or 'Событие',
+                          'kind': item.get('kind') or 'other', 'ids': item.get('ids') or [], 'channel': item.get('channel') or '',
+                          'product': item.get('product') or '', 'note': (item.get('note') or '')[:300]})
+        return sorted(marks, key=lambda m: m['date'])
+
+    def event_add(self, request):
+        title = clean_text(request.get('title'), 'Название', 160, True)
+        date = clean_text(request.get('date'), 'Дата', 10, True)
+        dt.date.fromisoformat(date)
+        ident = request.get('id')
+        ids = [ident] if type(ident) is int else []
+        kind = request.get('kind') if request.get('kind') in ('campaign', 'policy', 'incident', 'other') else 'other'
+        channel = request.get('channel') if request.get('channel') in CHANNELS else ''
+        event = self.engine.workflows.save_event({'title': title, 'from': date, 'to': date, 'kind': kind, 'ids': ids, 'channel': channel,
+                                                  'note': clean_text(request.get('note'), 'Заметка', 500)})
+        brief = self.ensure_brief()
+        with self.lock:
+            current = self.cached_brief(brief['revision'])
+            if current:
+                current['events'] = self.calendar_marks()
+                self.store_brief(current)
+        return {'event': event, 'events': self.calendar_marks()}
+
+    def event_impact(self, request):
+        state, revision = self.snapshot()
+        date = clean_text(request.get('date'), 'Дата', 10, True)
+        anchor = dt.date.fromisoformat(date)
+        ids = request.get('ids') or []
+        if not isinstance(ids, list) or any(type(i) is not int for i in ids):
+            raise ValueError('Некорректный список опросов события.')
+        channel = request.get('channel') if request.get('channel') in CHANNELS else None
+        selected = [s for s in state['surveys'] if (not ids or s['event']['id'] in ids) and (not channel or s['meta']['channel'] == channel)]
+        if not selected:
+            raise ValueError('Нет опросов, к которым относится событие.')
+        keys = [(s['meta']['channel'], s['event']['id']) for s in selected]
+        rows = self.daily(revision, keys, (anchor - dt.timedelta(days=7)).isoformat(), (anchor + dt.timedelta(days=6)).isoformat())
+        grouped = defaultdict(list)
+        for row in rows:
+            grouped[row['channel'], row['survey_id']].append(row)
+        meta = {(s['meta']['channel'], s['event']['id']): s['meta'] for s in selected}
+        output = []
+        for key, items in grouped.items():
+            before = [r for r in items if r['date'] < date]
+            after = [r for r in items if r['date'] >= date]
+            if len(before) < 3 or len(after) < 3:
+                continue
+            for metric in ('sends', 'answers', 'csi'):
+                b = aggregate(before, metric, False, metric != 'csi')
+                a = aggregate(after, metric, False, metric != 'csi')
+                if b is None or a is None:
+                    continue
+                if metric == 'csi':
+                    if min(weighted_csi(before)[1], weighted_csi(after)[1]) < 50:
+                        continue
+                    change, relative, strong = a - b, None, abs(a - b) >= .15
+                else:
+                    if b < METRICS[metric]['floor']:
+                        continue
+                    change, relative = a - b, (a - b) / b * 100
+                    strong = abs(relative) >= 15
+                output.append({'id': key[1], 'channel': key[0], 'name': meta[key]['name'], 'metric': metric, 'label': METRIC_LABELS[metric],
+                               'before': round(b, 3), 'after': round(a, 3), 'delta': round(change, 3),
+                               'relative': round(relative, 1) if relative is not None else None, 'strong': strong,
+                               'daysBefore': len({r['date'] for r in before}), 'daysAfter': len({r['date'] for r in after})})
+        output.sort(key=lambda r: (not r['strong'], -(abs(r['relative']) if r['relative'] is not None else abs(r['delta']) * 100)))
+        strong = [r for r in output if r['strong']]
+        summary = ('После ' + date + ' заметно изменились ' + str(len(strong)) + ' показателей у '
+                   + str(len({(r['channel'], r['id']) for r in strong})) + ' опросов.') if strong else 'После ' + date + ' заметных изменений нет.'
+        return {'date': date, 'rows': output[:40], 'total': len(output), 'strong': len(strong), 'summary': summary,
+                'scope': 'опросы события: ' + ', '.join('#' + str(i) for i in ids) if ids else 'все опросы' + (' канала ' + CHANNEL_LABELS[channel] if channel else ''),
+                'method': '7 дней до даты события против 7 дней начиная с неё (среднее за день с данными; CSI — взвешенный). '
+                          'Заметно: от 15% для объёмов, от 0,15 балла для CSI. Совпадение по времени — не доказательство причины.'}
+
+    # -- проверка защиты: выдуманное число ----------------------------------------------
+    def trust_demo(self, request):
+        state, revision = self.snapshot()
+        channel, ident, metric = request.get('channel'), request.get('id'), request.get('metric')
+        if channel not in CHANNELS or type(ident) is not int or metric not in METRICS:
+            raise ValueError('Выберите сдвиг для проверки.')
+        shift = next((s for s in self.shifts(state, revision, channel, ident) if s['metric'] == metric), None)
+        if not shift:
+            raise ValueError('Сдвиг не найден в текущей версии данных.')
+        facts = shift_facts(self, state, revision, shift)
+        honest = facts[0]['label'] + ': ' + fact_value(facts[0]) + ', ' + facts[1]['label'].lower() + ': ' + fact_value(facts[1]) + '.'
+        base = facts[1]['value'] if isinstance(facts[1]['value'], (int, float)) else 100
+        invented = round(base * 1.37 + 3)
+        fake = facts[1]['label'] + ': ' + fmt_int(invented) + ' ' + (facts[1].get('unit') or '') + '. Это втрое хуже, чем у конкурентов.'
+        result = {'facts': facts, 'honest': {'text': honest}, 'tampered': {'text': fake}}
+        try:
+            self.check_text(honest, facts, 'Ответ')
+            result['honest']['outcome'] = 'accepted'
+        except ValueError as error:
+            result['honest'].update(outcome='rejected', reason=str(error))
+        try:
+            self.check_text(fake, facts, 'Ответ')
+            result['tampered']['outcome'] = 'accepted'
+        except ValueError as error:
+            result['tampered'].update(outcome='rejected', reason=str(error))
+        self.log('model-check', outcome=result['tampered']['outcome'], reason='проверка защиты: подставлено число ' + str(invented), synthetic=True)
+        return result
+
+    # -- скилы ----------------------------------------------------------------------------
+    ROLES = ('Руководитель', 'Аналитик', 'Владелец опроса', 'Все')
+
+    def skills(self, request=None):
+        with self.db() as db:
+            rows = db.execute('SELECT document FROM pulse_skills ORDER BY created DESC LIMIT 300').fetchall()
+        return {'skills': [json.loads(r[0]) for r in rows]}
+
+    def skill_save(self, request):
+        role = request.get('role') if request.get('role') in self.ROLES else 'Все'
+        skill = {'id': uuid.uuid4().hex, 'created': now(), 'name': clean_text(request.get('name'), 'Название', 120, True),
+                 'query': clean_text(request.get('query'), 'Запрос', 1200, True), 'role': role,
+                 'author': clean_text(request.get('author'), 'Автор', 80), 'runs': 0, 'kind': 'dialog'}
+        with self.db() as db:
+            db.execute('INSERT INTO pulse_skills VALUES(?,?,?)', (skill['id'], skill['created'], json.dumps(skill, ensure_ascii=False)))
+        self.log('skill-saved', skillId=skill['id'])
+        return skill
+
+    def skill_delete(self, request):
+        ident = request.get('skillId')
+        if not isinstance(ident, str) or not re.fullmatch(r'[0-9a-f]{32}', ident):
+            raise ValueError('Скил не найден.')
+        with self.db() as db:
+            db.execute('DELETE FROM pulse_skills WHERE id=?', (ident,))
+        return {'deleted': ident}
+
+    def skill_run(self, request):
+        ident = request.get('skillId')
+        if isinstance(ident, str) and re.fullmatch(r'[0-9a-f]{32}', ident):
+            with self.db() as db:
+                row = db.execute('SELECT document FROM pulse_skills WHERE id=?', (ident,)).fetchone()
+                if row:
+                    skill = json.loads(row[0])
+                    skill['runs'] = skill.get('runs', 0) + 1
+                    skill['lastRun'] = now()
+                    db.execute('UPDATE pulse_skills SET document=? WHERE id=?', (json.dumps(skill, ensure_ascii=False), ident))
+        self.log('skill-run', skillId=ident if isinstance(ident, str) else None, builtin=clean_text(request.get('builtin'), 'Шаблон', 120))
+        return {'ok': True}
+
+    # -- мой экран ---------------------------------------------------------------------------
+    TILE_KINDS = ('kpi', 'chart', 'signals', 'forecast', 'shifts', 'note')
+
+    @property
+    def screen_path(self):
+        return self.root / '.local-data' / 'pulse-screen.json'
+
+    def screen_get(self, request=None):
+        try:
+            value = json.loads(self.screen_path.read_text(encoding='utf-8'))
+            if isinstance(value, dict) and isinstance(value.get('tiles'), list):
+                return value
+        except (OSError, ValueError):
+            pass
+        return {'tiles': None}
+
+    def screen_save(self, request):
+        from data_trust import atomic_json
+        tiles = request.get('tiles')
+        if not isinstance(tiles, list) or len(tiles) > 24:
+            raise ValueError('На экране может быть до 24 плиток.')
+        clean = []
+        for tile in tiles:
+            if not isinstance(tile, dict) or tile.get('kind') not in self.TILE_KINDS:
+                raise ValueError('Некорректная плитка.')
+            item = {'kind': tile['kind'], 'wide': bool(tile.get('wide'))}
+            for key, limit in (('title', 120), ('product', 200), ('metric', 20), ('channel', 20), ('text', 600)):
+                if tile.get(key) is not None:
+                    item[key] = clean_text(tile.get(key), 'Поле плитки', limit)
+            if tile.get('id') is not None:
+                if type(tile['id']) is not int or not 1 <= tile['id'] <= 9999999:
+                    raise ValueError('Некорректный номер опроса в плитке.')
+                item['id'] = tile['id']
+            if tile.get('days') is not None:
+                if tile['days'] not in (14, 30, 60, 90):
+                    raise ValueError('Период плитки: 14, 30, 60 или 90 дней.')
+                item['days'] = tile['days']
+            clean.append(item)
+        value = {'tiles': clean, 'saved': now(), 'name': clean_text(request.get('name'), 'Название экрана', 80) or 'Мой экран'}
+        atomic_json(self.screen_path, value)
+        return value
+
     # -- dispatcher ------------------------------------------------------------
     def action(self, request):
         action = request.get('action')
@@ -1161,6 +1549,28 @@ class Pulse:
             return self.job_status(request)
         if action == 'demo-reset':
             return self.demo_reset(request)
+        if action == 'effect':
+            return self.effect(request)
+        if action == 'journal-add':
+            return self.journal_add(request)
+        if action == 'event-add':
+            return self.event_add(request)
+        if action == 'event-impact':
+            return self.event_impact(request)
+        if action == 'trust-demo':
+            return self.trust_demo(request)
+        if action == 'skills':
+            return self.skills(request)
+        if action == 'skill-save':
+            return self.skill_save(request)
+        if action == 'skill-delete':
+            return self.skill_delete(request)
+        if action == 'skill-run':
+            return self.skill_run(request)
+        if action == 'screen-get':
+            return self.screen_get(request)
+        if action == 'screen-save':
+            return self.screen_save(request)
         raise ValueError('Неизвестное действие пульса.')
 
     def catalog(self):
@@ -1223,7 +1633,7 @@ def shift_sentence(shift):
 
 
 def normalise_number(token):
-    token = token.replace('−', '-').replace(',', '.').lstrip('+')
+    token = re.sub(r'[ \u00a0\u202f]', '', token).replace('−', '-').replace(',', '.').lstrip('+')
     try:
         value = float(token)
     except ValueError:

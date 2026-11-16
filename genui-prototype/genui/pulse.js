@@ -28,7 +28,7 @@ function field(host,label,type='text',attrs={}){const wrap=el('label','pulse-fie
 
 /* ---------- графики ---------- */
 let chartHostWidth=null;
-function lineChart({series,marker,events=[],width=Math.max(320,Math.min(1100,(chartHostWidth||document.querySelector('.pulse-page')?.clientWidth||960)-48)),height=180,format=v=>nf.format(v),label='График',onPoint}){
+function lineChart({series,marker,events=[],width=Math.max(320,Math.min(1100,(chartHostWidth||document.querySelector('.pulse-page')?.clientWidth||960)-48)),height=180,format=v=>nf.format(v),label='График',onPoint,onEvent}){
  const all=series.flatMap(s=>s.points);const host=el('div','pulse-chart');
  if(!all.length){host.append(el('p','pulse-muted','Нет наблюдений для графика.'));return host;}
  const dates=[...new Set(all.map(p=>p[0]))].sort(),x0=Date.parse(dates[0]),x1=Date.parse(dates.at(-1))||x0+1;
@@ -39,7 +39,7 @@ function lineChart({series,marker,events=[],width=Math.max(320,Math.min(1100,(ch
  root.append(svg('rect',{x:pad.l,y:pad.t,width:w,height:h,class:'plot-bg'}));
  for(let i=0;i<=3;i++){const v=lo+(hi-lo)*i/3,y=Y(v);root.append(svg('line',{x1:pad.l,x2:width-pad.r,y1:y,y2:y,class:'grid'}));const t=svg('text',{x:pad.l-6,y:y+4,'text-anchor':'end',class:'axis'});t.textContent=format(v);root.append(t);}
  for(const d of [dates[0],dates[Math.floor(dates.length/2)],dates.at(-1)]){const t=svg('text',{x:X(d),y:height-6,'text-anchor':'middle',class:'axis'});t.textContent=dateLabel(d);root.append(t);}
- for(const ev of events){if(ev.date<dates[0]||ev.date>dates.at(-1))continue;const ex=X(ev.date);const line=svg('line',{x1:ex,x2:ex,y1:pad.t,y2:pad.t+h,class:'event'});const flag=svg('path',{d:`M${ex} ${pad.t}l8 4l-8 4z`,class:'event-flag'});const tip=svg('title');tip.textContent=dateLabel(ev.date)+' · '+ev.title;flag.append(tip);root.append(line,flag);}
+ for(const ev of events){if(ev.date<dates[0]||ev.date>dates.at(-1))continue;const ex=X(ev.date);const line=svg('line',{x1:ex,x2:ex,y1:pad.t,y2:pad.t+h,class:'event'});const flag=svg('path',{d:`M${ex} ${pad.t}l8 4l-8 4z`,class:'event-flag'});const tip=svg('title');tip.textContent=dateLabel(ev.date)+' · '+ev.title+(onEvent?' — нажмите, чтобы увидеть, что сдвинулось после':'');flag.append(tip);root.append(line,flag);if(onEvent){const hit=svg('rect',{x:ex-7,y:pad.t-2,width:16,height:h+4,class:'event-hit',tabindex:'0',role:'button','aria-label':'Событие '+dateLabel(ev.date)+': '+ev.title});const t2=svg('title');t2.textContent=tip.textContent;hit.append(t2);const fire=()=>onEvent(ev);hit.addEventListener('click',fire);hit.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();fire();}});root.append(hit);}}
  if(marker){const mx=X(marker);root.append(svg('line',{x1:mx,x2:mx,y1:pad.t,y2:pad.t+h,class:'marker'}));const t=svg('text',{x:mx+4,y:pad.t+10,class:'axis marker-label'});t.textContent='сдвиг '+dateLabel(marker);root.append(t);}
  series.forEach((s,si)=>{
   if(!s.points.length)return;const cls=s.cls||'c'+si%5;
@@ -101,19 +101,19 @@ function create(main){
  const page=el('section','trust-page pulse-page');page.hidden=true;page.setAttribute('aria-labelledby','pulseTitle');main.append(page);
  const rail=document.querySelector('.rail'),link=el('a','nav-item','Пульс дня');link.href='#pulse';link.dataset.navPrimary='0';
  const anchor=rail.querySelector('.rail-label');if(anchor)anchor.after(link);else rail.insertBefore(link,rail.querySelector('.history'));
- let brief=null,catalog=null,tab='brief',loading=false;
+ let brief=null,catalog=null,tab='brief',loading=false,ui=null;const api=()=>ui;
  const header=el('div','pulse-head'),title=el('h1','','Пульс дня');title.id='pulseTitle';
  const meta=el('p','pulse-muted'),status=el('p','pulse-status');status.setAttribute('role','status');
  const refresh=button('Пересчитать',()=>load(true),'pulse-btn ghost');
  const tabs=el('div','pulse-tabs');tabs.setAttribute('role','tablist');
- const panels={brief:el('div','pulse-panel'),compare:el('div','pulse-panel'),whatif:el('div','pulse-panel'),memory:el('div','pulse-panel'),meeting:el('div','pulse-panel')};
- const tabNames={brief:'Брифинг',compare:'Сравнение',whatif:'Что если',memory:'Память расследований',meeting:'Встреча в один клик'};
+ const panels={brief:el('div','pulse-panel'),screen:el('div','pulse-panel'),compare:el('div','pulse-panel'),skills:el('div','pulse-panel'),effect:el('div','pulse-panel'),whatif:el('div','pulse-panel'),memory:el('div','pulse-panel'),meeting:el('div','pulse-panel')};
+ const tabNames={brief:'Брифинг',screen:'Мой экран',compare:'Сравнение',whatif:'Что если',skills:'Скилы',memory:'Память',meeting:'Встреча в один клик',effect:'Эффект'};
  for(const [key,name] of Object.entries(tabNames)){const t=button(name,()=>select(key),'pulse-tab');t.setAttribute('role','tab');t.dataset.tab=key;tabs.append(t);}
  const showButton=button('▶ Режим показа',()=>showMode(),'pulse-btn accent'),mailButton=button('Бриф письмом',e=>busy(e.target,status,async()=>{select('meeting');await renderMeetingForm();panels.meeting.querySelector('.pulse-btn.accent')?.click();status.textContent='Черновик собран — нажмите «Письмо (.eml)» или «Скачать PPTX».';}),'pulse-btn ghost'),demoReset=button('Сбросить демо',e=>{if(!confirm('Вернуть демо в исходное состояние? Заметки и резюме демо будут очищены.'))return;busy(e.target,status,async()=>{brief=await post({action:'demo-reset'});panels.compare.replaceChildren();panels.whatif.replaceChildren();panels.meeting.replaceChildren();renderBrief();status.textContent='Демо возвращено в исходное состояние.';});},'pulse-btn ghost'),demoBadge=el('span','pulse-tag warn','ДЕМО-ДАННЫЕ');demoReset.hidden=demoBadge.hidden=true;
  const headText=el('div'),tools=el('div','pulse-row pulse-tools');headText.append(title,meta);tools.append(demoBadge,showButton,mailButton,refresh,demoReset);header.append(headText,tools);
  page.append(header,status,tabs,...Object.values(panels));
  function select(key){tab=key;for(const t of tabs.children){const on=t.dataset.tab===key;t.classList.toggle('active',on);t.setAttribute('aria-selected',String(on));}for(const [k,p] of Object.entries(panels))p.hidden=k!==key;
-  if(key==='memory')renderMemory();if(key==='compare'&&!panels.compare.childElementCount)renderCompare();if(key==='meeting'&&!panels.meeting.childElementCount)renderMeetingForm();if(key==='whatif'&&!panels.whatif.childElementCount)renderWhatIf();}
+  if(key==='memory')renderMemory();if(key==='screen')renderScreen();if(key==='skills')renderSkills();if(key==='effect')renderEffect();if(key==='compare'&&!panels.compare.childElementCount)renderCompare();if(key==='meeting'&&!panels.meeting.childElementCount)renderMeetingForm();if(key==='whatif'&&!panels.whatif.childElementCount)renderWhatIf();}
 
  async function ensureCatalog(){if(!catalog){try{catalog=await post({action:'catalog'});}catch{catalog={surveys:[],products:[]};}}return catalog;}
  async function load(force=false){
@@ -133,11 +133,7 @@ function create(main){
   demoBadge.hidden=demoReset.hidden=!brief.demo;showButton.hidden=mailButton.hidden=Boolean(brief.empty);
   if(brief.empty){host.append(onboarding());return;}
   host.append(narrativeCard(),kpiRow(),changesCard());
-  if(brief.clusters?.length){const section=el('section','pulse-section');section.append(el('h2','','Групповые инциденты · '+brief.clusters.length),el('p','pulse-muted','Однотипные сдвиги у нескольких опросов в пределах двух дней. Вероятна общая причина — проверьте её один раз, а не по каждому опросу.'));for(const c of brief.clusters)section.append(clusterCard(c));host.append(section);}
-  const shifts=el('section','pulse-section');shifts.append(el('h2','','Сдвиги уровня за 8 недель · '+brief.shiftTotal),el('p','pulse-muted','Устойчивая ступень в дневном ряду: минимум 7 дней до и после, изменение от 25% (CSI — от 0,25 балла) и подтверждение в последние 7 дней. Пропуски не считаются нулями.'));
-  if(!brief.shifts.length)shifts.append(el('p','pulse-empty','Устойчивых сдвигов не найдено.'));
-  for(const s of brief.shifts)shifts.append(shiftCard(s));
-  host.append(shifts);
+  host.append(sensitivityBar());clustersHost=el('section','pulse-section');shiftsHost=el('section','pulse-section');host.append(clustersHost,shiftsHost);renderShiftSections(visibleShifts());
   const urgent=brief.signals.filter(s=>s.severity==='urgent'),attention=brief.signals.filter(s=>s.severity!=='urgent');
   const signals=el('section','pulse-section');signals.append(el('h2','','Сигналы утреннего мониторинга · '+brief.signals.length));
   if(!brief.signals.length)signals.append(el('p','pulse-empty','Сигналов недельного сравнения нет.'));
@@ -155,6 +151,7 @@ function create(main){
    for(const b of brief.narrative.bullets){const li=el('li','',b.text);const refs=el('span','pulse-refs');for(const r of b.refs){const f=facts.get(r);const chip=el('abbr','pulse-ref',r);if(f)chip.title=f.label+': '+(typeof f.value==='number'?fmt(f.value):f.value)+(f.unit?' '+f.unit:'')+(f.period?' · '+f.period:'');refs.append(chip);}li.append(refs);list.append(li);}
    card.append(list,el('p','pulse-muted',(brief.narrative.source||'GigaCode CLI')+' · '+new Date(brief.narrative.generatedAt).toLocaleString('ru-RU')+' · наведите на ссылку F…, чтобы увидеть факт'));
    if(brief.narrative.trust)card.append(trustLine(brief.narrative.trust));
+   card.append(verdictRow('Резюме брифинга · '+(brief.narrative.source||''),brief.narrative.canned));
   }else{
    card.append(el('h2','',headline()));
    card.append(el('p','pulse-muted',ai()?'Резюме собрано правилами. GigaCode может сформулировать его для руководителя — числа будут проверены по фактам.':'Резюме собрано правилами. Подключите GigaCode CLI, чтобы получать формулировку модели.'));
@@ -206,9 +203,11 @@ function create(main){
  }
  function openPoint(out,steps,ctx,line){
   return busy(document.createElement("button"),line,async()=>{
-   steps.replaceChildren();const data=await post({action:'point',...ctx,useModel:false});
-   const extra=ai()?button('Объяснить эту точку через GigaCode',e=>busy(e.target,line,async()=>{const r=await runJob({action:'point',...ctx,useModel:true},steps);renderExplain(out,{...r,date:ctx.date,title:ctx.title});}),'pulse-btn accent'):null;
-   renderExplain(out,{...data,title:ctx.title},extra);
+   steps.replaceChildren();const {key:_k,title:_t,...pointQuery}=ctx;const data=await post({action:'point',...pointQuery,useModel:false});
+   const {key,title,...query}=ctx,extra=el('div','pulse-extra');
+   if(ai())extra.append(button('Объяснить эту точку через GigaCode',e=>busy(e.target,line,async()=>{const r=await runJob({action:'point',...query,useModel:true},steps);renderExplain(out,{...r,date:ctx.date,title},eventForm(ctx,out,line));}),'pulse-btn accent'));
+   extra.append(eventForm(ctx,out,line));
+   renderExplain(out,{...data,title},extra);
   });
  }
  function shiftCard(s){
@@ -222,12 +221,13 @@ function create(main){
   const out=el('div','pulse-output'),line=el('p','pulse-status'),steps=el('div','pulse-steps-host');line.setAttribute('role','status');
   const first=s.series[0][0],last=s.series.at(-1)[0];
   card.append(lineChart({series:[{points:s.series,cls:'primary',segments:[[first,s.lastBefore,s.before],[s.date,last,s.after]],zeroless:s.metric==='csi'}],marker:s.date,format:v=>s.metric==='csi'?cf.format(v):nf.format(v),label:s.label+' по дням, опрос '+s.id,height:150,
-   onPoint:date=>openPoint(out,steps,{channel:s.channel,id:s.id,metric:s.metric,date,title:'#'+s.id+' · '+s.label.toLowerCase()+' · '+dateLabel(date)},line)}));
+   events:eventsFor(s.channel,[s.id]),onEvent:ev=>{steps.replaceChildren();renderImpact(out,ev,line);},
+   onPoint:date=>openPoint(out,steps,{channel:s.channel,id:s.id,metric:s.metric,date,key:s.key,title:'#'+s.id+' · '+s.label.toLowerCase()+' · '+dateLabel(date)},line)}));
   if(s.memory?.length){const mem=el('div','pulse-memory');mem.append(el('b','','Похоже на прошлый случай'));for(const n of s.memory)mem.append(el('p','',n.title+' — '+n.cause+(n.action?' · помогло: '+n.action:'')+' ('+new Date(n.created).toLocaleDateString('ru-RU')+')'));card.append(mem);}
   const actions=el('div','pulse-row');
   actions.append(button('Похожие опросы',e=>busy(e.target,line,async()=>{steps.replaceChildren();renderSimilar(out,await post({action:'similar',channel:s.channel,id:s.id,metric:s.metric,date:s.date}));})));
-  actions.append(button('Факты и проверки',e=>busy(e.target,line,async()=>{steps.replaceChildren();renderExplain(out,await post({action:'explain',channel:s.channel,id:s.id,metric:s.metric,useModel:false}));})));
-  if(ai())actions.append(button('Объяснить через GigaCode',e=>busy(e.target,line,async()=>{const r=await runJob({action:'explain',channel:s.channel,id:s.id,metric:s.metric,useModel:true},steps);renderExplain(out,r);}),'pulse-btn accent'));
+  actions.append(button('Факты и проверки',e=>busy(e.target,line,async()=>{steps.replaceChildren();renderExplain(out,{...await post({action:'explain',channel:s.channel,id:s.id,metric:s.metric,useModel:false}),shiftRef:{channel:s.channel,id:s.id,metric:s.metric}});})));
+  if(ai())actions.append(button('Объяснить через GigaCode',e=>busy(e.target,line,async()=>{const r=await runJob({action:'explain',channel:s.channel,id:s.id,metric:s.metric,useModel:true},steps);renderExplain(out,{...r,shiftRef:{channel:s.channel,id:s.id,metric:s.metric},title:'#'+s.id+' · '+s.label.toLowerCase()});}),'pulse-btn accent'));
   actions.append(button('Записать вывод',()=>openNote({surveyId:s.id,channel:s.channel,metric:s.metric,direction:s.direction,date:s.date,products:s.products,title:'#'+s.id+' · '+s.label.toLowerCase()+' '+change(s)})));
   actions.append(button('Что если…',()=>{closeShow();select('whatif');whatifPrefill({id:s.id,channel:s.channel});}));
   card.append(actions,line,steps,out);return card;
@@ -250,6 +250,8 @@ function create(main){
   const facts=el('table','pulse-table');for(const f of data.facts){const r=el('tr');r.append(el('td','pulse-ref',f.ref),el('td','',f.label),el('td','',(typeof f.value==='number'?fmt(f.value,f.unit==='балла'||/CSI/.test(f.label)?'csi':''):f.value)+(f.unit?' '+f.unit:'')),el('td','pulse-muted',f.period||''));facts.append(r);}
   box.append(facts);
   if(data.checks?.length){const ol=el('ol');for(const c of data.checks)ol.append(el('li','',c.label+(c.refs?.length?' ('+c.refs.join(', ')+')':'')));box.append(el('b','','Что проверить'),ol);}
+  if(data.summary&&data.source)box.append(verdictRow((data.title||'Разбор')+' · '+data.source,data.canned));
+  if(data.shiftRef)box.append(trustDemo(data.shiftRef));
   if(extra)box.append(extra);
   host.append(box);
  }
@@ -362,12 +364,14 @@ function create(main){
   const row=el('div','pulse-form-grid'),product=field(row,'Продукт','select');product.add(new Option('Все продукты',''));for(const p of cat.products)product.add(new Option(p,p));
   const limit=field(row,'Тем, не больше','number',{min:'1',max:'10',value:'5'});
   const go=button('Собрать черновик',null,'pulse-btn accent'),line=el('p','pulse-status'),deck=el('div','pulse-deck');line.setAttribute('role','status');
-  go.onclick=()=>busy(go,line,async()=>{const data=await post({action:'meeting',product:product.value||null,limit:Number(limit.value)||5});renderDeck(deck,data);});
+  go.onclick=()=>busy(go,line,async()=>{meetingStarted=Date.now();const data=await post({action:'meeting',product:product.value||null,limit:Number(limit.value)||5});renderDeck(deck,data);});
   host.append(row,go,line,deck);
  }
  const TEMPLATES={dark:{name:'Тёмный',bg:'111111',fg:'EDEDED',muted:'9A9A9A',card:'1F1F1F',plot:'181818'},light:{name:'Светлый',bg:'FFFFFF',fg:'1C1B19',muted:'716E67',card:'F3F2EE',plot:'FFFFFF'},brand:{name:'Фирменный',bg:'FFFFFF',fg:'1C1B19',muted:'716E67',card:'F3F2EE',plot:'FFFFFF',band:true}};
  function brandSettings(){let saved={};try{saved=JSON.parse(localStorage.getItem('pulse-brand')||'{}')||{};}catch{}const accent=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();return {template:saved.template||'dark',accent:saved.accent||(/^#[0-9a-f]{6}$/i.test(accent)?accent:'#ff8a35'),org:saved.org||'',logo:saved.logo||''};}
  function saveBrand(value){try{localStorage.setItem('pulse-brand',JSON.stringify(value));}catch{}}
+ let meetingStarted=null;
+ function logExport(format){if(!meetingStarted)return;post({action:'journal-add',kind:'meeting-exported',seconds:Math.round((Date.now()-meetingStarted)/1000),format}).catch(()=>{});}
  function renderDeck(host,data){
   host.replaceChildren();const brand=brandSettings();
   const options=el('div','pulse-form-grid pulse-deck-options');
@@ -390,8 +394,8 @@ function create(main){
   const read=()=>slides.map(({source,t,sub,ul,concl})=>({...source,title:t.textContent.trim(),subtitle:sub.textContent.trim(),bullets:[...ul.children].map(li=>li.textContent.trim()).filter(Boolean),conclusion:concl.textContent.trim()}));
   template.onchange=accent.oninput=org.oninput=applyLook;
   logo.onchange=()=>{const file=logo.files[0];if(!file)return;if(file.size>300*1024){line.textContent='Логотип больше 300 КБ — выберите файл меньше.';line.classList.add('is-error');return;}const reader=new FileReader();reader.onload=()=>{brand.logo=String(reader.result);line.textContent='Логотип добавлен.';line.classList.remove('is-error');applyLook();};reader.readAsDataURL(file);};
-  actions.append(button('Скачать PPTX',e=>busy(e.target,line,async()=>{await exportPptx(read(),data,brand);line.textContent='PPTX скачан: шаблон «'+TEMPLATES[brand.template].name+'».';}),'pulse-btn accent'),
-   button('Письмо (.eml)',e=>busy(e.target,line,async()=>{const images=[];for(const item of slides)images.push(item.chart?await svgToPng(item.chart.querySelector('svg'),'#ffffff'):null);const content=read();download('pulse-'+String(data.revision).slice(0,8)+'.eml',buildEml(content[0].title+' · '+content[0].subtitle,content,images,brand.accent),'message/rfc822');line.textContent='Письмо скачано: откройте файл — это черновик в почтовой программе.';})),
+  actions.append(button('Скачать PPTX',e=>busy(e.target,line,async()=>{await exportPptx(read(),data,brand);logExport('pptx');line.textContent='PPTX скачан: шаблон «'+TEMPLATES[brand.template].name+'».';}),'pulse-btn accent'),
+   button('Письмо (.eml)',e=>busy(e.target,line,async()=>{const images=[];for(const item of slides)images.push(item.chart?await svgToPng(item.chart.querySelector('svg'),'#ffffff'):null);const content=read();download('pulse-'+String(data.revision).slice(0,8)+'.eml',buildEml(content[0].title+' · '+content[0].subtitle,content,images,brand.accent),'message/rfc822');logExport('eml');line.textContent='Письмо скачано: откройте файл — это черновик в почтовой программе.';})),
    button('Текст для мессенджера',e=>busy(e.target,line,async()=>{const text=read().map(s=>s.title+(s.subtitle?' — '+s.subtitle:'')+'\n'+s.bullets.map(b=>'• '+b).join('\n')+(s.conclusion?'\nВывод: '+s.conclusion:'')).join('\n\n');await navigator.clipboard.writeText(text);line.textContent='Текст скопирован в буфер обмена.';})),
    button('Печать / PDF',()=>printDeck(deck),'pulse-btn ghost'));
   applyLook();
@@ -483,9 +487,211 @@ function create(main){
   document.documentElement.requestFullscreen?.().catch(()=>{}).finally(()=>setTimeout(()=>go(index),150));go(0);
  }
 
- return {page,show,openUpload:()=>{location.hash='#pulse';},whatif:query=>{location.hash='#pulse';select('whatif');setTimeout(()=>{const input=panels.whatif.querySelector('.pulse-ask input');if(input&&query){input.value=query;input.form.requestSubmit();}},300);},meeting:()=>{location.hash='#pulse';select('meeting');},compare:()=>{location.hash='#pulse';select('compare');},showMode:()=>{location.hash='#pulse';setTimeout(showMode,400);}};
+ /* --- чувствительность, сдвиги, кластеры (на клиенте, мгновенно) --- */
+ let sensOverride=null,shiftsHost=null,clustersHost=null,cardsByKey=new Map();
+ const levels=()=>brief.sensitivity||{'':1};
+ function levelFor(s){const own=(s.products||[]).map(p=>levels()[p]).filter(v=>v!==undefined);let base=own.length?Math.min(...own):(levels()['']??1);if(sensOverride){if(sensOverride.product){if((s.products||[]).includes(sensOverride.product))base=sensOverride.level;}else if(!own.length)base=sensOverride.level;}return base;}
+ const visibleShifts=()=>(brief.candidates||brief.shifts||[]).filter(s=>s.strength===undefined||s.strength>=levelFor(s)-1e-9);
+ function clientClusters(shifts){
+  const groups=[];
+  for(const s of [...shifts].sort((a,b)=>a.date<b.date?-1:1)){const d=Date.parse(s.date);const g=groups.find(g=>g.metric===s.metric&&g.direction===s.direction&&g.channel===s.channel&&Math.abs(d-g.anchor)<=2*864e5);if(g)g.members.push(s);else groups.push({metric:s.metric,direction:s.direction,channel:s.channel,channelLabel:s.channelLabel,anchor:d,members:[s],label:s.label});}
+  return groups.filter(g=>new Set(g.members.map(m=>m.id)).size>=2).map(g=>{const dates=g.members.map(m=>m.date).sort(),prod={};for(const m of g.members)for(const p of (m.products?.length?m.products:['без продукта']))prod[p]=(prod[p]||0)+1;
+   return {...g,from:dates[0],to:dates.at(-1),products:Object.entries(prod).sort((a,b)=>b[1]-a[1]),title:(g.direction==='down'?'Групповое снижение':'Групповой рост')+': '+g.label.toLowerCase()+' у '+g.members.length+' опросов',hint:'Одновременное изменение у нескольких опросов чаще указывает на общую причину (стоп-лист, загрузка, интеграция), чем на независимые инциденты. Это гипотеза для проверки.'};})
+   .sort((a,b)=>(a.direction!=='down')-(b.direction!=='down')||b.members.length-a.members.length);
+ }
+ function sensitivityBar(){
+  const box=el('section','pulse-card pulse-sens'),cat=brief.candidates||[],products=[...new Set(cat.flatMap(s=>s.products||[]))].sort();
+  const head=el('div','pulse-row'),count=el('b','pulse-sens-count'),saved=el('span','pulse-muted');head.append(el('span','pulse-eyebrow','Чувствительность сигналов'),count,saved);
+  const row=el('div','pulse-sens-row'),label1=el('span','pulse-muted','Мягче — больше сигналов'),label2=el('span','pulse-muted','Строже — только сильные');
+  const range=el('input');range.type='range';range.min='0.6';range.max='2';range.step='0.05';range.setAttribute('aria-label','Чувствительность сигналов');
+  const scope=el('select');scope.setAttribute('aria-label','Для какого продукта');scope.add(new Option('Все продукты',''));for(const p of products)scope.add(new Option(p,p));
+  row.append(label1,range,label2,scope);
+  const actions=el('div','pulse-row'),line=el('p','pulse-status');line.setAttribute('role','status');
+  const save=button('Сохранить',e=>busy(e.target,line,async()=>{await post({action:'settings',sensitivity:Number(range.value),product:scope.value});sensOverride=null;brief=await post({action:'brief'});renderBrief();status.textContent='Чувствительность сохранена'+(scope.value?' для продукта «'+scope.value+'»':' для всех продуктов')+'.';}),'pulse-btn accent');
+  const reset=button('Сбросить',e=>busy(e.target,line,async()=>{await post({action:'settings',sensitivity:null,reset:true,product:scope.value});sensOverride=null;brief=await post({action:'brief'});renderBrief();}),'pulse-btn ghost');
+  actions.append(save,reset,el('span','pulse-muted','Порог «1,0» — исходные правила: от 25% (CSI — от 0,25 балла). Сдвиги ищутся заранее, ползунок только отбирает — без пересчёта.'));
+  function sync(){const level=Number(range.value);sensOverride={level,product:scope.value};const vis=visibleShifts();count.textContent='Сдвигов: '+vis.length+' из '+cat.length+' кандидатов · порог '+df.format(level);renderShiftSections(vis);}
+  function setFrom(){const v=scope.value?(levels()[scope.value]??levels()['']??1):(levels()['']??1);range.value=String(v);const own=Object.entries(levels()).filter(([k])=>k).map(([k,v])=>k+': '+df.format(v));saved.textContent='сохранено: все — '+df.format(levels()['']??1)+(own.length?' · '+own.join(' · '):'');sync();}
+  range.addEventListener('input',sync);scope.addEventListener('change',setFrom);
+  box.append(head,row,actions,line);setTimeout(setFrom,0);return box;
+ }
+ function renderShiftSections(vis){
+  if(!shiftsHost)return;cardsByKey=new Map();
+  const clusters=clientClusters(vis);clustersHost.replaceChildren();
+  if(clusters.length){clustersHost.append(el('h2','','Групповые инциденты · '+clusters.length),el('p','pulse-muted','Однотипные сдвиги у нескольких опросов в пределах двух дней. Вероятна общая причина — проверьте её один раз, а не по каждому опросу.'));for(const c of clusters)clustersHost.append(clusterCard(c));}
+  shiftsHost.replaceChildren(el('h2','','Сдвиги уровня за 8 недель · '+vis.length),el('p','pulse-muted','Устойчивая ступень в дневном ряду: минимум 7 дней до и после и подтверждение в последние 7 дней. Пропуски не считаются нулями. Флажки на графике — события календаря; нажмите, чтобы увидеть, что сдвинулось после них.'));
+  if(!vis.length)shiftsHost.append(el('p','pulse-empty','Устойчивых сдвигов при этом пороге нет.'));
+  for(const s of vis){const card=shiftCard(s);cardsByKey.set(s.key,card);shiftsHost.append(card);}
+ }
+ function eventsFor(channel,ids){return (brief?.events||[]).filter(ev=>(!ev.channel||!channel||ev.channel===channel)&&(!ev.ids?.length||ids.some(i=>ev.ids.includes(i))));}
+ async function renderImpact(host,ev,line){
+  return busy(document.createElement('button'),line,async()=>{
+   const data=await post({action:'event-impact',date:ev.date,ids:ev.ids||[],channel:ev.channel||null});
+   host.replaceChildren();const box=el('div','pulse-subcard pulse-impact');
+   box.append(el('h4','','Событие '+dateLabel(ev.date)+' · '+ev.title),el('p','pulse-muted',(ev.note?ev.note+' · ':'')+data.scope),el('p','pulse-summary',data.summary));
+   const table=el('table','pulse-table'),head=el('tr');for(const h of ['Опрос','Показатель','7 дней до','7 дней после','Изменение'])head.append(el('th','',h));table.append(head);
+   for(const r of data.rows.slice(0,12)){const tr=el('tr'),f=v=>r.metric==='csi'?cf.format(v):nf.format(v),c=el('td','',r.relative!==null?signed(r.relative):signed(r.delta,' балла'));if(r.strong)c.classList.add((r.relative??r.delta)<0?'bad':'good');tr.append(el('td','','#'+r.id+' · '+r.name),el('td','',r.label),el('td','',f(r.before)),el('td','',f(r.after)),c);table.append(tr);}
+   if(!data.rows.length)box.append(el('p','pulse-empty','Недостаточно дней до и после события.'));else box.append(table);
+   box.append(el('p','pulse-muted',data.method));host.append(box);
+  });
+ }
+ function eventForm(ctx,out,line){
+  const box=el('details','pulse-event-form');box.append(el('summary','','Отметить событие в эту дату'));
+  const row=el('div','pulse-row'),title=el('input'),kind=el('select');title.type='text';title.maxLength=160;title.placeholder='Что изменили, например: «новая версия анкеты»';title.setAttribute('aria-label','Название события');
+  for(const [v,n] of [['other','Изменение'],['campaign','Кампания'],['policy','Правила / стоп-лист'],['incident','Сбой']])kind.add(new Option(n,v));kind.setAttribute('aria-label','Тип события');
+  const save=button('Поставить отметку',e=>{if(!title.value.trim()){title.focus();return;}busy(e.target,line,async()=>{const res=await post({action:'event-add',title:title.value,date:ctx.date,id:ctx.id??null,channel:ctx.channel,kind:kind.value});brief.events=res.events;const key=ctx.key;renderShiftSections(visibleShifts());const card=key&&cardsByKey.get(key);const ev={date:ctx.date,title:title.value,ids:ctx.id?[ctx.id]:[],channel:ctx.channel};if(card){card.scrollIntoView({block:'center'});const target=card.querySelector('.pulse-output'),l=card.querySelector('.pulse-status');await renderImpact(target,ev,l);l.textContent='Отметка «'+ev.title+'» добавлена на графики и в календарь запусков.';}else{await renderImpact(out,ev,line);line.textContent='Отметка добавлена в календарь запусков.';}});},'pulse-btn accent');
+  row.append(title,kind,save);box.append(row);return box;
+ }
+ /* --- оценка AI-разбора и проверка защиты --- */
+ function verdictRow(target,canned){
+  const row=el('div','pulse-row pulse-verdict');row.append(el('span','pulse-muted','Разбор полезен?'));
+  const done=v=>busy(document.createElement('button'),null,async()=>{await post({action:'journal-add',kind:'ai-verdict',verdict:v,target,canned:Boolean(canned)});row.replaceChildren(el('span','pulse-trust','Оценка записана в журнал эффекта: '+({accepted:'принято',edited:'нужно исправить',rejected:'отклонено'}[v])+'.'));});
+  row.append(button('Принять',()=>done('accepted'),'pulse-btn'),button('Исправить',()=>done('edited'),'pulse-btn ghost'),button('Отклонить',()=>done('rejected'),'pulse-btn ghost'));
+  return row;
+ }
+ function trustDemo(ref){
+  const wrap=el('div','pulse-trust-demo'),line=el('p','pulse-status');line.setAttribute('role','status');
+  const go=button('Проверить защиту: подставить выдуманное число',e=>busy(e.target,line,async()=>{
+   const r=await post({action:'trust-demo',...ref});wrap.querySelector('.pulse-trust-result')?.remove();const box=el('div','pulse-trust-result');
+   for(const [label,item] of [['Ответ по фактам',r.honest],['Ответ с выдуманным числом',r.tampered]]){const ok=item.outcome==='accepted';const rowEl=el('div','pulse-trust-row '+(ok?'good':'bad'));rowEl.append(el('b','',(ok?'✓ Принят · ':'✕ Отклонён · ')+label),el('p','','«'+item.text+'»'));if(item.reason)rowEl.append(el('p','pulse-muted',item.reason));box.append(rowEl);}
+   box.append(el('p','pulse-muted','Так же проверяется каждый ответ GigaCode: любое число, которого нет среди фактов F…, отклоняет ответ целиком. Проверка записана в журнал эффекта.'));wrap.append(box);}),'pulse-btn ghost');
+  wrap.append(go,line);return wrap;
+ }
+ /* --- галерея вопросов и скилы --- */
+ const GALLERY=[
+  {role:'Руководитель',name:'Утренний мониторинг продукта',ai:true,query:'Собери утренний мониторинг руководителю продукта {продукт} на пять минут: выяви отклонения и расставь приоритеты проверок'},
+  {role:'Руководитель',name:'План ответов под угрозой',query:'Что если по продукту {продукт} отправки упадут на 20%?',kind:'whatif'},
+  {role:'Руководитель',name:'Ответы и CSI продукта за месяц',query:'Покажи ответы и CSI по продукту {продукт} за последние 30 дней'},
+  {role:'Руководитель',name:'Качество обратной связи падает',ai:true,query:'Найди опросы, где много ответов, но ухудшается качество обратной связи'},
+  {role:'Аналитик',name:'Разбор: отправки выросли, ответы упали',ai:true,query:'Разбери проблему по продукту {продукт}: отправки выросли, ответы упали. Сравни сопоставимые дни'},
+  {role:'Аналитик',name:'Стоп-листы и политика контактов',query:'Покажи по опросу {опрос} отсечения по стоп листам и политике контактов'},
+  {role:'Аналитик',name:'Почему упали ответы за неделю',query:'Почему упали ответы по опросу {опрос} за последние 7 дней?'},
+  {role:'Аналитик',name:'Уникальные опросы по месяцам',query:'Покажи количество опросов уникальных по месяцам с начала 2026 года'},
+  {role:'Владелец опроса',name:'Мой опрос за 3 месяца',query:'Покажи отправки, ответы и CSI по опросу {опрос} за последние 3 месяца по дням'},
+  {role:'Владелец опроса',name:'Что изменилось за неделю',query:'Почему изменились ответы по опросу {опрос} за последние 7 дней?'},
+  {role:'Владелец опроса',name:'Хватит ли темпа до конца месяца',query:'Что если по опросу {опрос} отклик упадёт до 3%?',kind:'whatif'},
+ ];
+ const paramDialog=el('dialog','pulse-dialog');document.body.append(paramDialog);
+ async function fillParams(query){
+  const need=[...new Set(query.match(/\{(продукт|опрос)\}/g)||[])];if(!need.length)return query;const cat=await ensureCatalog();
+  return new Promise(resolve=>{paramDialog.replaceChildren();const form=el('form');form.method='dialog';form.append(el('h2','','Параметры скила'),el('p','pulse-muted',query));const inputs={};
+   for(const token of need){if(token==='{продукт}'){const s=field(form,'Продукт','select');for(const p of cat.products)s.add(new Option(p,p));inputs[token]=s;}else{const s=field(form,'Опрос','select');for(const v of cat.surveys)s.add(new Option('#'+v.id+' · '+v.name,String(v.id)));inputs[token]=s;}}
+   const row=el('div','pulse-row'),ok=button('Запустить',null,'pulse-btn accent');ok.type='submit';row.append(ok,button('Отмена',()=>{paramDialog.close();resolve(null);},'pulse-btn ghost'));form.append(row);
+   form.onsubmit=e=>{e.preventDefault();let q=query;for(const [t,s] of Object.entries(inputs))q=q.split(t).join(s.value);paramDialog.close();resolve(q);};paramDialog.append(form);paramDialog.showModal();});
+ }
+ async function runSkill(skill){const q=await fillParams(skill.query);if(!q)return;post({action:'skill-run',skillId:skill.id||null,builtin:skill.id?null:skill.name}).catch(()=>{});if(skill.kind==='whatif'||/^что если/i.test(q))api().whatif(q);else askDialog(q);}
+ async function saveSkill(preset={}){
+  paramDialog.replaceChildren();const form=el('form');form.method='dialog';form.append(el('h2','','Сохранить как скил'),el('p','pulse-muted','Скил — повторяемый запрос. Замените номер опроса или продукт на {опрос} или {продукт}, чтобы выбирать их при запуске.'));
+  const name=field(form,'Название','text',{maxlength:'120',required:''});name.value=preset.name||'';const query=field(form,'Запрос','textarea',{maxlength:'1200',rows:'3',required:''});query.value=preset.query||'';
+  const role=field(form,'Для кого','select');for(const r of ['Все','Руководитель','Аналитик','Владелец опроса'])role.add(new Option(r,r));
+  const line=el('p','pulse-status'),row=el('div','pulse-row'),ok=button('Сохранить',null,'pulse-btn accent');ok.type='submit';row.append(ok,button('Отмена',()=>paramDialog.close(),'pulse-btn ghost'));form.append(row,line);
+  form.onsubmit=e=>{e.preventDefault();busy(ok,line,async()=>{await post({action:'skill-save',name:name.value,query:query.value,role:role.value});paramDialog.close();skillsCache=null;if(tab==='skills')renderSkills();status.textContent='Скил «'+name.value+'» сохранён — он в «Скилах» и в Ctrl+K.';});};
+  paramDialog.append(form);paramDialog.showModal();name.focus();
+ }
+ let skillsCache=null,skillRole='Все';
+ async function renderSkills(){
+  const host=panels.skills;host.replaceChildren(el('h2','','Скилы и галерея вопросов'),el('p','pulse-muted','Готовые вопросы по ролям и сохранённые скилы команды. Запуск одним кликом; параметры {продукт} и {опрос} выбираются при запуске.'));
+  const roles=el('div','pulse-row');for(const r of ['Все','Руководитель','Аналитик','Владелец опроса']){const b=button(r,()=>{skillRole=r;renderSkills();},'pulse-btn'+(skillRole===r?' accent':' ghost'));b.setAttribute('aria-pressed',String(skillRole===r));roles.append(b);}
+  roles.append(button('＋ Новый скил',()=>saveSkill(),'pulse-btn'));host.append(roles);
+  try{if(!skillsCache)skillsCache=(await post({action:'skills'})).skills;}catch{skillsCache=[];}
+  const mine=skillsCache.filter(s=>skillRole==='Все'||s.role===skillRole||s.role==='Все');
+  if(mine.length){const sec=el('section','pulse-section');sec.append(el('h3','','Скилы команды · '+mine.length));const grid=el('div','pulse-skill-grid');for(const s of mine){const card=el('article','pulse-card pulse-skill mine');card.append(el('span','pulse-tag',s.role),el('h3','',s.name),el('p','pulse-muted',s.query),el('p','pulse-muted','Запусков: '+(s.runs||0)+(s.lastRun?' · последний '+new Date(s.lastRun).toLocaleDateString('ru-RU'):'')));const r=el('div','pulse-row');r.append(button('Запустить',()=>runSkill(s),'pulse-btn accent'),button('Удалить',e=>{if(!confirm('Удалить скил «'+s.name+'»?'))return;busy(e.target,null,async()=>{await post({action:'skill-delete',skillId:s.id});skillsCache=null;renderSkills();});},'pulse-btn ghost'));card.append(r);grid.append(card);}sec.append(grid);host.append(sec);}
+  const sec=el('section','pulse-section');sec.append(el('h3','','Галерея'));const grid=el('div','pulse-skill-grid');
+  for(const g of GALLERY.filter(g=>skillRole==='Все'||g.role===skillRole)){const card=el('article','pulse-card pulse-skill');const tags=el('div','pulse-row');tags.append(el('span','pulse-tag',g.role));if(g.ai)tags.append(el('span','pulse-tag warn','нужна GigaCode'));card.append(tags,el('h3','',g.name),el('p','pulse-muted',g.query));const r=el('div','pulse-row');r.append(button('Запустить',()=>runSkill(g),'pulse-btn accent'),button('В мои скилы',()=>saveSkill({name:g.name,query:g.query}),'pulse-btn ghost'));card.append(r);grid.append(card);}
+  sec.append(grid);host.append(sec);
+ }
+ /* --- мой экран: плитки, перетаскивание, сохранение --- */
+ const TILE_NAMES={kpi:'Показатель',chart:'График',signals:'Сигналы',shifts:'Сдвиги',forecast:'Прогноз плана',note:'Заметка'};
+ const KPI_METRICS={answers:'Ответы за 7 дней',responseRate:'Отклик',csi:'CSI',sends:'Отправки за 7 дней'};
+ let screenTiles=null,screenEdit=false;
+ function defaultTiles(cat){const product=cat.products[0];return [{kind:'kpi',metric:'answers',channel:'communication'},{kind:'kpi',metric:'csi',channel:'communication'},{kind:'kpi',metric:'answers',channel:'success_screen'},{kind:'shifts'},{kind:'chart',product,metric:'answers',days:60,channel:'communication',wide:true},{kind:'signals'},{kind:'forecast',product,channel:'communication'}];}
+ async function renderScreen(){
+  const host=panels.screen,cat=await ensureCatalog();host.replaceChildren();
+  if(!screenTiles){try{const saved=await post({action:'screen-get'});screenTiles=saved.tiles||defaultTiles(cat);}catch{screenTiles=defaultTiles(cat);}}
+  const head=el('div','pulse-row'),line=el('p','pulse-status');line.setAttribute('role','status');
+  head.append(el('h2','','Мой экран'),el('span','pulse-muted',screenEdit?'Перетащите плитки или используйте ← →; × убирает, ⇔ меняет ширину.':'Ваш набор плиток — сохраняется в проекте.'));
+  const tools=el('div','pulse-row');
+  tools.append(button(screenEdit?'Готово':'Настроить',()=>{screenEdit=!screenEdit;renderScreen();},'pulse-btn'+(screenEdit?' accent':'')));
+  if(screenEdit)tools.append(button('Сохранить экран',e=>busy(e.target,line,async()=>{await post({action:'screen-save',tiles:screenTiles});line.textContent='Экран сохранён.';}),'pulse-btn accent'),button('Стандартный набор',()=>{screenTiles=defaultTiles(cat);renderScreen();},'pulse-btn ghost'));
+  host.append(head,tools,line);
+  if(screenEdit)host.append(tileForm(cat));
+  const grid=el('div','pulse-screen-grid'+(screenEdit?' is-edit':''));host.append(grid);
+  let dragIndex=null;
+  screenTiles.forEach((tile,i)=>{
+   const card=el('article','pulse-card pulse-tile'+(tile.wide?' wide':''));card.dataset.index=String(i);
+   if(screenEdit){card.draggable=true;card.addEventListener('dragstart',e=>{dragIndex=i;card.classList.add('is-drag');e.dataTransfer.effectAllowed='move';});card.addEventListener('dragend',()=>card.classList.remove('is-drag'));card.addEventListener('dragover',e=>{e.preventDefault();card.classList.add('is-over');});card.addEventListener('dragleave',()=>card.classList.remove('is-over'));card.addEventListener('drop',e=>{e.preventDefault();if(dragIndex===null||dragIndex===i)return;const [m]=screenTiles.splice(dragIndex,1);screenTiles.splice(i,0,m);dragIndex=null;renderScreen();});
+    const bar=el('div','pulse-tile-bar');const mv=(d)=>{const j=i+d;if(j<0||j>=screenTiles.length)return;[screenTiles[i],screenTiles[j]]=[screenTiles[j],screenTiles[i]];renderScreen();};
+    const b1=button('←',()=>mv(-1),'pulse-tile-btn'),b2=button('→',()=>mv(1),'pulse-tile-btn'),b3=button('⇔',()=>{tile.wide=!tile.wide;renderScreen();},'pulse-tile-btn'),b4=button('×',()=>{screenTiles.splice(i,1);renderScreen();},'pulse-tile-btn');
+    b1.setAttribute('aria-label','Переместить влево');b2.setAttribute('aria-label','Переместить вправо');b3.setAttribute('aria-label','Изменить ширину');b4.setAttribute('aria-label','Убрать плитку');bar.append(el('span','pulse-tile-grip','⠿ '+TILE_NAMES[tile.kind]),b1,b2,b3,b4);card.append(bar);}
+   const body=el('div','pulse-tile-body');card.append(body);grid.append(card);fillTile(tile,body);
+  });
+  if(!screenTiles.length)grid.append(el('p','pulse-empty','Плиток нет — нажмите «Настроить» и добавьте первую.'));
+ }
+ function tileForm(cat){
+  const form=el('form','pulse-form-grid pulse-tile-form'),kind=field(form,'Плитка','select');for(const [k,v] of Object.entries(TILE_NAMES))kind.add(new Option(v,k));
+  const channel=field(form,'Канал','select');channel.add(new Option('Пуш + СМС','communication'));channel.add(new Option('Экран успеха','success_screen'));
+  const metric=field(form,'Показатель','select');for(const [k,v] of [['answers','Ответы'],['sends','Отправки'],['responseRate','Отклик'],['csi','CSI']])metric.add(new Option(v,k));
+  const product=field(form,'Продукт','select');product.add(new Option('—',''));for(const p of cat.products)product.add(new Option(p,p));
+  const survey=field(form,'или опрос','number',{min:'1',placeholder:'номер'});const text=field(form,'Текст заметки','text',{maxlength:'600'});
+  const addWrap=el('div','pulse-field'),add=button('Добавить плитку',null,'pulse-btn accent');add.type='submit';addWrap.append(el('span','',' '),add);form.append(addWrap);
+  form.onsubmit=e=>{e.preventDefault();const t={kind:kind.value,channel:channel.value,metric:metric.value};if(survey.value)t.id=Number(survey.value);else if(product.value)t.product=product.value;if(t.kind==='chart'){t.days=60;t.wide=true;}if(t.kind==='note')t.text=text.value||'Заметка';screenTiles.push(t);renderScreen();};
+  return form;
+ }
+ async function fillTile(tile,body){
+  const scope=tile.id?'#'+tile.id:tile.product||'все опросы';
+  try{
+   if(tile.kind==='kpi'){const k=(brief?.kpis||[]).find(x=>x.channel===(tile.channel||'communication'));body.append(el('span','pulse-muted',(k?.label||'')+' · '+KPI_METRICS[tile.metric||'answers']));if(!k){body.append(el('b','pulse-tile-value','—'));return;}const m=tile.metric||'answers',a=k.baseline[m],b=k.current[m];body.append(el('b','pulse-tile-value',fmt(b,m)));const delta=m==='answers'||m==='sends'?pctChange(a,b):a===null||b===null?'нет базы':signed(b-a,m==='csi'?' балла':' п.п.');body.append(el('small','','к прошлой неделе: '+delta));return;}
+   if(tile.kind==='signals'){const list=brief?.signals||[];body.append(el('span','pulse-muted','Сигналы недели · '+list.length));const ul=el('ul','pulse-tile-list');for(const s of list.slice(0,5))ul.append(el('li',s.severity==='urgent'?'bad':'','#'+s.id+' · '+s.name+' — '+s.reasons[0]));if(!list.length)ul.append(el('li','','Сигналов нет'));body.append(ul);return;}
+   if(tile.kind==='shifts'){const vis=visibleShifts().filter(s=>!tile.product||(s.products||[]).includes(tile.product));body.append(el('span','pulse-muted','Устойчивые сдвиги · '+scope),el('b','pulse-tile-value',String(vis.length)));const ul=el('ul','pulse-tile-list');for(const s of vis.slice(0,3))ul.append(el('li',s.direction==='down'?'bad':'good','#'+s.id+' · '+s.label.toLowerCase()+' '+change(s)+' с '+dateLabel(s.date)));body.append(ul);return;}
+   if(tile.kind==='note'){body.append(el('span','pulse-muted','Заметка'),el('p','pulse-summary',tile.text||''));return;}
+   if(tile.kind==='chart'){body.append(el('span','pulse-muted',({answers:'Ответы',sends:'Отправки',responseRate:'Отклик',csi:'CSI'}[tile.metric]||'')+' · '+scope+' · '+(tile.days||60)+' дней'));const data=await post({action:'compare',metric:tile.metric||'answers',days:tile.days||60,items:[{channel:tile.channel||'communication',id:tile.id??null,product:tile.product??null}]});const item=data.items[0];chartHostWidth=Math.max(260,body.clientWidth)+48;body.append(lineChart({series:[{points:item.series,cls:'primary',zeroless:tile.metric==='csi'||tile.metric==='responseRate'}],events:eventsFor(item.channel,item.id?[item.id]:[]),height:130,format:v=>tile.metric==='csi'?cf.format(v):tile.metric==='responseRate'?df.format(v)+'%':nf.format(v)}));chartHostWidth=null;body.append(el('small','','за период: '+(item.periodRelative!=null?signed(item.periodRelative):item.periodDelta!=null?signed(item.periodDelta):'—')));return;}
+   if(tile.kind==='forecast'){const d=await post({action:'whatif',channel:tile.channel||'communication',id:tile.id??null,product:tile.product??null});body.append(el('span','pulse-muted','Прогноз плана · '+scope+' · '+d.month));if(d.plan){body.append(el('b','pulse-tile-value '+(d.scenario.forecast>=d.plan?'good':'bad'),df.format(d.completion)+'%'),el('small','',d.verdict+': '+nf.format(d.scenario.forecast)+' из '+nf.format(d.plan)));}else body.append(el('b','pulse-tile-value',nf.format(d.scenario.forecast)),el('small','','ответов к концу месяца · план не задан'));const open=button('Что если…',()=>{select('whatif');whatifPrefill({id:tile.id??null,channel:tile.channel||'communication'});},'pulse-btn ghost');if(tile.id)body.append(open);return;}
+  }catch(error){body.append(el('p','pulse-status is-error',error.message));}
+ }
+ /* --- эффект «было → стало» --- */
+ async function renderEffect(){
+  const host=panels.effect;host.replaceChildren(el('h2','','Эффект платформы: было → стало'));const line=el('p','pulse-status');line.setAttribute('role','status');
+  let d;try{d=await post({action:'effect'});}catch(error){host.append(el('p','pulse-status is-error',error.message));return;}
+  const b=d.baseline||{},rows=effectRows(d);
+  if(d.baselineDemo)host.append(el('p','pulse-tag warn','Пример базовых значений для демо — замените своими в форме ниже'));
+  host.append(el('p','pulse-muted','«Стало» считается по журналу этой папки'+(d.since?' с '+new Date(d.since).toLocaleString('ru-RU'):'')+'. «Было» — ваши базовые значения до платформы.'));
+  const grid=el('div','pulse-effect-grid');
+  for(const r of rows){const card=el('article','pulse-card pulse-effect');card.append(el('span','pulse-muted',r.title));const pair=el('div','pulse-effect-pair');const was=el('div','was');was.append(el('small','','было'),el('b','',r.was));const now=el('div','now');now.append(el('small','','стало'),el('b','',r.now));pair.append(was,el('span','pulse-effect-arrow','→'),now);card.append(pair,el('p','pulse-muted',r.note));grid.append(card);}
+  host.append(grid);
+  const actions=el('div','pulse-row');actions.append(button('Слайд для совета (PPTX)',e=>busy(e.target,line,async()=>{await effectPptx(rows,d);line.textContent='Слайд скачан.';}),'pulse-btn accent'),button('Обновить',()=>renderEffect(),'pulse-btn ghost'));host.append(actions,line);
+  const form=el('details','pulse-card pulse-baseline');form.open=!Object.keys(b).length;form.append(el('summary','','Базовые значения «было» (до платформы)'));
+  const grid2=el('div','pulse-form-grid'),inputs={};
+  for(const [key,label,max] of [['detectDays','Через сколько дней замечали отклонение',365],['closeDays','Дней до найденной причины',365],['meetingHours','Часов на подготовку одной встречи',200],['meetingsPerMonth','Встреч в месяц',100],['checkHoursPerDay','Часов в день на ручные проверки',24],['people','Людей на проверках и отчётах',500]]){const input=field(grid2,label,'number',{min:'0',max:String(max),step:'0.5'});input.value=b[key]??'';inputs[key]=input;}
+  const save=button('Сохранить базовые значения',e=>busy(e.target,line,async()=>{const baseline={};for(const [k,i] of Object.entries(inputs))if(i.value!=='')baseline[k]=Number(i.value);await post({action:'settings',baseline});renderEffect();}),'pulse-btn accent');
+  form.append(grid2,save);host.append(form,el('p','pulse-muted',d.method));
+ }
+ const hours=h=>h===null||h===undefined?'—':h<1?Math.max(1,Math.round(h*60))+' мин':df.format(h)+' ч';
+ function effectRows(d){
+  const b=d.baseline||{},det=d.detection,cl=d.closure,mt=d.meeting,ai=d.ai;
+  return [
+   {title:'Время до обнаружения отклонения',was:b.detectDays!=null?df.format(b.detectDays)+' дн.':'не задано',now:det.count?'в день загрузки':'—',note:det.count?'Найдено отклонений: '+det.count+(det.computeSeconds!=null?' · брифинг готов за '+df.format(Math.max(det.computeSeconds,0.1))+' с после загрузки':'')+(det.medianAgeDays!=null?' · найденные сдвиги к моменту сигнала длились в среднем (медиана) '+det.medianAgeDays+' дн.':''):'Загрузите данные — журнал начнёт считать.'},
+   {title:'От сигнала до записанной причины',was:b.closeDays!=null?df.format(b.closeDays)+' дн.':'не задано',now:cl.medianHours!=null?hours(cl.medianHours):'—',note:'Закрыто с выводом: '+cl.closed+' из '+(cl.closed+cl.open)+(cl.share!=null?' ('+df.format(cl.share)+'%)':'')+'. Вывод — запись в памяти расследований по тому же опросу.'},
+   {title:'Подготовка встречи',was:b.meetingHours!=null?df.format(b.meetingHours)+' ч':'не задано',now:mt.medianMinutes!=null?(mt.medianMinutes<1?'< 1 мин':df.format(mt.medianMinutes)+' мин'):'—',note:'Собрано черновиков: '+mt.built+' · выгружено: '+mt.exported+(d.savedMeetingHoursPerMonth!=null?' · экономия около '+df.format(d.savedMeetingHoursPerMonth)+' ч в месяц при '+df.format(b.meetingsPerMonth)+' встречах':'')},
+   {title:'AI-разборы, принятые без правок',was:'нет разборов',now:ai.acceptedShare!=null?df.format(ai.acceptedShare)+'%':'—',note:'Оценок: '+ai.verdicts+' (принято '+ai.accepted+', исправить '+ai.edited+', отклонено '+ai.rejected+') · ответы модели: принято проверкой '+ai.checksAccepted+', отклонено '+ai.checksRejected+(ai.protectionTests?' · проверок защиты: '+ai.protectionTests:'')},
+   {title:'Ручные ежедневные проверки',was:b.checkHoursPerDay!=null?df.format(b.checkHoursPerDay)+' ч/день'+(b.people?' · '+df.format(b.people)+' чел.':''):'не задано',now:det.briefs?'автоматически':'—',note:'Брифингов подготовлено без участия людей: '+det.briefs+'. Брифинг пересчитывается сам при каждой новой выгрузке; люди работают с очередью сигналов, а не просматривают все опросы.'},
+  ];
+ }
+ function effectPptx(rows,d){
+  if(!window.PptxGenJS)throw new Error('Модуль PPTX не загружен.');const brand=brandSettings(),accent=brand.accent.replace('#','').toUpperCase();
+  const pptx=new window.PptxGenJS();pptx.layout='LAYOUT_WIDE';const slide=pptx.addSlide();slide.background={color:'FFFFFF'};
+  slide.addShape(pptx.ShapeType.rect,{x:0,y:0,w:13.33,h:.12,fill:{color:accent},line:{color:accent}});
+  slide.addText('Эффект платформы мониторинга опросов: было → стало',{x:.5,y:.35,w:12.3,h:.7,fontSize:26,bold:true,color:'1C1B19',fontFace:'Arial'});
+  slide.addText('По журналу пилота'+(d.since?' с '+new Date(d.since).toLocaleDateString('ru-RU'):'')+(d.baselineDemo?' · базовые значения — пример для демо':''),{x:.5,y:1.0,w:12.3,h:.4,fontSize:13,color:'716E67',fontFace:'Arial'});
+  const head=['Показатель','Было','Стало','Комментарий'].map(t=>({text:t,options:{bold:true,color:'FFFFFF',fill:{color:accent}}}));
+  const body=rows.map(r=>[{text:r.title,options:{bold:true}},{text:r.was},{text:r.now,options:{bold:true,color:accent}},{text:r.note,options:{fontSize:10,color:'4A4843'}}]);
+  slide.addTable([head,...body],{x:.5,y:1.6,w:12.3,colW:[3.0,1.8,2.0,5.5],fontSize:13,fontFace:'Arial',color:'1C1B19',border:{type:'solid',pt:.5,color:'DCD9D1'},valign:'middle',rowH:.75});
+  return pptx.writeFile({fileName:'pulse-effect-'+new Date().toISOString().slice(0,10)+'.pptx'});
+ }
+ ui={page,show,openUpload:()=>{location.hash='#pulse';},whatif:query=>{location.hash='#pulse';select('whatif');setTimeout(()=>{const input=panels.whatif.querySelector('.pulse-ask input');if(input&&query){input.value=query;input.form.requestSubmit();}},300);},meeting:()=>{location.hash='#pulse';select('meeting');},compare:()=>{location.hash='#pulse';select('compare');},showMode:()=>{location.hash='#pulse';setTimeout(showMode,400);},open:key=>{location.hash='#pulse';setTimeout(()=>select(key),50);},saveSkill:query=>saveSkill({query}),runSkill:skill=>runSkill(skill),skills:async()=>{try{if(!skillsCache)skillsCache=(await post({action:'skills'})).skills;}catch{skillsCache=[];}return skillsCache;}};
+ return ui;
 }
 
+function askDialog(text){location.hash='#dialog';setTimeout(()=>{const q=document.getElementById('query'),form=document.getElementById('queryForm');if(q&&form){q.value=text;q.dispatchEvent(new Event('input',{bubbles:true}));form.requestSubmit();}},250);}
 /* ---------- загрузка CSV ---------- */
 const expected={'push-sms.csv':'day_part','success-screen.csv':'mp_status','products.csv':'Опрос'};
 function guessName(file,text){const name=file.name.toLowerCase();if(expected[name])return name;const head=text.replace(/^﻿/,'').split(/\r?\n/,1)[0].toLowerCase();if(head.includes('mp_status'))return 'success-screen.csv';if(head.includes('status_det'))return 'push-sms.csv';if(head.includes('опрос')&&head.includes('продукт'))return 'products.csv';return null;}
@@ -530,7 +736,7 @@ function palette(api){
  const input=el('input');input.type='search';input.placeholder='Раздел, опрос, продукт или вопрос к данным…';input.setAttribute('aria-label','Поиск и команды');input.setAttribute('role','combobox');input.setAttribute('aria-controls','pulsePaletteList');input.setAttribute('aria-expanded','true');
  const listbox=el('div','pulse-palette-list');listbox.id='pulsePaletteList';listbox.setAttribute('role','listbox');const hint=el('p','pulse-muted','↑↓ — выбор · Enter — открыть · Esc — закрыть');
  box.append(input,listbox,hint);document.body.append(box);
- let items=[],active=0,catalog=null,modelReady=false;
+ let items=[],active=0,catalog=null,modelReady=false,skills=[];
  const norm=s=>s.toLowerCase().replace(/ё/g,'е');
  function navItems(){return [...document.querySelectorAll('.rail .nav-item')].filter(n=>!n.classList.contains('nav-more-summary')).map(n=>({kind:'Раздел',label:n.textContent.trim(),run:()=>{if(n.tagName==='A')location.hash=n.getAttribute('href');else n.click();}}));}
  function ask(text){location.hash='#dialog';setTimeout(()=>{const q=document.getElementById('query'),form=document.getElementById('queryForm');if(q&&form){q.value=text;q.dispatchEvent(new Event('input',{bubbles:true}));form.requestSubmit();}},250);}
@@ -543,12 +749,16 @@ function palette(api){
    {kind:'Действие',label:'Собрать встречу в один клик',run:()=>api.meeting()},
    {kind:'Действие',label:'Сценарий «что если»',run:()=>api.whatif('')},
    {kind:'Действие',label:'Сравнить опросы и продукты',run:()=>api.compare()},
+   {kind:'Раздел',label:'Мой экран руководителя',run:()=>api.open('screen')},
+   {kind:'Раздел',label:'Скилы и галерея вопросов',run:()=>api.open('skills')},
+   {kind:'Раздел',label:'Эффект: было → стало',run:()=>api.open('effect')},
    {kind:'Действие',label:'Режим показа (презентация брифинга)',run:()=>api.showMode()},
    {kind:'Действие',label:'Оформление: тема, цвета, фон графиков',run:()=>window.Appearance?.open()},
    {kind:'Действие',label:'Загрузить CSV',run:()=>{location.hash='#pulse';const picker=document.createElement('input');picker.type='file';picker.multiple=true;picker.accept='.csv';picker.onchange=()=>{const toast=document.querySelector('.pulse-toast');toast.hidden=false;uploadFiles([...picker.files],toast);};picker.click();}},
    {kind:'Действие',label:'Проверить данные',run:()=>{location.hash='#admin-data';setTimeout(()=>document.getElementById('refreshData')?.click(),100);}},
   ];
   for(const a of actions){const s=score(a.label);if(s)out.push({...a,s:s+1});}
+  for(const sk of skills){const s=score(sk.name+' '+sk.query);if(s&&tokens.length)out.push({kind:'Скил',label:sk.name,s:s+2,run:()=>api.runSkill(sk)});}
   if(catalog){
    const idMatch=q.match(/\d{1,7}/);
    for(const sv of catalog.surveys){let s=0;if(idMatch&&String(sv.id).startsWith(idMatch[0]))s=String(sv.id)===idMatch[0]?9:4;else s=score(sv.name+' '+sv.products.join(' '));if(!s||!tokens.length)continue;
@@ -568,22 +778,29 @@ function palette(api){
  function update(){items=build(input.value);active=0;render();}
  function choose(i){const item=items[i];if(!item)return;box.close();item.run();}
  input.addEventListener('input',update);
- input.addEventListener('keydown',e=>{if(e.key==='ArrowDown'){e.preventDefault();active=Math.min(items.length-1,active+1);render();listbox.children[active]?.scrollIntoView({block:'nearest'});}else if(e.key==='ArrowUp'){e.preventDefault();active=Math.max(0,active-1);render();listbox.children[active]?.scrollIntoView({block:'nearest'});}else if(e.key==='Enter'){e.preventDefault();choose(active);}});
+ input.addEventListener('keydown',e=>{if(e.key==='ArrowDown'){e.preventDefault();active=Math.min(items.length-1,active+1);render();listbox.children[active]?.scrollIntoView({block:'nearest'});}else if(e.key==='ArrowUp'){e.preventDefault();active=Math.max(0,active-1);render();listbox.children[active]?.scrollIntoView({block:'nearest'});}else if(e.key==='Enter'){e.preventDefault();choose(active);}else if(e.key==='Escape'){e.preventDefault();box.close();}});
  box.addEventListener('click',e=>{if(e.target===box)box.close();});
- async function open(){input.value='';update();box.showModal();input.focus();try{if(!catalog)catalog=await post({action:'catalog'});const s=await (await fetch('/api/genui/status')).json();modelReady=Boolean(s.configured);update();}catch{}}
+ async function open(){input.value='';update();box.showModal();input.focus();try{skills=await api.skills();if(!catalog)catalog=await post({action:'catalog'});const s=await (await fetch('/api/genui/status')).json();modelReady=Boolean(s.configured);update();if(box.open)input.focus();}catch{}}
  document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'||((e.ctrlKey||e.metaKey)&&e.code==='KeyK')){e.preventDefault();if(box.open)box.close();else open();}});
  window.addEventListener('pulse:data',()=>{catalog=null;});
+ document.addEventListener('focusin',e=>{if(box.open&&!box.contains(e.target))input.focus();});
  const bar=document.querySelector('.topbar');if(bar){const trigger=el('button','pulse-palette-trigger');trigger.type='button';trigger.append(el('span','','Поиск и команды'),el('kbd','','Ctrl K'));trigger.onclick=open;const crumb=bar.querySelector('span');if(crumb)crumb.after(trigger);else bar.prepend(trigger);}
  return {open};
 }
 
+function composerSkill(ui){
+ const form=document.getElementById('queryForm'),input=document.getElementById('query');if(!form||!input)return;let last='';
+ form.addEventListener('submit',()=>{if(input.value.trim())last=input.value.trim();},true);
+ const bottom=form.querySelector('.composer-bottom')||form;const b=el('button','pulse-btn ghost pulse-save-skill','☆ Сохранить запрос как скил');b.type='button';
+ b.onclick=()=>{const q=input.value.trim()||last;if(!q){input.focus();return;}ui.saveSkill(q);};bottom.prepend(b);
+}
 /* ---------- заголовок раздела ---------- */
 function fixBreadcrumb(){const name=document.getElementById('sectionName');if(!name)return;const hash=location.hash||'#pulse';const active=document.querySelector('.rail .nav-item.active');
  if(hash.startsWith('#admin')||['#agent-log','#diagnostics'].includes(hash))name.textContent='Администрирование';else if(active&&!active.classList.contains('nav-more-summary'))name.textContent=active.textContent.trim();}
 
 window.PulseUI={create:main=>{
  const ui=create(main);
- window.addEventListener('load',()=>{compactNav();new MutationObserver(()=>{const rail=document.querySelector('.rail');if([...rail.querySelectorAll(':scope > .nav-item')].some(n=>!PRIMARY.includes(n.getAttribute('href'))&&!n.classList.contains('nav-more-summary')))compactNav();}).observe(document.querySelector('.rail'),{childList:true});fixBreadcrumb();palette(ui);globalDrop();});
+ window.addEventListener('load',()=>{composerSkill(ui);compactNav();new MutationObserver(()=>{const rail=document.querySelector('.rail');if([...rail.querySelectorAll(':scope > .nav-item')].some(n=>!PRIMARY.includes(n.getAttribute('href'))&&!n.classList.contains('nav-more-summary')))compactNav();}).observe(document.querySelector('.rail'),{childList:true});fixBreadcrumb();palette(ui);globalDrop();});
  window.addEventListener('hashchange',()=>setTimeout(()=>{compactNav();fixBreadcrumb();},0));
  window.addEventListener('pulse:data',()=>{if(location.hash==='#pulse'||!location.hash)ui.show();});
  return ui;
