@@ -92,6 +92,9 @@ def prepare_payload(root, stage, payload):
         return metadata(result)
     if stage == 'pulse-whatif':
         return metadata({'userQuery': payload.get('userQuery', ''), 'products': list(payload.get('products', []))[:60]})
+    if stage == 'pulse-canvas':
+        return metadata({'userQuery': payload.get('userQuery', ''), 'products': list(payload.get('products', []))[:60],
+                         'surveys': [project(row, ('id', 'name', 'channel')) for row in payload.get('surveys', [])[:40]]})
     if stage == 'pulse-route':
         return metadata({'userQuery': payload.get('userQuery', ''), 'options': [project(row, ('id', 'label')) for row in payload.get('options', [])[:40]]})
     raise ValueError('Этап модели не разрешён политикой проекта.')

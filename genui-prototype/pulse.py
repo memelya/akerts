@@ -1291,6 +1291,8 @@ class Pulse:
         if kind == 'meeting-exported':
             seconds = number_or_none(request.get('seconds'), 'Время', 0, 86400)
             self.log(kind, seconds=seconds, format=clean_text(request.get('format'), 'Формат', 20))
+        elif kind in ('canvas-shown', 'canvas-exported'):
+            self.log(kind, format=clean_text(request.get('format'), 'Формат', 20))
         elif kind == 'ai-verdict':
             verdict = request.get('verdict')
             if verdict not in ('accepted', 'edited', 'rejected'):
@@ -1554,6 +1556,188 @@ class Pulse:
         return value
 
 
+    # -- холсты: один объект вместо разделов -------------------------------------------
+    BLOCK_KINDS = ('status', 'problems', 'kpi', 'chart', 'compare', 'forecast', 'signals', 'shifts', 'portfolio', 'note')
+    BLOCK_METRICS = ('sends', 'answers', 'events', 'csi', 'responseRate')
+    BLOCK_SPANS = (3, 4, 6, 8, 12)
+
+    @property
+    def canvases_path(self):
+        return self.root / '.local-data' / 'pulse-canvases.json'
+
+    def canvas_read(self):
+        try:
+            value = json.loads(self.canvases_path.read_text(encoding='utf-8'))
+            if isinstance(value, dict) and isinstance(value.get('canvases'), list):
+                return value
+        except (OSError, ValueError):
+            pass
+        value = {'canvases': [], 'active': None}
+        legacy = self.screen_get()
+        if legacy.get('tiles'):
+            blocks = []
+            for tile in legacy['tiles']:
+                try:
+                    block = dict(tile)
+                    block['span'] = 12 if tile.get('wide') else (3 if tile.get('kind') == 'kpi' else 6)
+                    blocks.append(self.clean_block(block))
+                except ValueError:
+                    continue
+            canvas = {'id': uuid.uuid4().hex[:10], 'name': legacy.get('name') or 'Мой экран', 'blocks': blocks,
+                      'created': legacy.get('saved') or now(), 'updated': legacy.get('saved') or now(), 'template': 'legacy'}
+            value = {'canvases': [canvas], 'active': canvas['id']}
+        return value
+
+    def clean_target(self, target):
+        if not isinstance(target, dict):
+            raise ValueError('Некорректный объект блока.')
+        channel = target.get('channel') or 'communication'
+        if channel not in CHANNELS:
+            raise ValueError('Неизвестный канал в блоке.')
+        ident = target.get('id')
+        if ident is not None and (type(ident) is not int or not 1 <= ident <= 9999999):
+            raise ValueError('Некорректный номер опроса в блоке.')
+        product = clean_text(target.get('product'), 'Продукт', 200) or None
+        return {'channel': channel, 'id': ident, 'product': None if ident is not None else product}
+
+    def clean_block(self, block):
+        if not isinstance(block, dict) or block.get('kind') not in self.BLOCK_KINDS:
+            raise ValueError('Некорректный блок холста.')
+        uid = block.get('uid')
+        item = {'kind': block['kind'], 'uid': uid if isinstance(uid, str) and re.fullmatch(r'[a-z0-9]{4,16}', uid) else uuid.uuid4().hex[:10],
+                'span': block['span'] if block.get('span') in self.BLOCK_SPANS else 6}
+        for key, limit in (('title', 120), ('product', 200), ('text', 1200), ('question', 400)):
+            if block.get(key) is not None:
+                value = clean_text(block.get(key), 'Поле блока', limit)
+                if value:
+                    item[key] = value
+        if block.get('channel') is not None:
+            if block['channel'] not in CHANNELS:
+                raise ValueError('Неизвестный канал в блоке.')
+            item['channel'] = block['channel']
+        if block.get('metric') is not None:
+            if block['metric'] not in self.BLOCK_METRICS:
+                raise ValueError('Неизвестный показатель в блоке.')
+            item['metric'] = block['metric']
+        if block.get('id') is not None:
+            if type(block['id']) is not int or not 1 <= block['id'] <= 9999999:
+                raise ValueError('Некорректный номер опроса в блоке.')
+            item['id'] = block['id']
+            item.pop('product', None)
+        if block.get('days') is not None:
+            if block['days'] not in (14, 30, 60, 90):
+                raise ValueError('Период блока: 14, 30, 60 или 90 дней.')
+            item['days'] = block['days']
+        if block.get('index'):
+            item['index'] = True
+        if block['kind'] == 'compare':
+            items = block.get('items')
+            if not isinstance(items, list) or not 1 <= len(items) <= 5:
+                raise ValueError('В блоке сравнения — от одного до пяти объектов.')
+            item['items'] = [self.clean_target(t) for t in items]
+        if block['kind'] == 'portfolio' and block.get('groupBy') in self.GROUPINGS:
+            item['groupBy'] = block['groupBy']
+        return item
+
+    def canvas_list(self, request=None):
+        return self.canvas_read()
+
+    def canvas_save(self, request):
+        from data_trust import atomic_json
+        canvas = request.get('canvas')
+        if not isinstance(canvas, dict):
+            raise ValueError('Нет холста для сохранения.')
+        blocks = canvas.get('blocks')
+        if not isinstance(blocks, list) or len(blocks) > 30:
+            raise ValueError('На холсте может быть до 30 блоков.')
+        name = clean_text(canvas.get('name'), 'Название холста', 80, True)
+        value = self.canvas_read()
+        ident = canvas.get('id')
+        found = next((c for c in value['canvases'] if c['id'] == ident), None) if isinstance(ident, str) else None
+        clean = {'id': found['id'] if found else uuid.uuid4().hex[:10], 'name': name, 'blocks': [self.clean_block(b) for b in blocks],
+                 'created': found['created'] if found else now(), 'updated': now(),
+                 'template': clean_text(canvas.get('template'), 'Шаблон', 40) or (found or {}).get('template')}
+        if found:
+            value['canvases'][value['canvases'].index(found)] = clean
+        else:
+            if len(value['canvases']) >= 30:
+                raise ValueError('Холстов может быть до 30 — удалите ненужный.')
+            value['canvases'].append(clean)
+            self.log('canvas-created', template=clean['template'])
+        value['active'] = clean['id']
+        atomic_json(self.canvases_path, value)
+        return {**value, 'canvas': clean}
+
+    def canvas_open(self, request):
+        from data_trust import atomic_json
+        value = self.canvas_read()
+        if not any(c['id'] == request.get('id') for c in value['canvases']):
+            raise ValueError('Холст не найден.')
+        value['active'] = request['id']
+        atomic_json(self.canvases_path, value)
+        return value
+
+    def canvas_delete(self, request):
+        from data_trust import atomic_json
+        value = self.canvas_read()
+        before = len(value['canvases'])
+        value['canvases'] = [c for c in value['canvases'] if c['id'] != request.get('id')]
+        if len(value['canvases']) == before:
+            raise ValueError('Холст не найден.')
+        if value.get('active') == request.get('id'):
+            value['active'] = value['canvases'][0]['id'] if value['canvases'] else None
+        atomic_json(self.canvases_path, value)
+        return value
+
+    def canvas_ask(self, request):
+        """Вопрос → описание блока. Числа блок потом считает платформа; модель (если нужна) выбирает только тип и объекты."""
+        query = clean_text(request.get('query'), 'Вопрос', 400, True)
+        state, _ = self.snapshot()
+        parsed = parse_canvas_query(query, state)
+        parsed['source'] = 'Локальный разбор вопроса'
+        if parsed['understood'] or not request.get('useModel') or not self.model_ready():
+            parsed['block'] = self.clean_block(parsed['block'])
+            self.log('canvas-ask', source='local', block=parsed['block']['kind'])
+            return parsed
+        try:
+            return self.checked(lambda: self.canvas_ask_model(query, state))
+        except Exception as error:  # вопрос не должен срываться из-за CLI: показываем локальный разбор
+            parsed['block'] = self.clean_block(parsed['block'])
+            parsed['notes'].append('GigaCode не помогла разобрать вопрос (' + str(error)[:140] + ') — показан локальный разбор.')
+            return parsed
+
+    def canvas_ask_model(self, query, state):
+        products = sorted({p for s in state['surveys'] for p in s['meta'].get('products', [])}, key=str.casefold)[:60]
+        stems = lambda text: {w[:5] for w in re.findall(r'[а-яa-z]{4,}', text.lower().replace('ё', 'е'))}
+        asked = stems(query)
+        surveys = [{'id': s['event']['id'], 'name': s['meta']['name'], 'channel': s['meta']['channel']} for s in state['surveys']
+                   if asked & stems(s['meta']['name'])][:40]
+        result = self.call_model('pulse-canvas',
+            'Переведи вопрос руководителя в блок холста. Верни один JSON {"kind":"chart"|"compare"|"forecast"|"problems"|"signals"|"shifts"|"portfolio"|"status",'
+            '"metric":null|"sends"|"answers"|"events"|"csi"|"responseRate","days":null|14|30|60|90,"channel":"communication"|"success_screen",'
+            '"targets":[{"id":int}|{"product":"..."}]}. Опросы — только из surveys, продукты — только из products, не больше пяти. Ничего не вычисляй.',
+            {'userQuery': query, 'products': products, 'surveys': surveys}, query)
+        if not isinstance(result, dict) or set(result) - {'kind', 'metric', 'days', 'channel', 'targets'}:
+            raise ValueError('Ответ модели не соответствует формату блока.')
+        targets = result.get('targets') or []
+        if not isinstance(targets, list) or len(targets) > 5:
+            raise ValueError('Модель вернула некорректный список объектов.')
+        known = {s['id']: s['channel'] for s in surveys}
+        channel = result.get('channel') if result.get('channel') in CHANNELS else 'communication'
+        clean_targets = []
+        for t in targets:
+            if isinstance(t, dict) and type(t.get('id')) is int and t['id'] in known:
+                clean_targets.append({'channel': known[t['id']], 'id': t['id'], 'product': None})
+            elif isinstance(t, dict) and t.get('product') in products:
+                clean_targets.append({'channel': channel, 'id': None, 'product': t['product']})
+            else:
+                raise ValueError('Модель выбрала опрос или продукт, которого нет в справочнике.')
+        block = build_canvas_block(result.get('kind'), result.get('metric'), result.get('days'), channel, clean_targets)
+        block['question'] = query
+        self.log('canvas-ask', source='model', block=block['kind'])
+        return {'block': self.clean_block(block), 'understood': True, 'notes': [], 'source': 'GigaCode CLI · тип блока и объекты проверены по справочнику'}
+
+
     # -- мой фокус: топ + избранные ---------------------------------------------------
     @property
     def focus_path(self):
@@ -1792,6 +1976,16 @@ class Pulse:
             return self.screen_get(request)
         if action == 'screen-save':
             return self.screen_save(request)
+        if action == 'canvas-list':
+            return self.canvas_list(request)
+        if action == 'canvas-save':
+            return self.canvas_save(request)
+        if action == 'canvas-open':
+            return self.canvas_open(request)
+        if action == 'canvas-delete':
+            return self.canvas_delete(request)
+        if action == 'canvas-ask':
+            return self.canvas_ask(request)
         raise ValueError('Неизвестное действие пульса.')
 
     def catalog(self):
@@ -2011,6 +2205,94 @@ def parse_whatif(query, state):
         notes.append('Опрос или продукт не указан — сценарий считается по всем опросам канала.')
     return {'params': params, 'understood': understood, 'notes': notes}
 
+
+
+CANVAS_KINDS = (
+    ('forecast', r'прогноз|план[аеуо]?\b|темп|выполн'),
+    ('portfolio', r'портфел|по группам|групп[аы]? опрос'),
+    ('signals', r'сигнал'),
+    ('shifts', r'сдвиг|устойчив'),
+    ('problems', r'проблем|требу[ею]т решени|что горит|что сломал'),
+    ('status', r'статус|сводк|как дела|общая картина'),
+)
+CANVAS_METRICS = (
+    ('responseRate', r'отклик|конверси'),
+    ('csi', r'\bcsi\b|ксай|оценк|удовлетвор'),
+    ('sends', r'отправ|рассыл'),
+    ('events', r'событи'),
+    ('answers', r'ответ'),
+)
+
+
+def build_canvas_block(kind, metric, days, channel, targets):
+    kind = kind if kind in ('chart', 'compare', 'forecast', 'problems', 'signals', 'shifts', 'portfolio', 'status') else 'chart'
+    if kind == 'chart' and len(targets) > 1:
+        kind = 'compare'
+    block = {'kind': kind, 'channel': channel}
+    if kind in ('chart', 'compare'):
+        block['metric'] = metric or 'answers'
+        block['days'] = days if days in (14, 30, 60, 90) else 60
+        block['span'] = 12
+        if kind == 'compare':
+            block['items'] = targets or [{'channel': channel, 'id': None, 'product': None}]
+        elif targets:
+            block['id'], block['product'], block['channel'] = targets[0]['id'], targets[0]['product'], targets[0]['channel']
+    elif kind in ('forecast', 'shifts') and targets:
+        block['id'], block['product'], block['channel'] = targets[0]['id'], targets[0]['product'], targets[0]['channel']
+        block['span'] = 4 if kind == 'forecast' else 6
+    else:
+        block['span'] = {'status': 12, 'problems': 8, 'portfolio': 6, 'signals': 6, 'shifts': 6, 'forecast': 4}[kind]
+    return block
+
+
+def parse_canvas_query(query, state):
+    """Разбирает вопрос без модели: опросы по номерам, продукты по названиям, показатель, период и тип блока."""
+    q = query.lower().replace('ё', 'е')
+    channel = 'success_screen' if WHATIF_CHANNEL.search(q) else 'communication'
+    channels = defaultdict(set)
+    for s in state['surveys']:
+        channels[s['event']['id']].add(s['meta']['channel'])
+    targets, notes = [], []
+    for token in re.findall(r'(?<![\d.,])#?(\d{2,7})(?![\d%.,])', q):
+        ident = int(token)
+        if ident in channels and not any(t['id'] == ident for t in targets):
+            targets.append({'channel': channel if channel in channels[ident] else sorted(channels[ident])[0], 'id': ident, 'product': None})
+    products = sorted({p for s in state['surveys'] for p in s['meta'].get('products', [])}, key=len, reverse=True)
+    rest = q
+    for product in products:
+        words = re.findall(r'\w+', product.lower().replace('ё', 'е'))
+        if not words:
+            continue
+        pattern = r'\b' + r'\W+'.join(re.escape(w[:-2]) + r'\w*' if len(w) >= 5 else re.escape(w) + r'\b' for w in words)
+        match = re.search(pattern, rest)
+        if match:
+            targets.append({'channel': channel, 'id': None, 'product': product})
+            rest = rest[:match.start()] + ' ' + rest[match.end():]
+    targets = targets[:5]
+    metric = next((m for m, pattern in CANVAS_METRICS if re.search(pattern, q)), None)
+    days = None
+    match = re.search(r'(\d{1,3})\s*(?:дн|день|дня)', q)
+    if match:
+        days = min((14, 30, 60, 90), key=lambda d: abs(d - int(match[1])))
+    elif re.search(r'квартал|3 месяц|три месяц|90', q):
+        days = 90
+    elif re.search(r'2 месяц|два месяц', q):
+        days = 60
+    elif re.search(r'месяц', q):
+        days = 30
+    elif re.search(r'недел', q):
+        days = 14
+    kind = next((k for k, pattern in CANVAS_KINDS if re.search(pattern, q)), None)
+    if kind is None and re.search(r'сравн|против|vs\b|и контрол', q):
+        kind = 'compare'
+    understood = bool(kind or targets or metric)
+    block = build_canvas_block(kind or 'chart', metric, days, channel, targets)
+    block['question'] = query
+    if not understood:
+        notes.append('В вопросе нет опроса, продукта, показателя или типа блока — показан общий график. Свободный вопрос к данным лучше задать в «Диалоге».')
+    elif block['kind'] in ('chart', 'compare') and not targets:
+        notes.append('Опрос или продукт не найден в вопросе — блок построен по всем опросам канала «' + CHANNEL_LABELS[channel] + '».')
+    return {'block': block, 'understood': understood, 'notes': notes}
 
 METRIC_LABELS = {'sends': 'Отправки', 'answers': 'Ответы', 'events': 'События', 'csi': 'CSI', 'responseRate': 'Отклик, %',
                  'stop': 'Стоп-лист 1002', 'contactPolicy': 'Политика контактов'}
