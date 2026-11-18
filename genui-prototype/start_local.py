@@ -51,12 +51,65 @@ def make_handler(engine):
             super().end_headers()
 
         def do_GET(self):
+            if self.status_route():
+                return
             self.respond(False)
+
+        def do_PATCH(self):
+            if not self.status_route():
+                self.send_error(404)
+
+        def do_DELETE(self):
+            if not self.status_route():
+                self.send_error(404)
+
+        def status_route(self):
+            """REST справочника статусов: /api/status-*, /api/analytics/status-breakdown."""
+            import status_admin
+            from urllib.parse import parse_qsl
+            parts = urlsplit(self.path)
+            if not status_admin.handles(parts.path):
+                return False
+            code, payload, kind = 500, {'error': 'Внутренняя ошибка справочника статусов.'}, None
+            try:
+                body = {}
+                if self.command in ('POST', 'PATCH', 'DELETE'):
+                    origin = self.headers.get('Origin')
+                    if origin and urlsplit(origin).netloc != self.headers.get('Host'):
+                        raise status_admin.StatusError('Запрос разрешён только со страницы локального проекта.', 403)
+                    size = int(self.headers.get('Content-Length', '0') or 0)
+                    if size > 4_000_000:
+                        raise status_admin.StatusError('Файл импорта больше 4 МБ.', 413)
+                    if size:
+                        body = json.loads(self.rfile.read(size))
+                        if not isinstance(body, dict):
+                            raise status_admin.StatusError('Нужен JSON объект запроса.', 400)
+                    elif self.command != 'DELETE':
+                        raise status_admin.StatusError('Пустой запрос.', 400)
+                query = dict(parse_qsl(parts.query))
+                code, payload, kind = status_admin.dispatch(engine.statuses, engine, self.command, parts.path, query, body)
+            except status_admin.StatusError as error:
+                code, payload = error.status, {'error': str(error), 'fields': error.fields}
+            except json.JSONDecodeError:
+                code, payload = 400, {'error': 'Некорректный JSON.'}
+            except (ValueError, OSError) as error:
+                code, payload = 400, {'error': str(error)}
+            data = payload.encode('utf-8') if isinstance(payload, str) else json.dumps(payload, ensure_ascii=False).encode('utf-8')
+            self.send_response(code)
+            self.send_header('Content-Type', kind or 'application/json; charset=utf-8')
+            if kind and 'csv' in kind:
+                self.send_header('Content-Disposition', 'attachment; filename="status-directory.csv"')
+            self.send_header('Content-Length', str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return True
 
         def do_HEAD(self):
             self.respond(True)
 
         def do_POST(self):
+            if self.status_route():
+                return
             if self.path=='/api/pulse/upload':
                 return self.pulse_upload()
             if self.path not in ('/api/pulse','/api/genui','/api/genui/plan','/api/genui/evidence','/api/data/preview','/api/data/apply','/api/data/restore','/api/diagnostics/cli','/api/investigate','/api/workflows','/api/committee','/api/ai','/api/creative','/api/survey-sections','/api/chart-assistant','/api/meeting-20261105','/api/meeting-1007','/api/digest'):
@@ -213,6 +266,9 @@ def serve():
     engine = Engine(ROOT)
     from pulse import Pulse
     engine.pulse = Pulse(engine)
+    from status_admin import StatusDirectory
+    engine.statuses = StatusDirectory(ROOT, engine.store)
+    engine.pulse.statuses = engine.statuses
     engine.pulse.start()
     startup_stage("binding_port")
     for port in range(args.port, args.port+10):

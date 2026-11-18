@@ -19,8 +19,9 @@ function showFavorites(){destroyCharts(favoritesPage);favoritesPage.replaceChild
 }
 const adminPage=$('administration'),logPage=$('adminLog'),adminNav=node('a','nav-item','Администрирование');
 adminNav.href='#admin';
-const adminTabs={'#admin-data':$('adminData'),'#admin-connection':$('adminConnection'),'#admin-log':logPage,'#admin-diagnostics':$('adminDiagnostics')};
-const adminAliases={'#admin':'#admin-data','#agent-log':'#admin-log','#diagnostics':'#admin-diagnostics'};
+const statusAdmin=window.StatusAdmin.create($('adminStatuses'));
+const adminTabs={'#admin-statuses':$('adminStatuses'),'#admin-data':$('adminData'),'#admin-connection':$('adminConnection'),'#admin-log':logPage,'#admin-diagnostics':$('adminDiagnostics')};
+const adminAliases={'#statuses':'#admin-statuses','#admin':'#admin-data','#agent-log':'#admin-log','#diagnostics':'#admin-diagnostics'};
 const trustUI=window.TrustUI.create({main:$('main'),diagnostics:$('adminDiagnostics'),onChange:()=>refreshStatus()});
 const creativeNav=node('button','nav-item','Библиотека визуализаций');creativeNav.type='button';creativeNav.onclick=()=>!busy&&window.CreativeUI.library((data,refinement)=>{openSavedChart(data,data.query||data.bundle.title);if(refinement){creativeBaseOverride=data.savedId||data.jobId;$('creativeMode').checked=true;$('creativeMode').onchange();focusUI.chat();input.value=refinement;input.focus({preventScroll:true});}});document.querySelector('.rail').insertBefore(creativeNav,document.querySelector('.history'));
 const workflowsUI=window.WorkflowsUI.create({main:$('main'),getTurns:()=>turns.filter(t=>!['ai-workspace','generated-ui','local-ranking','calculated-dashboard'].includes(t.data.kind)),onOpen:openSavedChart});
@@ -93,7 +94,8 @@ function showAdmin(key){
   if(link.getAttribute('href')===key)link.setAttribute('aria-current','page');
   else link.removeAttribute('aria-current');
  }
- if(key==='#admin-log')showAgentLog();
+ if(key==='#admin-statuses')statusAdmin.show();
+ else if(key==='#admin-log')showAgentLog();
  else if(key==='#admin-diagnostics')trustUI.showDiagnostics();
  else refreshStatus();
 }

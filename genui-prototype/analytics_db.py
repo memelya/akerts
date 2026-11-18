@@ -145,6 +145,12 @@ class AnalyticsStore:
                 FROM records WHERE {where} AND grain='day' GROUP BY channel,survey_id,date"""
             return [dict(row) for row in db.execute(sql,(*map(str,policy),*args))]
 
+    def status_days(self,revision,keys,start=None,end=None):
+        """События по каждому status_det за день (только пуш+СМС): основа воронки и разбивки по группам статусов."""
+        with self.connect() as db:
+            where,args=self._selection(db,revision,keys,start,end)
+            return [dict(row) for row in db.execute("SELECT survey_id,date,status,SUM(events) events,SUM(sends) sends,SUM(answers) answers FROM records WHERE "+where+" AND grain='day' AND channel='communication' GROUP BY survey_id,date,status",args)]
+
     def monitoring_records(self,revision,keys,start,end):
         with self.connect() as db:
             where,args=self._selection(db,revision,keys,start,end)

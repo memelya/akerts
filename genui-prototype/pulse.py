@@ -1580,7 +1580,8 @@ class Pulse:
         if not selected:
             raise ValueError('Нет опросов для воронки в канале «' + CHANNEL_LABELS[channel] + '».')
         names = {s['event']['id']: s['meta']['name'] for s in selected}
-        rows = self.daily(revision, [(channel, s['event']['id']) for s in selected], first.isoformat(), last.isoformat())
+        keys = [(channel, s['event']['id']) for s in selected]
+        rows = self.daily(revision, keys, first.isoformat(), last.isoformat())
         if not rows:
             raise ValueError('Для воронки нужны дневные строки выгрузки за выбранный период.')
         def period_of(date):
@@ -1590,34 +1591,89 @@ class Pulse:
                 d = dt.date.fromisoformat(date)
                 return (d - dt.timedelta(days=d.weekday())).isoformat()
             return date[:7]
+        cutoffs = channel == 'communication'
+        # Шаги отсечений берутся из справочника статусов (админка): активные группы с ролью «отсечение» по порядку.
+        statuses = getattr(self, 'statuses', None)
+        if statuses is None:
+            from status_admin import StatusDirectory
+            statuses = self.statuses = StatusDirectory(self.engine.root, self.engine.store)
+        mapping, groups, ungrouped, status_settings = statuses.classifier()
+        loss_groups = [g for g in groups if g['funnel_role'] == 'loss' and (g['active'] or g['slug'] == ungrouped['slug'])] if cutoffs else []
+        loss_slugs = {g['slug'] for g in loss_groups}
+        status_rows = self.engine.store.status_days(revision, keys, first.isoformat(), last.isoformat()) if cutoffs else []
         by_period, by_survey = defaultdict(list), defaultdict(list)
         for row in rows:
             by_period[period_of(row['date'])].append(row)
             by_survey[row['survey_id']].append(row)
-        cutoffs = channel == 'communication'
-        def steps(items):
+        loss_period, loss_survey = defaultdict(lambda: defaultdict(int)), defaultdict(lambda: defaultdict(int))
+        code_period, code_survey = defaultdict(lambda: defaultdict(int)), defaultdict(lambda: defaultdict(int))
+        neutral = defaultdict(int)
+        for row in status_rows:
+            try:
+                code = int(row['status'])
+            except (TypeError, ValueError):
+                continue
+            group = mapping.get(code, (ungrouped, None))[0]
+            if group['funnel_role'] == 'delivered':
+                continue
+            lost = (row['events'] or 0) - (row['sends'] or 0)  # отправленная часть уже в шаге «Отправки»
+            if lost <= 0:
+                continue
+            slug = group['slug'] if group['slug'] in loss_slugs else ungrouped['slug']
+            if group['funnel_role'] == 'neutral':
+                neutral[period_of(row['date'])] += lost
+                continue
+            loss_period[period_of(row['date'])][slug] += lost
+            loss_survey[row['survey_id']][slug] += lost
+            code_period[period_of(row['date'])][code] += lost
+            code_survey[row['survey_id']][code] += lost
+        def steps(items, losses=None, codes=None):
             total = lambda key: sum(r.get(key) or 0 for r in items)
             events, sends, answers = total('events'), total('sends'), total('answers')
-            policy = total('contactPolicy') if cutoffs else None
-            stop = total('stop') if cutoffs else None
-            other = max(0, events - (policy or 0) - (stop or 0) - sends) if events else None
             share = lambda v: v / events * 100 if v is not None and events else None
-            return {'events': events, 'contactPolicy': policy, 'stop': stop, 'other': other, 'sends': sends, 'answers': answers,
-                    'policyShare': share(policy), 'stopShare': share(stop), 'otherShare': share(other), 'sendShare': share(sends),
-                    'answerShare': share(answers), 'response': answers / sends * 100 if sends else None,
-                    'days': len({r['date'] for r in items})}
-        surveys = sorted(({'id': ident, 'name': names.get(ident, 'Опрос ' + str(ident)), **steps(items)} for ident, items in by_survey.items()),
-                         key=lambda r: -(r['events'] or 0))[:40]
+            result = {'events': events, 'sends': sends, 'answers': answers, 'sendShare': share(sends), 'answerShare': share(answers),
+                      'response': answers / sends * 100 if sends else None, 'days': len({r['date'] for r in items})}
+            if cutoffs:
+                losses = losses or {}
+                result['groups'] = {g['slug']: {'events': losses.get(g['slug'], 0), 'share': share(losses.get(g['slug'], 0))} for g in loss_groups}
+                result['codes'] = {str(c): {'events': v, 'share': share(v)} for c, v in sorted((codes or {}).items(), key=lambda i: -i[1])}
+                assigned = sends + sum(losses.values())
+                result['unexplained'] = events - assigned if events - assigned > 0 else 0
+            else:
+                result['groups'], result['codes'] = {}, {}
+                result['unexplained'] = max(0, events - sends)
+            result['unexplainedShare'] = share(result['unexplained'])
+            # совместимость с прежними полями (стоп-лист и политика контактов — утверждённые показатели)
+            result.update(stop=total('stop') if cutoffs else None, contactPolicy=total('contactPolicy') if cutoffs else None)
+            return result
+        def merge(maps):
+            out = defaultdict(int)
+            for m in maps:
+                for k, v in m.items():
+                    out[k] += v
+            return out
+        total_losses, total_codes = merge(loss_period.values()), merge(code_period.values())
+        surveys = sorted(({'id': ident, 'name': names.get(ident, 'Опрос ' + str(ident)), **steps(items, loss_survey.get(ident), code_survey.get(ident))}
+                          for ident, items in by_survey.items()), key=lambda r: -(r['events'] or 0))[:40]
+        labels = {}
+        for g in groups:
+            for c in g['codes']:
+                labels[str(c['code'])] = {'label': c['label'], 'description': c['description'], 'group': g['slug']}
         return {'channel': channel, 'channelLabel': CHANNEL_LABELS[channel], 'grain': grain, 'cutoffs': cutoffs,
                 'from': min(r['date'] for r in rows), 'to': max(r['date'] for r in rows),
-                'total': steps(rows), 'periods': [{'key': key, **steps(by_period[key])} for key in sorted(by_period)],
-                'surveys': surveys, 'surveyCount': len(by_survey),
-                'method': 'Воронка по дневным строкам выгрузки. События = 100%. Политика контактов (статусы политики) и стоп-лист 1002 — '
-                          'доля от событий; «прочие статусы» — события, не отправленные по другим причинам; отправки и ответы — доля от событий; '
-                          'отклик = ответы / отправки. Для экранов успеха отсечений нет: отправки — события со статусом SENDED.'
+                'lossGroups': [{'slug': g['slug'], 'name': g['name'], 'color': g['color'], 'description': g['description'],
+                                'codes': [c['code'] for c in g['codes']]} for g in loss_groups],
+                'codeLabels': labels, 'statusRevision': statuses.tree()['revision'], 'drillDown': status_settings['drill_down'],
+                'total': steps(rows, total_losses, total_codes),
+                'periods': [{'key': key, **steps(by_period[key], loss_period.get(key), code_period.get(key))} for key in sorted(by_period)],
+                'surveys': surveys, 'surveyCount': len(by_survey), 'unknownCodes': statuses.unknown_codes(status_rows)[:20],
+                'method': ('Воронка по дневным строкам выгрузки. События = 100%. Шаги отсечений — активные группы справочника статусов '
+                           '(Администрирование → Статусы) с ролью «отсечение», в их порядке и с их названиями; неотправленная часть событий '
+                           'каждого status_det относится к группе своего кода. Коды без группы, выключенные коды и группы — в «Без группы». '
+                           'Отправки и ответы — доля от событий; отклик = ответы / отправки.')
                           if cutoffs else
                           'Воронка по дневным строкам выгрузки. События = 100%; отправки — события со статусом SENDED; ответы — доля от событий; '
-                          'отклик = ответы / отправки. Политика контактов и стоп-листы для экранов успеха не применяются.'}
+                          'отклик = ответы / отправки. Статусы status_det и их группы относятся к пуш+СМС; для экранов успеха отсечений нет.'}
 
     # -- холсты: один объект вместо разделов -------------------------------------------
     BLOCK_KINDS = ('status', 'problems', 'kpi', 'chart', 'compare', 'forecast', 'signals', 'shifts', 'portfolio', 'note')
