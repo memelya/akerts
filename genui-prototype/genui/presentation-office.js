@@ -81,6 +81,12 @@ function addObject(pptx,slide,item){
  }else if(item.kind==='line'){
   slide.addShape(pptx.ShapeType.line,{x:inches(item.x1),y:inches(item.y1),w:inches(item.x2-item.x1),h:inches(item.y2-item.y1),
    line:{color:stripHex(item.color),width:item.width/2}});
+ }else if(item.kind==='table'){
+  const cols=item.header.length-1,rest=(item.w-item.labelW)/Math.max(1,cols);
+  const head=item.header.map((text,i)=>({text,options:{bold:true,color:stripHex(item.muted),align:i?'right':'left'}}));
+  const body=item.rows.map(row=>[{text:row.label,options:{bold:true,color:stripHex(row.color)}},...row.values.map(text=>({text,options:{color:stripHex(item.ink),align:'right'}}))]);
+  slide.addTable([head,...body],{x:inches(item.x),y:inches(item.y),w:inches(item.w),colW:[inches(item.labelW),...Array(cols).fill(inches(rest))],
+   fontFace:'Calibri',fontSize:item.header.length>9?8:10,margin:.04,border:{type:'solid',pt:.5,color:stripHex(item.grid)},fill:{color:stripHex(item.background)},valign:'middle',autoPage:false});
  }else if(item.kind==='text'){
   const width=item.width+Math.max(10,item.width*.12);
   const left=item.align==='right'?item.x-width:item.align==='center'?item.x-width/2:item.x;

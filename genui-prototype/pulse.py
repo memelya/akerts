@@ -1556,6 +1556,69 @@ class Pulse:
         return value
 
 
+    # -- воронка: события → политика контактов → стоп-листы → отправки → ответы → отклик ----
+    def funnel(self, request):
+        state, revision = self.snapshot()
+        channel = request.get('channel') or 'communication'
+        if channel not in CHANNELS:
+            raise ValueError('Выберите канал воронки.')
+        ids = request.get('ids')
+        if ids is not None and (not isinstance(ids, list) or len(ids) > 600 or any(type(i) is not int or not 1 <= i <= 9999999 for i in ids)):
+            raise ValueError('Некорректный список опросов.')
+        product = clean_text(request.get('product'), 'Продукт', 200) or None
+        grain = request.get('grain') or 'month'
+        if grain not in ('month', 'week', 'day'):
+            raise ValueError('Группировка воронки: месяц, неделя или день.')
+        start, end = request.get('start'), request.get('end')
+        if not isinstance(start, str) or not isinstance(end, str) or not re.fullmatch(r'\d{4}-\d{2}(-\d{2})?', start) or not re.fullmatch(r'\d{4}-\d{2}(-\d{2})?', end):
+            raise ValueError('Укажите период воронки.')
+        first = dt.date.fromisoformat(start if len(start) == 10 else start + '-01')
+        last = dt.date.fromisoformat(end) if len(end) == 10 else dt.date(int(end[:4]), int(end[5:7]), calendar.monthrange(int(end[:4]), int(end[5:7]))[1])
+        if grain == 'week' and len(end) == 10:
+            last = last + dt.timedelta(days=6)
+        selected = [s for s in self.surveys(state, channel, None, product) if ids is None or s['event']['id'] in set(ids)]
+        if not selected:
+            raise ValueError('Нет опросов для воронки в канале «' + CHANNEL_LABELS[channel] + '».')
+        names = {s['event']['id']: s['meta']['name'] for s in selected}
+        rows = self.daily(revision, [(channel, s['event']['id']) for s in selected], first.isoformat(), last.isoformat())
+        if not rows:
+            raise ValueError('Для воронки нужны дневные строки выгрузки за выбранный период.')
+        def period_of(date):
+            if grain == 'day':
+                return date
+            if grain == 'week':
+                d = dt.date.fromisoformat(date)
+                return (d - dt.timedelta(days=d.weekday())).isoformat()
+            return date[:7]
+        by_period, by_survey = defaultdict(list), defaultdict(list)
+        for row in rows:
+            by_period[period_of(row['date'])].append(row)
+            by_survey[row['survey_id']].append(row)
+        cutoffs = channel == 'communication'
+        def steps(items):
+            total = lambda key: sum(r.get(key) or 0 for r in items)
+            events, sends, answers = total('events'), total('sends'), total('answers')
+            policy = total('contactPolicy') if cutoffs else None
+            stop = total('stop') if cutoffs else None
+            other = max(0, events - (policy or 0) - (stop or 0) - sends) if events else None
+            share = lambda v: v / events * 100 if v is not None and events else None
+            return {'events': events, 'contactPolicy': policy, 'stop': stop, 'other': other, 'sends': sends, 'answers': answers,
+                    'policyShare': share(policy), 'stopShare': share(stop), 'otherShare': share(other), 'sendShare': share(sends),
+                    'answerShare': share(answers), 'response': answers / sends * 100 if sends else None,
+                    'days': len({r['date'] for r in items})}
+        surveys = sorted(({'id': ident, 'name': names.get(ident, 'Опрос ' + str(ident)), **steps(items)} for ident, items in by_survey.items()),
+                         key=lambda r: -(r['events'] or 0))[:40]
+        return {'channel': channel, 'channelLabel': CHANNEL_LABELS[channel], 'grain': grain, 'cutoffs': cutoffs,
+                'from': min(r['date'] for r in rows), 'to': max(r['date'] for r in rows),
+                'total': steps(rows), 'periods': [{'key': key, **steps(by_period[key])} for key in sorted(by_period)],
+                'surveys': surveys, 'surveyCount': len(by_survey),
+                'method': 'Воронка по дневным строкам выгрузки. События = 100%. Политика контактов (статусы политики) и стоп-лист 1002 — '
+                          'доля от событий; «прочие статусы» — события, не отправленные по другим причинам; отправки и ответы — доля от событий; '
+                          'отклик = ответы / отправки. Для экранов успеха отсечений нет: отправки — события со статусом SENDED.'
+                          if cutoffs else
+                          'Воронка по дневным строкам выгрузки. События = 100%; отправки — события со статусом SENDED; ответы — доля от событий; '
+                          'отклик = ответы / отправки. Политика контактов и стоп-листы для экранов успеха не применяются.'}
+
     # -- холсты: один объект вместо разделов -------------------------------------------
     BLOCK_KINDS = ('status', 'problems', 'kpi', 'chart', 'compare', 'forecast', 'signals', 'shifts', 'portfolio', 'note')
     BLOCK_METRICS = ('sends', 'answers', 'events', 'csi', 'responseRate')
@@ -1976,6 +2039,8 @@ class Pulse:
             return self.screen_get(request)
         if action == 'screen-save':
             return self.screen_save(request)
+        if action == 'funnel':
+            return self.funnel(request)
         if action == 'canvas-list':
             return self.canvas_list(request)
         if action == 'canvas-save':
