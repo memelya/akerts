@@ -427,3 +427,15 @@ input.sa-switch:focus-visible{outline:2px solid var(--accent);outline-offset:2px
 .sa-table .sa-lock{display:none}
 .v2-chart-svg text.v2-label-halo{paint-order:stroke;stroke:var(--surface,#181818);stroke-width:4px;stroke-linejoin:round}
 .v2-chart-svg text.v2-label-small{font-size:11px}
+/* холст: одинаковая высота блоков в строке, кнопки не уезжают за край, подписи точек */
+.canvas-grid{align-items:stretch}
+.canvas-bh{flex-wrap:wrap}.canvas-bbtns{flex-wrap:wrap;justify-content:flex-end}
+.canvas-edit-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.canvas-edit-row select{font:inherit;font-size:12px}
+.pulse-page .canvas-tbtn:disabled{opacity:.35;cursor:not-allowed}
+.pulse-page .canvas-undo{padding:3px 10px;margin-left:6px}
+.canvas-settings{gap:6px}
+.pulse-chart .point-label{font-size:10px;font-variant-numeric:tabular-nums;fill:var(--text-secondary,#b5b5b5);paint-order:stroke;stroke:var(--surface,#181818);stroke-width:3px;stroke-linejoin:round}
+.pulse-chart .point-label.primary,.pulse-chart .point-label.c0{fill:var(--accent,#ff8a35)}
+.pulse-chart .point-dot{fill:var(--accent,#ff8a35)}
+.pulse-chart .point-label.c1,.pulse-chart .point-dot.c1{fill:#5aa2e6}.pulse-chart .point-label.c2,.pulse-chart .point-dot.c2{fill:#4fb477}.pulse-chart .point-label.c3,.pulse-chart .point-dot.c3{fill:#b08ae0}.pulse-chart .point-label.c4,.pulse-chart .point-dot.c4{fill:#d5a53f}

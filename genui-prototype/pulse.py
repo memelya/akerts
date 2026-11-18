@@ -1087,8 +1087,11 @@ class Pulse:
         if metric not in ('sends', 'answers', 'events', 'csi', 'responseRate'):
             raise ValueError('Выберите показатель для сравнения.')
         days = request.get('days', 60)
-        if days not in (14, 30, 60, 90):
-            raise ValueError('Период: 14, 30, 60 или 90 дней.')
+        if days not in (14, 30, 60, 90, 180, 365):
+            raise ValueError('Период: 14, 30, 60, 90, 180 или 365 дней.')
+        grain = request.get('grain') or 'day'
+        if grain not in ('day', 'week', 'month'):
+            raise ValueError('Группировка: по дням, неделям или месяцам.')
         items = request.get('items')
         if not isinstance(items, list) or not 1 <= len(items) <= 5:
             raise ValueError('Добавьте от одного до пяти объектов сравнения.')
@@ -1113,14 +1116,26 @@ class Pulse:
             raise ValueError('Для сравнения нужны дневные строки.')
         end = dt.date.fromisoformat(latest)
         start = (end - dt.timedelta(days=days - 1)).isoformat()
+        def bucket(date):
+            if grain == 'day':
+                return date
+            d = dt.date.fromisoformat(date)
+            return (d - dt.timedelta(days=d.weekday())).isoformat() if grain == 'week' else d.replace(day=1).isoformat()
+        def bounds(key):
+            first = dt.date.fromisoformat(key)
+            last = first + dt.timedelta(days=6) if grain == 'week' else first.replace(day=calendar.monthrange(first.year, first.month)[1])
+            return first, last
         output = []
         for r in resolved:
             by_day = defaultdict(list)
             for row in self.daily(revision, r['keys'], start, latest):
                 by_day[row['date']].append(row)
+            by_period = defaultdict(list)
+            for date, part in by_day.items():
+                by_period[bucket(date)].extend(part)
             series = []
-            for date in sorted(by_day):
-                value = aggregate(by_day[date], metric)
+            for date in sorted(by_period):
+                value = aggregate(by_period[date], metric, grain != 'day')
                 if value is not None:
                     series.append([date, round(value, 3)])
             rows = [row for part in by_day.values() for row in part]
@@ -1133,16 +1148,22 @@ class Pulse:
             else:
                 delta = current - previous if current is not None and previous is not None else None
                 relative = (current - previous) / previous * 100 if previous else None
-            dates = sorted(by_day)
-            first = aggregate([x for x in rows if x['date'] in set(dates[:7])], metric, True)
-            last = aggregate([x for x in rows if x['date'] in set(dates[-7:])], metric, True)
+            if grain == 'day':
+                dates = sorted(by_day)
+                first = aggregate([x for x in rows if x['date'] in set(dates[:7])], metric, True)
+                last = aggregate([x for x in rows if x['date'] in set(dates[-7:])], metric, True)
+            else:  # первый и последний полные периоды (неполные края не сравниваем)
+                full = [k for k in sorted(by_period) if bounds(k)[0].isoformat() >= start and bounds(k)[1].isoformat() <= latest]
+                first = aggregate(by_period[full[0]], metric, True) if len(full) > 1 else None
+                last = aggregate(by_period[full[-1]], metric, True) if len(full) > 1 else None
             if metric in ('csi', 'responseRate'):
                 period_delta, period_relative = (last - first if last is not None and first is not None else None), None
             else:
                 period_delta = last - first if last is not None and first is not None else None
                 period_relative = (last - first) / first * 100 if first else None
+            partial = [k for k in sorted(by_period) if grain != 'day' and (bounds(k)[0].isoformat() < start or bounds(k)[1].isoformat() > latest)]
             output.append({'label': r['label'], 'channel': r['channel'], 'id': r['id'], 'product': r['product'], 'surveys': r['surveys'],
-                           'series': series, 'total': aggregate(rows, metric, True), 'current': current, 'previous': previous,
+                           'series': series, 'partial': partial, 'total': aggregate(rows, metric, True), 'current': current, 'previous': previous,
                            'delta': delta, 'relative': relative, 'periodDelta': period_delta, 'periodRelative': period_relative})
         ranked = [o for o in output if (o['periodRelative'] if o['periodRelative'] is not None else o['periodDelta']) is not None]
         conclusion = ''
@@ -1150,14 +1171,14 @@ class Pulse:
             key = lambda o: o['periodRelative'] if o['periodRelative'] is not None else o['periodDelta'] * 100
             show = lambda o: (signed_pct(o['periodRelative']) if o['periodRelative'] is not None else signed_num(o['periodDelta']))
             worst, best = min(ranked, key=key), max(ranked, key=key)
-            span = 'За ' + str(days) + ' дней (последняя неделя к первой) '
+            span = 'За ' + str(days) + ' дней (' + {'day': 'последняя неделя к первой', 'week': 'последняя полная неделя к первой', 'month': 'последний полный месяц к первому'}[grain] + ') '
             if len(ranked) == 1:
                 conclusion = span + '«' + worst['label'] + '»: ' + show(worst) + '.'
             elif key(worst) < 0:
                 conclusion = span + 'сильнее всего просел «' + worst['label'] + '» (' + show(worst) + '), лучше всех — «' + best['label'] + '» (' + show(best) + ').'
             else:
                 conclusion = span + 'снижений нет: минимум у «' + worst['label'] + '» (' + show(worst) + '), максимум у «' + best['label'] + '» (' + show(best) + ').'
-        return {'metric': metric, 'label': METRIC_LABELS[metric], 'days': days, 'from': start, 'to': latest, 'items': output,
+        return {'metric': metric, 'label': METRIC_LABELS[metric], 'days': days, 'grain': grain, 'from': start, 'to': latest, 'items': output,
                 'conclusion': conclusion,
                 'method': 'Дневные значения за ' + str(days) + ' дней по ' + latest + '. «За период» — последние 7 дней с данными к первым 7; «за неделю» — к предыдущим 7. Пропуски не считаются нулями.'}
 
@@ -1744,9 +1765,13 @@ class Pulse:
             item['id'] = block['id']
             item.pop('product', None)
         if block.get('days') is not None:
-            if block['days'] not in (14, 30, 60, 90):
-                raise ValueError('Период блока: 14, 30, 60 или 90 дней.')
+            if block['days'] not in (14, 30, 60, 90, 180, 365):
+                raise ValueError('Период блока: 14, 30, 60, 90, 180 или 365 дней.')
             item['days'] = block['days']
+        if block.get('grain') in ('week', 'month'):
+            item['grain'] = block['grain']
+        if block.get('labels') in ('none', 'key', 'all'):
+            item['labels'] = block['labels']
         if block.get('index'):
             item['index'] = True
         if block['kind'] == 'compare':
@@ -2352,7 +2377,7 @@ def build_canvas_block(kind, metric, days, channel, targets):
     block = {'kind': kind, 'channel': channel}
     if kind in ('chart', 'compare'):
         block['metric'] = metric or 'answers'
-        block['days'] = days if days in (14, 30, 60, 90) else 60
+        block['days'] = days if days in (14, 30, 60, 90, 180, 365) else 60
         block['span'] = 12
         if kind == 'compare':
             block['items'] = targets or [{'channel': channel, 'id': None, 'product': None}]
@@ -2394,7 +2419,11 @@ def parse_canvas_query(query, state):
     days = None
     match = re.search(r'(\d{1,3})\s*(?:дн|день|дня)', q)
     if match:
-        days = min((14, 30, 60, 90), key=lambda d: abs(d - int(match[1])))
+        days = min((14, 30, 60, 90, 180, 365), key=lambda d: abs(d - int(match[1])))
+    elif re.search(r'\bгод\b|за год|12 месяц|двенадцать месяц', q):
+        days = 365
+    elif re.search(r'полгода|пол года|6 месяц|шесть месяц', q):
+        days = 180
     elif re.search(r'квартал|3 месяц|три месяц|90', q):
         days = 90
     elif re.search(r'2 месяц|два месяц', q):
@@ -2409,6 +2438,11 @@ def parse_canvas_query(query, state):
     understood = bool(kind or targets or metric)
     block = build_canvas_block(kind or 'chart', metric, days, channel, targets)
     block['question'] = query
+    if block['kind'] in ('chart', 'compare'):
+        if re.search(r'по недел|понедельн|еженедел', q):
+            block['grain'] = 'week'
+        elif re.search(r'по месяц|помесячн|ежемесячн', q):
+            block['grain'] = 'month'
     if not understood:
         notes.append('В вопросе нет опроса, продукта, показателя или типа блока — показан общий график. Свободный вопрос к данным лучше задать в «Диалоге».')
     elif block['kind'] in ('chart', 'compare') and not targets:

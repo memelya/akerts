@@ -28,7 +28,9 @@ function field(host,label,type='text',attrs={}){const wrap=el('label','pulse-fie
 
 /* ---------- графики ---------- */
 let chartHostWidth=null;
-function lineChart({series,marker,events=[],width=Math.max(320,Math.min(1100,(chartHostWidth||document.querySelector('.pulse-page')?.clientWidth||960)-48)),height=180,format=v=>nf.format(v),label='График',onPoint,onEvent}){
+const periodLabel=(value,grain)=>grain==='month'?new Intl.DateTimeFormat('ru-RU',{month:'short',year:'2-digit',timeZone:'UTC'}).format(new Date(value.slice(0,7)+'-01T12:00:00Z')):grain==='week'?'нед. '+dateLabel(value):dateLabel(value);
+function lineChart({series,marker,events=[],width=Math.max(320,Math.min(1100,(chartHostWidth||document.querySelector('.pulse-page')?.clientWidth||960)-48)),height=180,format=v=>nf.format(v),label='График',onPoint,onEvent,grain='day',labels='none'}){
+ const dateLabel=value=>periodLabel(value,grain);
  const all=series.flatMap(s=>s.points);const host=el('div','pulse-chart');
  if(!all.length){host.append(el('p','pulse-muted','Нет наблюдений для графика.'));return host;}
  const dates=[...new Set(all.map(p=>p[0]))].sort(),x0=Date.parse(dates[0]),x1=Date.parse(dates.at(-1))||x0+1;
@@ -47,6 +49,11 @@ function lineChart({series,marker,events=[],width=Math.max(320,Math.min(1100,(ch
   const d=s.points.map((p,i)=>(i?'L':'M')+X(p[0]).toFixed(1)+','+Y(p[1]).toFixed(1)).join(' ');
   root.append(svg('path',{d,class:'line '+cls,fill:'none'}));
  });
+ if(labels!=='none'){/* подписи значений у точек: ключевые (мин., макс., последняя) или все, без наложений */
+  const boxes=[],charW=6.2;series.forEach((s,si)=>{const pts=s.points;if(!pts.length)return;let chosen=pts;if(labels==='key'){const hi=pts.reduce((a,b)=>b[1]>a[1]?b:a),lo=pts.reduce((a,b)=>b[1]<a[1]?b:a);chosen=[...new Set([hi,lo,pts.at(-1),pts[0]])];}
+   for(const p of chosen){const text=format(p[1]),tw=text.length*charW,px=X(p[0]),py=Y(p[1]);let placed=null;for(const dy of [-8,14,-20,26]){const x=Math.max(pad.l,Math.min(width-pad.r-tw,px-tw/2)),y=py+dy,box={x,y:y-10,w:tw,h:12};if(y<10||y>height-pad.b+2||boxes.some(o=>box.x<o.x+o.w+3&&box.x+box.w+3>o.x&&box.y<o.y+o.h+2&&box.y+box.h+2>o.y))continue;placed=box;break;}
+    if(!placed)continue;boxes.push(placed);const t=svg('text',{x:placed.x,y:placed.y+10,class:'point-label '+(s.cls||'c'+si%5)});t.textContent=text;root.append(t);root.append(svg('circle',{cx:px,cy:py,r:2.5,class:'point-dot '+(s.cls||'c'+si%5)}));}});
+ }
  if(onPoint)series.forEach((s,si)=>{if(s.pick===false)return;for(const p of s.points){const c=svg('circle',{cx:X(p[0]),cy:Y(p[1]),r:Math.max(4,Math.min(9,w/Math.max(s.points.length,1)/2)),class:'hit',tabindex:'0',role:'button','aria-label':(s.name?s.name+' · ':'')+dateLabel(p[0])+': '+format(p[1])+'. Объяснить точку'});const tip=svg('title');tip.textContent=(s.name?s.name+' · ':'')+dateLabel(p[0])+': '+format(p[1])+' — нажмите, чтобы объяснить';c.append(tip);const fire=()=>{root.querySelectorAll('.hit.is-picked').forEach(n=>n.classList.remove('is-picked'));c.classList.add('is-picked');onPoint(p[0],p[1],si,s);};c.addEventListener('click',fire);c.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();fire();}});root.append(c);}});
  host.append(root);
  const legend=el('div','pulse-legend');series.forEach((s,si)=>{if(s.name){const item=el('span','pulse-legend-item '+(s.cls||'c'+si%5));item.append(el('i'),document.createTextNode(s.name));legend.append(item);}});
@@ -603,7 +610,7 @@ function create(main){
  const METRIC_NAMES={answers:'Ответы',sends:'Отправки',responseRate:'Отклик',csi:'CSI',events:'События'};
  const KPI_METRICS={answers:'Ответы за 7 дней',responseRate:'Отклик',csi:'CSI',sends:'Отправки за 7 дней'};
  const CHARTABLE=new Set(['chart','compare']);
- let canvasStore=null,canvasEdit=false,pendingBlock=null,canvasSpecs=new Map(),canvasLine=null,canvasFlash='';
+ let canvasResize=null,canvasStore=null,canvasEdit=false,pendingBlock=null,canvasSpecs=new Map(),canvasLine=null,canvasFlash='';
  const newUid=()=>(Math.random().toString(36)+'00000000').slice(2,12);
  const activeCanvas=()=>canvasStore?.canvases.find(c=>c.id===canvasStore.active)||canvasStore?.canvases[0]||null;
  const metricFormat=m=>v=>m==='csi'?cf.format(v):m==='responseRate'?df.format(v)+'%':nf.format(v);
@@ -662,13 +669,17 @@ function create(main){
   item('PDF / печать','холст как есть, на бумагу к комитету',()=>printCanvas(canvas));
   item('Файл холста для коллеги','только устройство холста, без данных: у коллеги блоки посчитаются по его выгрузке',()=>{download('canvas-'+new Date().toISOString().slice(0,10)+'.genui-canvas.json',JSON.stringify({format:'genui-canvas',version:1,name:canvas.name,template:canvas.template||null,blocks:canvas.blocks},null,1),'application/json');canvasLine.textContent='Файл холста скачан. Данных внутри нет — только блоки.';});
   tools.append(exp,button('▶ Показать',()=>canvasShow(canvas,0),'pulse-btn accent'));
+  if(canvasEdit)tools.append(button('Выровнять размеры',()=>{const span=typicalSpan(canvas,'chart');for(const x of canvas.blocks)if(!['status','note','problems','compare','portfolio'].includes(x.kind))x.span=span;canvasFlash='Графики и показатели выровнены: '+({3:'¼',4:'⅓',6:'½',8:'⅔',12:'вся'})[span]+' строки.';touch();renderCanvas();},'pulse-btn ghost'));
   if(canvasEdit)tools.append(button('Удалить холст',e=>{if(!confirm('Удалить холст «'+canvas.name+'»?'))return;busy(e.target,canvasLine,async()=>{canvasStore=await post({action:'canvas-delete',id:canvas.id});canvasEdit=false;if(!canvasStore.canvases.length)canvasStore=null;renderCanvas();});},'pulse-btn ghost'));
   head.append(name,meta,tools);
-  canvasLine=el('p','pulse-status',canvasFlash);canvasFlash='';canvasLine.setAttribute('role','status');
+  canvasLine=el('p','pulse-status',canvasFlash);canvasLine.setAttribute('role','status');
+  if(canvasFlash&&canvasUndo&&canvasUndo.canvasId===canvas.id&&canvasFlash.endsWith('удалён.')){const undo=button('Вернуть',()=>{canvas.blocks.splice(Math.min(canvasUndo.index,canvas.blocks.length),0,canvasUndo.block);canvasUndo=null;canvasFlash='Блок возвращён.';touch();renderCanvas();},'pulse-btn ghost canvas-undo');canvasLine.append(' ',undo);}
+  canvasFlash='';
   col.append(head,askBar(canvas),canvasLine);
   const preview=el('div','canvas-preview-host');col.append(preview);if(pendingBlock)drawPending(preview,canvas);
-  if(canvasEdit)col.append(el('p','pulse-muted','Перетащите блок: на левую половину другого блока — поставить перед ним; график на правую половину другого графика — сравнить на одном графике. Кнопки ← → ⇔ × — то же с клавиатуры.'));
+  if(canvasEdit)col.append(el('p','pulse-muted','Перетащите блок: на левую половину другого блока — поставить перед ним; график на правую половину другого графика — сравнить на одном графике. Под заголовком блока — ← → и ширина. Удалить блок — 🗑 в углу (можно вернуть).'));
   const grid=el('div','canvas-grid'+(canvasEdit?' is-edit':''));col.append(grid);
+  canvasResize?.disconnect();let gridWidth=0,resizeTimer=null;canvasResize=new ResizeObserver(([entry])=>{const w=Math.round(entry.contentRect.width);if(!gridWidth){gridWidth=w;return;}if(Math.abs(w-gridWidth)<40||tab!=='canvas')return;gridWidth=w;clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(!panels.canvas.querySelector('.canvas-note-edit:focus'))renderCanvas();},350);});canvasResize.observe(grid);
   if(!canvas.blocks.length)grid.append(el('p','pulse-empty canvas-empty','Холст пуст. Спросите что-нибудь в строке выше — ответ станет первым блоком.'));
   canvas.blocks.forEach((b,i)=>grid.append(blockCard(canvas,b,i)));
  }
@@ -693,7 +704,7 @@ function create(main){
   const body=el('div','canvas-body');card.append(body);fillBlock(block,body);
   card.append(el('p','canvas-trust','✓ Числа посчитаны платформой по вашей выгрузке. Модель могла выбрать только тип блока и объекты — чисел от модели 0.'));
   const actions=el('div','pulse-row');
-  actions.append(button('Закрепить на холсте',()=>{canvas.blocks.unshift(block);pendingBlock=null;touch();renderCanvas();},'pulse-btn accent'));
+  actions.append(button('Закрепить на холсте',()=>{if(!['status','problems'].includes(block.kind))block.span=typicalSpan(canvas,block.kind);canvas.blocks.unshift(block);pendingBlock=null;touch();renderCanvas();},'pulse-btn accent'));
   const same=canvas.blocks.map((b,i)=>[b,i]).filter(([b])=>b.kind===block.kind||CHARTABLE.has(b.kind)&&CHARTABLE.has(block.kind));
   if(same.length){const sel=el('select');sel.setAttribute('aria-label','Какой блок заменить');sel.add(new Option('Заменить блок…',''));for(const [b,i] of same)sel.add(new Option(blockTitle(b),String(i)));sel.onchange=()=>{if(sel.value==='')return;canvas.blocks[Number(sel.value)]={...block,span:canvas.blocks[Number(sel.value)].span};pendingBlock=null;touch();renderCanvas();};actions.append(sel);}
   if(CHARTABLE.has(block.kind)){const compareTo=canvas.blocks.map((b,i)=>[b,i]).filter(([b])=>CHARTABLE.has(b.kind));if(compareTo.length){const sel=el('select');sel.setAttribute('aria-label','С каким графиком сравнить');sel.add(new Option('Сравнить с…',''));for(const [b,i] of compareTo)sel.add(new Option(blockTitle(b),String(i)));sel.onchange=()=>{if(sel.value==='')return;const i=Number(sel.value);canvas.blocks[i]=mergeBlocks(canvas.blocks[i],block);pendingBlock=null;touch();renderCanvas();};actions.append(sel);}}
@@ -704,7 +715,9 @@ function create(main){
  function blockSettings(b,redraw){
   const row=el('div','pulse-row canvas-settings');
   if(CHARTABLE.has(b.kind)||b.kind==='kpi'){const m=el('select');m.setAttribute('aria-label','Показатель');for(const [k,v] of Object.entries(b.kind==='kpi'?{answers:'Ответы',sends:'Отправки',responseRate:'Отклик',csi:'CSI'}:METRIC_NAMES))m.add(new Option(v,k));m.value=b.metric||'answers';m.onchange=()=>{b.metric=m.value;redraw();};row.append(m);}
-  if(CHARTABLE.has(b.kind)){const d=el('select');d.setAttribute('aria-label','Период');for(const x of [14,30,60,90])d.add(new Option(x+' дней',String(x)));d.value=String(b.days||60);d.onchange=()=>{b.days=Number(d.value);redraw();};row.append(d);
+  if(CHARTABLE.has(b.kind)){const d=el('select');d.setAttribute('aria-label','Период');for(const [x,t] of [[14,'14 дней'],[30,'30 дней'],[60,'60 дней'],[90,'90 дней'],[180,'полгода'],[365,'год']])d.add(new Option(t,String(x)));d.value=String(b.days||60);d.onchange=()=>{b.days=Number(d.value);if(b.days>=180&&(b.grain||'day')==='day')b.grain='week';redraw();};row.append(d);
+   const g=el('select');g.setAttribute('aria-label','Группировка');for(const [k,t] of [['day','по дням'],['week','по неделям'],['month','по месяцам']])g.add(new Option(t,k));g.value=b.grain||'day';g.onchange=()=>{if(g.value==='day')delete b.grain;else b.grain=g.value;if(g.value==='month'&&(b.days||60)<90)b.days=180;redraw();};row.append(g);
+   const lb=el('select');lb.setAttribute('aria-label','Подписи точек');for(const [k,t] of [['none','без подписей'],['key','подписи: ключевые'],['all','подписи: все точки']])lb.add(new Option(t,k));lb.value=b.labels||'none';lb.onchange=()=>{if(lb.value==='none')delete b.labels;else b.labels=lb.value;redraw();};row.append(lb);
    if(b.kind==='compare'){const l=el('label','pulse-check'),c=el('input');c.type='checkbox';c.checked=Boolean(b.index);c.onchange=()=>{b.index=c.checked;redraw();};l.append(c,document.createTextNode(' индекс = 100'));row.append(l);}}
   if(['kpi','forecast','chart','portfolio'].includes(b.kind)){const ch=el('select');ch.setAttribute('aria-label','Канал');ch.add(new Option('Пуш + СМС','communication'));ch.add(new Option('Экран успеха','success_screen'));ch.value=b.channel||'communication';ch.onchange=()=>{b.channel=ch.value;if(b.kind!=='kpi'&&b.kind!=='portfolio'){delete b.id;}redraw();};row.append(ch);}
   return row;
@@ -720,13 +733,14 @@ function create(main){
   const tiny=(t,label,run)=>{const x=button(t,run,'canvas-tbtn');x.setAttribute('aria-label',label);x.title=label;btns.append(x);};
   tiny('▶','Показать с этого блока',()=>canvasShow(canvas,i));
   if(b.kind==='compare'&&(b.items||[]).length>1)tiny('⇲','Разделить на отдельные графики',()=>{canvas.blocks.splice(i,1,...b.items.map(t=>({kind:'chart',uid:newUid(),span:6,metric:b.metric,days:b.days,channel:t.channel,id:t.id??undefined,product:t.product??undefined})));touch();renderCanvas();});
-  if(canvasEdit){
-   const mv=d=>{const j=i+d;if(j<0||j>=canvas.blocks.length)return;[canvas.blocks[i],canvas.blocks[j]]=[canvas.blocks[j],canvas.blocks[i]];touch();renderCanvas();};
-   tiny('←','Переместить раньше',()=>mv(-1));tiny('→','Переместить позже',()=>mv(1));
-   tiny('⇔','Ширина блока',()=>{const spans=[3,4,6,8,12];b.span=spans[(spans.indexOf(b.span||6)+1)%spans.length];touch();renderCanvas();});
-   tiny('×','Убрать блок',()=>{canvas.blocks.splice(i,1);touch();renderCanvas();});
-  }
+  tiny('🗑','Удалить блок «'+blockTitle(b)+'»',()=>removeBlock(canvas,i));
   head.append(btns);card.append(head);
+  if(canvasEdit){
+   const row=el('div','canvas-edit-row'),mv=d=>{const j=i+d;if(j<0||j>=canvas.blocks.length)return;[canvas.blocks[i],canvas.blocks[j]]=[canvas.blocks[j],canvas.blocks[i]];touch();renderCanvas();};
+   const prev=button('←',()=>mv(-1),'canvas-tbtn'),next=button('→',()=>mv(1),'canvas-tbtn');prev.setAttribute('aria-label','Переместить раньше');next.setAttribute('aria-label','Переместить позже');prev.disabled=!i;next.disabled=i===canvas.blocks.length-1;
+   const width=el('select');width.setAttribute('aria-label','Ширина блока');for(const [k,t] of [[3,'¼ строки'],[4,'⅓ строки'],[6,'½ строки'],[8,'⅔ строки'],[12,'вся строка']])width.add(new Option(t,String(k)));width.value=String(b.span||6);width.onchange=()=>{b.span=Number(width.value);touch();renderCanvas();};
+   row.append(prev,next,width);card.append(row);
+  }
   if(b.kind!=='note'&&b.kind!=='status'&&blockTitle(b)!==BLOCK_NAMES[b.kind])card.append(el('h3','canvas-title',blockTitle(b)));
   if(canvasEdit&&b.kind!=='note'&&b.kind!=='status'&&b.kind!=='problems'&&b.kind!=='signals')card.append(blockSettings(b,()=>{touch();renderCanvas();}));
   const body=el('div','canvas-body');card.append(body);
@@ -745,7 +759,9 @@ function create(main){
   }
   return card;
  }
- let canvasDrag=null;
+ let canvasDrag=null,canvasUndo=null;
+ function removeBlock(canvas,i){const [removed]=canvas.blocks.splice(i,1);canvasUndo={canvasId:canvas.id,block:removed,index:i};canvasFlash='Блок «'+blockTitle(removed)+'» удалён.';touch();renderCanvas();}
+ function typicalSpan(canvas,kind){const spans=canvas.blocks.filter(x=>CHARTABLE.has(x.kind)===CHARTABLE.has(kind)&&!['status','note','problems'].includes(x.kind)).map(x=>x.span||6);if(!spans.length)return kind==='compare'?12:6;const count=new Map();for(const v of spans)count.set(v,(count.get(v)||0)+1);return [...count.entries()].sort((a,c)=>c[1]-a[1]||c[0]-a[0])[0][0];}
  async function fillBlock(b,body,big=false){
   const spec={title:blockTitle(b),subtitle:'',bullets:[],kpis:[]};
   try{
@@ -764,14 +780,15 @@ function create(main){
     body.append(el('small','pulse-muted',d.channelLabel+' · '+d.groups.length+' групп · красных '+d.groups.filter(g=>g.level==='bad').length),ul,button('Весь портфель',()=>select('portfolio'),'pulse-btn ghost'));
     spec.title='Портфель групп · '+d.channelLabel;spec.bullets=d.groups.slice(0,6).map(g=>g.name+': ответы '+(g.answersChange==null?'—':signed(g.answersChange))+(g.csi==null?'':', CSI '+cf.format(g.csi)));return spec;}
    if(CHARTABLE.has(b.kind)){
-    const metric=b.metric||'answers',items=targetsOf(b),data=await post({action:'compare',metric,days:b.days||60,items:items.map(t=>({channel:t.channel,id:t.id??null,product:t.product??null}))});
+    const metric=b.metric||'answers',items=targetsOf(b),data=await post({action:'compare',metric,days:b.days||60,grain:b.grain||'day',items:items.map(t=>({channel:t.channel,id:t.id??null,product:t.product??null}))});
     const rate=metric==='csi'||metric==='responseRate',useIndex=b.kind==='compare'&&b.index;
     const series=data.items.map(item=>{let points=item.series;if(useIndex&&points.length){const h=points.slice(0,7),base=h.reduce((a,p)=>a+p[1],0)/h.length;points=base?points.map(p=>[p[0],p[1]/base*100]):points;}return {name:item.label,points,zeroless:useIndex||rate,item,cls:data.items.length===1?'primary':undefined};});
     const ids=data.items.flatMap(x=>x.id?[x.id]:[]);
-    const width=Math.max(260,body.clientWidth||(big?1100:600));chartHostWidth=width+48;
+    const width=Math.max(220,body.clientWidth||(big?1100:600));chartHostWidth=width+48;
     const pointOut=el('div','pulse-output'),steps=el('div','pulse-steps-host');
-    body.append(lineChart({series,events:eventsFor(data.items[0].channel,ids),height:big?300:(b.span||6)>=8?190:140,format:useIndex?v=>nf.format(v):metricFormat(metric),label:blockTitle(b),
+    body.append(lineChart({series,events:b.grain?[]:eventsFor(data.items[0].channel,ids),height:big?300:170,grain:b.grain||'day',labels:b.labels||'none',format:useIndex?v=>nf.format(v):metricFormat(metric),label:blockTitle(b),
      onPoint:(date,value,si,s)=>openPoint(pointOut,steps,{channel:s.item.channel,id:s.item.id,product:s.item.product,metric,date,title:s.item.label+' · '+dateLabel(date)},canvasLine)}));chartHostWidth=null;
+    if(data.items.some(x=>x.partial?.length))body.append(el('small','pulse-muted','Неполные периоды по краям ('+[...new Set(data.items.flatMap(x=>x.partial||[]))].map(k=>periodLabel(k,b.grain)).join(', ')+') в сравнение «за период» не входят.'));
     if(data.items.length===1)body.append(el('small','','за период: '+(data.items[0].periodRelative!=null?signed(data.items[0].periodRelative):data.items[0].periodDelta!=null?signed(data.items[0].periodDelta):'—')));
     if(data.conclusion&&data.items.length>1)body.append(el('p','canvas-conclusion',data.conclusion));
     body.append(steps,pointOut);
