@@ -1779,9 +1779,156 @@ class Pulse:
             if not isinstance(items, list) or not 1 <= len(items) <= 5:
                 raise ValueError('В блоке сравнения — от одного до пяти объектов.')
             item['items'] = [self.clean_target(t) for t in items]
+        if block.get('bind'):
+            item['bind'] = True  # блок берёт объект и период из параметров холста
         if block['kind'] == 'portfolio' and block.get('groupBy') in self.GROUPINGS:
             item['groupBy'] = block['groupBy']
         return item
+
+    def clean_params(self, params):
+        """Параметры холста: объект (опрос или продукт), период и группировка. Пустые — блоки используют свои значения."""
+        if params is None:
+            return {}
+        if not isinstance(params, dict):
+            raise ValueError('Некорректные параметры холста.')
+        clean = {}
+        if params.get('target'):
+            target = self.clean_target(params['target'])
+            if target['id'] is None and target['product'] is None:
+                raise ValueError('Параметр холста: выберите опрос или продукт.')
+            clean['target'] = target
+        if params.get('days') is not None:
+            if params['days'] not in (14, 30, 60, 90, 180, 365):
+                raise ValueError('Период холста: 14, 30, 60, 90, 180 или 365 дней.')
+            clean['days'] = params['days']
+        if params.get('grain') in ('day', 'week', 'month'):
+            clean['grain'] = params['grain']
+        return clean
+
+    # -- шаблоны команды: файл в папке проекта, переносится вместе с ней ------------------------
+    @property
+    def templates_path(self):
+        return self.root / '.local-data' / 'canvas-templates.json'
+
+    def canvas_templates(self, request=None):
+        try:
+            value = json.loads(self.templates_path.read_text(encoding='utf-8'))
+            items = value.get('templates', []) if isinstance(value, dict) else []
+        except (OSError, ValueError):
+            items = []
+        return {'templates': items}
+
+    def canvas_template_save(self, request):
+        from data_trust import atomic_json
+        template = request.get('template')
+        if not isinstance(template, dict):
+            raise ValueError('Нет шаблона для сохранения.')
+        blocks = template.get('blocks')
+        if not isinstance(blocks, list) or not 1 <= len(blocks) <= 30:
+            raise ValueError('В шаблоне должен быть хотя бы один блок (до 30).')
+        name = clean_text(template.get('name'), 'Название шаблона', 80, True)
+        params = self.clean_params(template.get('params'))
+        if not template.get('keepTarget'):
+            params.pop('target', None)  # шаблон — для любого объекта; объект выбирают при создании
+        clean = {'id': uuid.uuid4().hex[:10], 'name': name, 'description': clean_text(template.get('description'), 'Описание шаблона', 300),
+                 'author': clean_text(template.get('author'), 'Автор', 80), 'created': now(), 'params': params,
+                 'blocks': [{k: v for k, v in self.clean_block(b).items() if k != 'question'} for b in blocks]}
+        clean['needsTarget'] = any(b.get('bind') for b in clean['blocks']) and 'target' not in params
+        items = [t for t in self.canvas_templates()['templates'] if t.get('name', '').casefold() != name.casefold()]
+        if len(items) >= 50:
+            raise ValueError('Шаблонов может быть до 50 — удалите ненужный.')
+        items.append(clean)
+        atomic_json(self.templates_path, {'version': 1, 'templates': items})
+        self.log('canvas-template-saved')
+        return {'templates': items, 'template': clean}
+
+    def canvas_template_delete(self, request):
+        from data_trust import atomic_json
+        items = self.canvas_templates()['templates']
+        rest = [t for t in items if t.get('id') != request.get('id')]
+        if len(rest) == len(items):
+            raise ValueError('Шаблон не найден.')
+        atomic_json(self.templates_path, {'version': 1, 'templates': rest})
+        return {'templates': rest}
+
+    # -- сборка холста по задаче --------------------------------------------------------------
+    PLAN_KINDS = ('status', 'problems', 'kpi', 'chart', 'compare', 'forecast', 'signals', 'shifts', 'portfolio', 'note')
+
+    def canvas_plan(self, request):
+        """Задача словами → план холста (блоки, объект, период). Модель выбирает только блоки и объекты из справочника;
+        числа считает платформа. Без модели — локальный планировщик по ключевым словам."""
+        query = clean_text(request.get('query'), 'Задача', 600, True)
+        state, _ = self.snapshot()
+        local = plan_canvas(query, state)
+        local['source'] = 'Локальный планировщик'
+        if not request.get('useModel') or not self.model_ready():
+            return self.finish_plan(local)
+        try:
+            return self.finish_plan(self.checked(lambda: self.canvas_plan_model(query, state)))
+        except Exception as error:  # сборка не должна срываться из-за CLI
+            local['notes'].append('GigaCode не собрала план (' + str(error)[:140] + ') — показан локальный план.')
+            return self.finish_plan(local)
+
+    def finish_plan(self, plan):
+        plan['blocks'] = [self.clean_block(b) for b in plan['blocks'][:12]]
+        plan['params'] = self.clean_params(plan.get('params'))
+        self.log('canvas-plan', source='model' if plan['source'].startswith('GigaCode') else 'local', blocks=len(plan['blocks']))
+        return plan
+
+    def canvas_plan_model(self, query, state):
+        products = sorted({p for s in state['surveys'] for p in s['meta'].get('products', [])}, key=str.casefold)[:60]
+        stems = lambda text: {w[:5] for w in re.findall(r'[а-яa-z]{4,}', text.lower().replace('ё', 'е'))}
+        asked, numbers = stems(query), {int(n) for n in re.findall(r'\d{2,7}', query)}
+        surveys = [{'id': s['event']['id'], 'name': s['meta']['name'], 'channel': s['meta']['channel']} for s in state['surveys']
+                   if s['event']['id'] in numbers or asked & stems(s['meta']['name'])][:40]
+        result = self.call_model('pulse-canvas-plan',
+            'Собери план холста-дашборда под задачу руководителя. Верни один JSON {"name":"короткое название без цифр",'
+            '"target":null|{"id":int}|{"product":"..."},"days":null|14|30|60|90|180|365,"grain":null|"day"|"week"|"month",'
+            '"blocks":[{"kind":"status|problems|kpi|chart|compare|forecast|signals|shifts|portfolio|note","metric":null|"sends|answers|events|csi|responseRate",'
+            '"bind":true|false,"targets":[{"id":int}|{"product":"..."}],"text":"только для note, без цифр"}]}. '
+            'От 3 до 10 блоков. bind=true — блок следует за target холста. Опросы — только из surveys, продукты — только из products. '
+            'Ничего не вычисляй и не пиши чисел в text.',
+            {'userQuery': query, 'products': products, 'surveys': surveys, 'kinds': list(self.PLAN_KINDS)}, query)
+        if not isinstance(result, dict) or not isinstance(result.get('blocks'), list) or not 1 <= len(result['blocks']) <= 12:
+            raise ValueError('Ответ модели не соответствует формату плана.')
+        known = {s['id']: s['channel'] for s in surveys}
+        def target_of(t):
+            if isinstance(t, dict) and type(t.get('id')) is int and t['id'] in known:
+                return {'channel': known[t['id']], 'id': t['id'], 'product': None}
+            if isinstance(t, dict) and t.get('product') in products:
+                return {'channel': 'communication', 'id': None, 'product': t['product']}
+            raise ValueError('Модель выбрала опрос или продукт, которого нет в справочнике.')
+        params = {}
+        if result.get('target'):
+            params['target'] = target_of(result['target'])
+        if result.get('days') in (14, 30, 60, 90, 180, 365):
+            params['days'] = result['days']
+        if result.get('grain') in ('week', 'month'):
+            params['grain'] = result['grain']
+        blocks = []
+        for item in result['blocks']:
+            if not isinstance(item, dict) or item.get('kind') not in self.PLAN_KINDS:
+                raise ValueError('Модель предложила неизвестный тип блока.')
+            if item['kind'] == 'note':
+                note = clean_text(item.get('text'), 'Заметка', 300) or 'Вывод: '
+                if re.search(r'\d', note):
+                    raise ValueError('Модель добавила числа в текст заметки. План отклонён.')
+                blocks.append({'kind': 'note', 'span': 6, 'text': note})
+                continue
+            targets = [target_of(t) for t in (item.get('targets') or [])[:5]]
+            block = build_canvas_block(item['kind'] if item['kind'] in ('chart', 'compare', 'forecast', 'problems', 'signals', 'shifts', 'portfolio', 'status') else 'chart',
+                                       item.get('metric'), None, (targets[0]['channel'] if targets else 'communication'), targets)
+            if item['kind'] == 'kpi':
+                block = {'kind': 'kpi', 'metric': item.get('metric') if item.get('metric') in ('answers', 'sends', 'csi', 'responseRate') else 'answers', 'span': 3,
+                         'channel': 'communication'}
+            if item.get('bind') or (not targets and item['kind'] in BINDABLE):
+                block['bind'] = True
+            blocks.append(block)
+        name = clean_text(result.get('name'), 'Название', 80) or 'Холст по задаче'
+        if re.search(r'\d', name):
+            name = re.sub(r'\d+', '', name).strip(' ·-') or 'Холст по задаче'
+        return {'name': name, 'blocks': blocks, 'params': params, 'notes': [], 'query': query,
+                'source': 'GigaCode CLI · блоки и объекты проверены по справочнику, чисел от модели нет'}
 
     def canvas_list(self, request=None):
         return self.canvas_read()
@@ -1800,7 +1947,8 @@ class Pulse:
         found = next((c for c in value['canvases'] if c['id'] == ident), None) if isinstance(ident, str) else None
         clean = {'id': found['id'] if found else uuid.uuid4().hex[:10], 'name': name, 'blocks': [self.clean_block(b) for b in blocks],
                  'created': found['created'] if found else now(), 'updated': now(),
-                 'template': clean_text(canvas.get('template'), 'Шаблон', 40) or (found or {}).get('template')}
+                 'template': clean_text(canvas.get('template'), 'Шаблон', 40) or (found or {}).get('template'),
+                 'params': self.clean_params(canvas.get('params'))}
         if found:
             value['canvases'][value['canvases'].index(found)] = clean
         else:
@@ -2130,6 +2278,14 @@ class Pulse:
             return self.canvas_open(request)
         if action == 'canvas-delete':
             return self.canvas_delete(request)
+        if action == 'canvas-plan':
+            return self.canvas_plan(request)
+        if action == 'canvas-templates':
+            return self.canvas_templates(request)
+        if action == 'canvas-template-save':
+            return self.canvas_template_save(request)
+        if action == 'canvas-template-delete':
+            return self.canvas_template_delete(request)
         if action == 'canvas-ask':
             return self.canvas_ask(request)
         raise ValueError('Неизвестное действие пульса.')
@@ -2390,6 +2546,92 @@ def build_canvas_block(kind, metric, days, channel, targets):
         block['span'] = {'status': 12, 'problems': 8, 'portfolio': 6, 'signals': 6, 'shifts': 6, 'forecast': 4}[kind]
     return block
 
+
+BINDABLE = ('chart', 'compare', 'forecast', 'kpi', 'problems', 'signals', 'shifts', 'portfolio')
+PLAN_INTENTS = (
+    ('committee', r'комитет|встреч|совет|правлен|отчет|отчёт|презентац'),
+    ('incident', r'почему|причин|просел|просад|упал|паден|снизил|инцидент|разбор|расслед|что случилось'),
+    ('plan', r'план|прогноз|выполн|темп'),
+    ('portfolio', r'портфел|по группам|по продуктам'),
+    ('morning', r'утр|обзор|сводк|статус|ежедневн|мониторинг'),
+)
+
+
+def period_from(q):
+    match = re.search(r'(\d{1,3})\s*(?:дн|день|дня)', q)
+    if match:
+        return min((14, 30, 60, 90, 180, 365), key=lambda d: abs(d - int(match[1])))
+    for pattern, days in ((r'\bгод\b|за год|12 месяц', 365), (r'полгода|пол года|6 месяц', 180), (r'квартал|3 месяц|три месяц', 90),
+                          (r'2 месяц|два месяц', 60), (r'месяц', 30), (r'недел', 14)):
+        if re.search(pattern, q):
+            return days
+    return None
+
+
+def plan_canvas(query, state):
+    """Локальный планировщик: намерения по ключевым словам + объекты и период из вопроса."""
+    parsed = parse_canvas_query(query, state)
+    q = query.lower().replace('ё', 'е')
+    targets = parsed['block'].get('items') or ([{'channel': parsed['block'].get('channel', 'communication'), 'id': parsed['block'].get('id'),
+                                                 'product': parsed['block'].get('product')}] if parsed['block'].get('id') or parsed['block'].get('product') else [])
+    intents = [k for k, pattern in PLAN_INTENTS if re.search(pattern, q)] or ['morning']
+    metric = parsed['block'].get('metric') if any(re.search(p, q) for _, p in CANVAS_METRICS) else None
+    days = period_from(q)
+    grain = 'week' if re.search(r'по недел|понедельн|еженедел', q) else 'month' if re.search(r'по месяц|помесячн|ежемесячн', q) else None
+    params = {}
+    if len(targets) == 1:
+        params['target'] = targets[0]
+    if days and days != 60:
+        params['days'] = days
+    if grain:
+        params['grain'] = grain
+    bound = lambda block: dict(block, bind=True)
+    blocks, notes = [], []
+    if 'committee' in intents or 'morning' in intents:
+        blocks.append({'kind': 'status', 'span': 12})
+    if 'committee' in intents:
+        compact = len(intents) > 1  # несколько задач сразу — меньше показателей, чтобы холст оставался обозримым
+        blocks += [bound({'kind': 'kpi', 'metric': m, 'channel': 'communication', 'span': 6 if compact else 3})
+                   for m in (('answers', 'csi') if compact else ('answers', 'sends', 'responseRate', 'csi'))]
+    if len(targets) > 1:
+        blocks += [{'kind': 'compare', 'metric': m, 'days': days or 60, 'index': True, 'items': targets, 'span': 12, **({'grain': grain} if grain else {})}
+                   for m in ([metric] if metric else ['sends', 'answers'])]
+    if 'incident' in intents:
+        for m in ([metric] if metric else (['sends', 'answers'] if len(intents) > 1 else ['sends', 'answers', 'csi'])):
+            blocks.append(bound({'kind': 'chart', 'metric': m, 'days': days or 60, 'channel': 'communication', 'span': 6}))
+        blocks += [bound({'kind': 'shifts', 'span': 6}), bound({'kind': 'problems', 'span': 12}),
+                   {'kind': 'note', 'span': 6, 'text': 'Гипотеза: '}, {'kind': 'note', 'span': 6, 'text': 'Что проверить и кто: '}]
+    elif metric and len(targets) <= 1:
+        blocks.append(bound({'kind': 'chart', 'metric': metric, 'days': days or 60, 'channel': 'communication', 'span': 12}))
+    if 'plan' in intents:
+        if targets or len({p for s in state['surveys'] for p in s['meta'].get('products', [])}) == 0:
+            blocks.append(bound({'kind': 'forecast', 'channel': 'communication', 'span': 4}))
+        else:
+            products = sorted({p for s in state['surveys'] for p in s['meta'].get('products', [])}, key=str.casefold)[:4]
+            blocks += [{'kind': 'forecast', 'channel': 'communication', 'product': p, 'span': 3} for p in products]
+    if 'portfolio' in intents or 'committee' in intents or 'morning' in intents:
+        blocks.append(bound({'kind': 'portfolio', 'span': 6 if 'morning' in intents else 12}))
+    if 'morning' in intents and 'incident' not in intents:
+        blocks += [bound({'kind': 'problems', 'span': 8}), bound({'kind': 'forecast', 'channel': 'communication', 'span': 4})]
+        if not metric:
+            blocks.append(bound({'kind': 'chart', 'metric': 'answers', 'days': days or 60, 'channel': 'communication', 'span': 6}))
+    if 'committee' in intents:
+        blocks += [bound({'kind': 'problems', 'span': 12}), {'kind': 'note', 'span': 12, 'text': 'Решения и владельцы: '}]
+    seen, unique = set(), []
+    for block in blocks:
+        key = json.dumps({k: v for k, v in block.items() if k not in ('span', 'text')}, sort_keys=True, ensure_ascii=False)
+        if key in seen and block['kind'] != 'note':
+            continue
+        seen.add(key)
+        unique.append(block)
+    labels = {'committee': 'Комитет', 'incident': 'Разбор', 'plan': 'План', 'portfolio': 'Портфель', 'morning': 'Обзор'}
+    target = params.get('target')
+    subject = ('#' + str(target['id'])) if target and target.get('id') else (target or {}).get('product') or ('сравнение' if len(targets) > 1 else '')
+    name = ' · '.join([' + '.join(labels[i] for i in intents[:2])] + ([subject] if subject else []))
+    if not targets:
+        notes.append('Опрос или продукт в задаче не найден — выберите объект в параметрах холста, и связанные блоки пересчитаются для него.')
+    unique = [b for b in unique if b['kind'] != 'note'][:10] + [b for b in unique if b['kind'] == 'note'][:2]
+    return {'name': name[:80], 'blocks': unique, 'params': params, 'intents': intents, 'notes': notes, 'query': query}
 
 def parse_canvas_query(query, state):
     """Разбирает вопрос без модели: опросы по номерам, продукты по названиям, показатель, период и тип блока."""

@@ -617,20 +617,37 @@ function create(main){
  function blockScope(b){if(b.kind==='compare')return (b.items||[]).map(t=>t.id?'#'+t.id:t.product||'все').join(' · ');return b.id?'#'+b.id:b.product||(b.channel==='success_screen'?'экраны успеха':b.kind==='chart'||b.kind==='forecast'?'все опросы':'');}
  function blockTitle(b){if(b.title)return b.title;const m=METRIC_NAMES[b.metric||'answers'];if(b.kind==='chart')return m+' · '+blockScope(b)+' · '+(b.days||60)+' дней';if(b.kind==='compare')return 'Сравнение · '+m.toLowerCase()+' · '+(b.days||60)+' дней';if(b.kind==='forecast')return 'Прогноз плана · '+blockScope(b);if(b.kind==='kpi')return KPI_METRICS[b.metric||'answers']+' · '+(b.channel==='success_screen'?'экран успеха':'пуш + СМС');return BLOCK_NAMES[b.kind];}
  function targetsOf(b){return b.kind==='compare'?(b.items||[]):[{channel:b.channel||'communication',id:b.id??null,product:b.product??null}];}
+ /* Параметры холста: связанные блоки (bind) берут объект, период и группировку из параметров; клик по проблеме
+    или группе временно фильтрует весь холст (canvasFocus). */
+ const BINDABLE=new Set(['chart','compare','forecast','kpi','problems','signals','shifts','portfolio']);
+ let canvasFocus=null,pendingPlan=null,teamTemplates=null;
+ const sameTarget=(a,b)=>a&&b&&a.channel===b.channel&&(a.id??null)===(b.id??null)&&(a.product??null)===(b.product??null);
+ const targetLabel=t=>!t?'все опросы':t.id?'#'+t.id+(catalog?.surveys.find(s=>s.id===t.id&&s.channel===t.channel)?' · '+catalog.surveys.find(s=>s.id===t.id&&s.channel===t.channel).name:''):t.product+(t.channel==='success_screen'?' · экраны успеха':'');
+ function canvasTarget(canvas){return canvasFocus&&canvasFocus.canvasId===canvas?.id?canvasFocus.target:canvas?.params?.target||null;}
+ function resolveBlock(b,canvas){
+  if(!b.bind||!canvas)return b;const p=canvas.params||{},t=canvasTarget(canvas),r={...b};
+  if(t){if(['chart','forecast','shifts'].includes(b.kind)){r.channel=t.channel;if(t.id){r.id=t.id;delete r.product;}else{r.product=t.product;delete r.id;}}
+   else if(b.kind==='compare'){const rest=(b.items||[]).filter(x=>!sameTarget(x,t));r.items=[t,...rest].slice(0,5);}
+   else if(b.kind==='kpi'||b.kind==='portfolio')r.channel=t.channel;
+   r._filter=t;}
+  if(CHARTABLE.has(b.kind)){if(p.days)r.days=p.days;if(p.grain==='day')delete r.grain;else if(p.grain)r.grain=p.grain;}
+  return r;
+ }
+ function setCanvasFocus(target){const canvas=activeCanvas();if(!canvas)return;canvasFocus=target?{canvasId:canvas.id,target}:null;canvasFlash=target?'Холст отфильтрован: '+targetLabel(target)+'. Связанные блоки пересчитаны.':'';renderCanvas();}
  function canvasTemplates(cat){
   const product=cat.products[0]||null,focus=brief&&!brief.empty?decisionProblems().slice(0,3):[];
   const incident=focus.length?focus.map(p=>({channel:p.channel,id:p.id,product:null})):[{channel:'communication',id:null,product}];
   const plan=(cat.products.length?cat.products.slice(0,6):[null]).map(p=>({kind:'forecast',channel:'communication',product:p,span:4}));
   return [
-   {key:'morning',name:'Утро · мой фокус',hint:'Статус, проблемы фокуса, прогноз, график и портфель групп',blocks:[{kind:'status',span:12},{kind:'problems',span:8},{kind:'forecast',channel:'communication',span:4},{kind:'chart',metric:'answers',days:60,channel:'communication',product,span:8},{kind:'portfolio',span:4},{kind:'note',span:12,text:'Что решаем сегодня: '}]},
-   {key:'incident',name:'Инцидент',hint:'Проблемные опросы фокуса на одном графике + гипотеза и проверка',blocks:[{kind:'compare',metric:'sends',days:60,index:true,items:incident,span:12},{kind:'compare',metric:'answers',days:60,index:true,items:incident,span:12},{kind:'note',span:6,text:'Гипотеза: '},{kind:'note',span:6,text:'Что проверить и кто: '}]},
-   {key:'committee',name:'Комитет',hint:'Статус, показатели каналов, решения и владельцы',blocks:[{kind:'status',span:12},{kind:'kpi',metric:'answers',channel:'communication',span:3},{kind:'kpi',metric:'csi',channel:'communication',span:3},{kind:'kpi',metric:'answers',channel:'success_screen',span:3},{kind:'kpi',metric:'csi',channel:'success_screen',span:3},{kind:'problems',span:12},{kind:'note',span:12,text:'Решения и владельцы: '}]},
-   {key:'plan',name:'План',hint:'Прогноз выполнения плана по продуктам и портфель',blocks:[...plan,{kind:'portfolio',span:12}]},
+   {key:'morning',bindAll:true,name:'Утро · мой фокус',hint:'Статус, проблемы фокуса, прогноз, график и портфель групп',blocks:[{kind:'status',span:12},{kind:'problems',span:8},{kind:'forecast',channel:'communication',span:4},{kind:'chart',metric:'answers',days:60,channel:'communication',product,span:8},{kind:'portfolio',span:4},{kind:'note',span:12,text:'Что решаем сегодня: '}]},
+   {key:'incident',bindAll:true,name:'Инцидент',hint:'Проблемные опросы фокуса на одном графике + гипотеза и проверка',blocks:[{kind:'compare',metric:'sends',days:60,index:true,items:incident,span:12},{kind:'compare',metric:'answers',days:60,index:true,items:incident,span:12},{kind:'note',span:6,text:'Гипотеза: '},{kind:'note',span:6,text:'Что проверить и кто: '}]},
+   {key:'committee',bindAll:true,name:'Комитет',hint:'Статус, показатели каналов, решения и владельцы',blocks:[{kind:'status',span:12},{kind:'kpi',metric:'answers',channel:'communication',span:3},{kind:'kpi',metric:'csi',channel:'communication',span:3},{kind:'kpi',metric:'answers',channel:'success_screen',span:3},{kind:'kpi',metric:'csi',channel:'success_screen',span:3},{kind:'problems',span:12},{kind:'note',span:12,text:'Решения и владельцы: '}]},
+   {key:'plan',bindAll:false,name:'План',hint:'Прогноз выполнения плана по продуктам и портфель',blocks:[...plan,{kind:'portfolio',span:12}]},
    {key:'empty',name:'Пустой холст',hint:'Начните с вопроса в строке холста',blocks:[]},
   ];
  }
  async function saveCanvas(canvas,quiet){
-  const r=await post({action:'canvas-save',canvas:{id:canvas.id,name:canvas.name,template:canvas.template||null,blocks:canvas.blocks}});
+  const r=await post({action:'canvas-save',canvas:{id:canvas.id,name:canvas.name,template:canvas.template||null,blocks:canvas.blocks,params:canvas.params||{}}});
   /* локальный объект холста сохраняет идентичность: открытые блоки продолжают менять именно его */
   const local=canvas.id?canvas:null;canvasStore={canvases:r.canvases.map(x=>local&&x.id===local.id?Object.assign(local,{updated:x.updated}):x),active:r.active};if(!quiet&&canvasLine)canvasLine.textContent='Холст сохранён в папке проекта.';return r.canvas;
  }
@@ -638,10 +655,11 @@ function create(main){
  function touch(){const c=activeCanvas();if(!c)return;clearTimeout(saveTimer);saveTimer=setTimeout(()=>saveCanvas(c,true).catch(e=>{if(canvasLine){canvasLine.textContent=e.message;canvasLine.classList.add('is-error');}}),400);}
  async function createFromTemplate(t,silent){
   const taken=new Set((canvasStore?.canvases||[]).map(c=>c.name));let name=t.name,n=2;while(taken.has(name))name=t.name+' '+n++;
-  const blocks=t.blocks.map(b=>({...b,uid:newUid()}));
-  await saveCanvas({name,template:t.key,blocks},true);canvasEdit=false;pendingBlock=null;renderCanvas();
+  const blocks=t.blocks.map(b=>({...b,uid:newUid(),...(BINDABLE.has(b.kind)&&t.bindAll?{bind:true}:{})}));
+  await saveCanvas({name,template:t.key,blocks,params:structuredClone(t.params||{})},true);canvasEdit=false;pendingBlock=null;pendingPlan=null;canvasFocus=null;
+  if(t.needsTarget||(blocks.some(b=>b.bind)&&!(t.params||{}).target&&t.key!=='morning'&&t.key!=='committee'))canvasFlash='Выберите опрос или продукт в параметрах холста — связанные блоки ⛓ посчитаются для него.';renderCanvas();
  }
- async function openCanvas(id){canvasStore=await post({action:'canvas-open',id});pendingBlock=null;renderCanvas();}
+ async function openCanvas(id){canvasStore=await post({action:'canvas-open',id});pendingBlock=null;pendingPlan=null;canvasFocus=null;renderCanvas();}
  async function renderCanvas(){
   const host=panels.canvas,cat=await ensureCatalog();
   if(!canvasStore){try{canvasStore=await post({action:'canvas-list'});}catch(error){host.replaceChildren(el('p','pulse-status is-error',error.message));return;}
@@ -654,7 +672,12 @@ function create(main){
   for(const c of canvasStore.canvases){const on=c.id===canvas?.id,b=button('',()=>openCanvas(c.id),'canvas-side-item'+(on?' active':''));b.append(el('span','',c.name),el('small','',String(c.blocks.length)));if(on)b.setAttribute('aria-current','true');side.append(b);}
   const tpl=el('details','canvas-templates');tpl.open=window.innerWidth>850;tpl.append(el('summary','canvas-side-label','Новый из шаблона'));
   for(const t of canvasTemplates(cat)){const b=button('＋ '+t.name,()=>createFromTemplate(t),'canvas-side-item ghost');b.title=t.hint;tpl.append(b);}
-  const imp=button('Открыть файл холста…',()=>importCanvas(),'canvas-side-item ghost');imp.title='Холст, присланный коллегой (.genui-canvas.json)';tpl.append(imp);side.append(tpl);
+  const imp=button('Открыть файл холста или шаблона…',()=>importCanvas(),'canvas-side-item ghost');imp.title='Холст или шаблон, присланный коллегой (.json)';tpl.append(imp);side.append(tpl);
+  if(!teamTemplates){try{teamTemplates=(await post({action:'canvas-templates'})).templates;}catch{teamTemplates=[];}}
+  const team=el('details','canvas-templates');team.open=window.innerWidth>850;team.append(el('summary','canvas-side-label','Шаблоны команды · '+teamTemplates.length));
+  if(!teamTemplates.length)team.append(el('p','canvas-side-hint','Сохраните любой холст как шаблон: «Экспорт ▾ → Сохранить как шаблон команды».'));
+  for(const t of teamTemplates){const row=el('div','canvas-team-row'),b=button('＋ '+t.name,()=>createFromTemplate({...t,key:'team'}),'canvas-side-item ghost');b.title=(t.description||'')+(t.author?' · '+t.author:'')+(t.needsTarget?' · объект выбирается после создания':'');const del=button('×',()=>{if(!confirm('Удалить шаблон «'+t.name+'»?'))return;post({action:'canvas-template-delete',id:t.id}).then(r=>{teamTemplates=r.templates;renderCanvas();}).catch(e=>alert(e.message));},'canvas-tbtn');del.setAttribute('aria-label','Удалить шаблон '+t.name);row.append(b,del);team.append(row);}
+  side.append(team);
   layout.append(side,col);host.append(layout);
   if(!canvas){col.append(el('p','pulse-empty','Выберите шаблон слева.'));return;}
   const head=el('div','canvas-head'),name=canvasEdit?el('input','canvas-name-input'):el('h2','canvas-name',canvas.name);
@@ -667,7 +690,9 @@ function create(main){
   item('PPTX · фирменный шаблон','слайд на каждый блок, оформление из «Встречи»',()=>exportCanvasPptx(canvas));
   item('Письмо (.eml)','статус, блоки и картинки графиков',()=>exportCanvasEml(canvas));
   item('PDF / печать','холст как есть, на бумагу к комитету',()=>printCanvas(canvas));
-  item('Файл холста для коллеги','только устройство холста, без данных: у коллеги блоки посчитаются по его выгрузке',()=>{download('canvas-'+new Date().toISOString().slice(0,10)+'.genui-canvas.json',JSON.stringify({format:'genui-canvas',version:1,name:canvas.name,template:canvas.template||null,blocks:canvas.blocks},null,1),'application/json');canvasLine.textContent='Файл холста скачан. Данных внутри нет — только блоки.';});
+  item('Файл холста для коллеги','только устройство холста, без данных: у коллеги блоки посчитаются по его выгрузке',()=>{download('canvas-'+new Date().toISOString().slice(0,10)+'.genui-canvas.json',JSON.stringify({format:'genui-canvas',version:1,name:canvas.name,template:canvas.template||null,params:canvas.params||{},blocks:canvas.blocks},null,1),'application/json');canvasLine.textContent='Файл холста скачан. Данных внутри нет — только блоки.';});
+  item('Сохранить как шаблон команды','блоки и параметры без данных; объект выбирается при создании',()=>templateDialog(canvas));
+  item('Файл шаблона для коллеги','шаблон можно добавить в «Шаблоны команды» на другом компьютере',()=>{download('template-'+new Date().toISOString().slice(0,10)+'.genui-template.json',JSON.stringify({format:'genui-canvas-template',version:1,name:canvas.name,params:{...(canvas.params||{}),target:undefined},blocks:canvas.blocks.map(({uid,question,...b})=>b)},null,1),'application/json');canvasLine.textContent='Файл шаблона скачан: в нём только устройство холста, без данных и без выбранного объекта.';});
   tools.append(exp,button('▶ Показать',()=>canvasShow(canvas,0),'pulse-btn accent'));
   if(canvasEdit)tools.append(button('Выровнять размеры',()=>{const span=typicalSpan(canvas,'chart');for(const x of canvas.blocks)if(!['status','note','problems','compare','portfolio'].includes(x.kind))x.span=span;canvasFlash='Графики и показатели выровнены: '+({3:'¼',4:'⅓',6:'½',8:'⅔',12:'вся'})[span]+' строки.';touch();renderCanvas();},'pulse-btn ghost'));
   if(canvasEdit)tools.append(button('Удалить холст',e=>{if(!confirm('Удалить холст «'+canvas.name+'»?'))return;busy(e.target,canvasLine,async()=>{canvasStore=await post({action:'canvas-delete',id:canvas.id});canvasEdit=false;if(!canvasStore.canvases.length)canvasStore=null;renderCanvas();});},'pulse-btn ghost'));
@@ -675,13 +700,59 @@ function create(main){
   canvasLine=el('p','pulse-status',canvasFlash);canvasLine.setAttribute('role','status');
   if(canvasFlash&&canvasUndo&&canvasUndo.canvasId===canvas.id&&canvasFlash.endsWith('удалён.')){const undo=button('Вернуть',()=>{canvas.blocks.splice(Math.min(canvasUndo.index,canvas.blocks.length),0,canvasUndo.block);canvasUndo=null;canvasFlash='Блок возвращён.';touch();renderCanvas();},'pulse-btn ghost canvas-undo');canvasLine.append(' ',undo);}
   canvasFlash='';
-  col.append(head,askBar(canvas),canvasLine);
-  const preview=el('div','canvas-preview-host');col.append(preview);if(pendingBlock)drawPending(preview,canvas);
+  col.append(head,paramsBar(canvas,cat),askBar(canvas),canvasLine);
+  const preview=el('div','canvas-preview-host');col.append(preview);if(pendingPlan)drawPlan(preview,canvas);if(pendingBlock)drawPending(preview,canvas);
   if(canvasEdit)col.append(el('p','pulse-muted','Перетащите блок: на левую половину другого блока — поставить перед ним; график на правую половину другого графика — сравнить на одном графике. Под заголовком блока — ← → и ширина. Удалить блок — 🗑 в углу (можно вернуть).'));
   const grid=el('div','canvas-grid'+(canvasEdit?' is-edit':''));col.append(grid);
   canvasResize?.disconnect();let gridWidth=0,resizeTimer=null;canvasResize=new ResizeObserver(([entry])=>{const w=Math.round(entry.contentRect.width);if(!gridWidth){gridWidth=w;return;}if(Math.abs(w-gridWidth)<40||tab!=='canvas')return;gridWidth=w;clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(!panels.canvas.querySelector('.canvas-note-edit:focus'))renderCanvas();},350);});canvasResize.observe(grid);
   if(!canvas.blocks.length)grid.append(el('p','pulse-empty canvas-empty','Холст пуст. Спросите что-нибудь в строке выше — ответ станет первым блоком.'));
   canvas.blocks.forEach((b,i)=>grid.append(blockCard(canvas,b,i)));
+ }
+ function paramsBar(canvas,cat){
+  const p=canvas.params||(canvas.params={}),bar=el('div','canvas-params'),bound=canvas.blocks.filter(b=>b.bind).length;
+  const listId='canvasTargets'+canvas.id,list=el('datalist');list.id=listId;const options=new Map();
+  for(const product of cat.products)for(const channel of ['communication','success_screen']){const label='Продукт: '+product+(channel==='success_screen'?' · экраны успеха':'');options.set(label,{channel,id:null,product});}
+  for(const sv of cat.surveys){const label='#'+sv.id+' · '+sv.name+(sv.channel==='success_screen'?' · экран успеха':'');options.set(label,{channel:sv.channel,id:sv.id,product:null});}
+  for(const label of options.keys())list.append(new Option(label));
+  const labelOf=t=>{for(const [k,v] of options)if(sameTarget(v,t))return k;return t?targetLabel(t):'';};
+  const obj=el('input');obj.type='search';obj.setAttribute('list',listId);obj.placeholder='все опросы — введите номер, название или продукт';obj.setAttribute('aria-label','Объект холста: опрос или продукт');obj.value=labelOf(p.target);
+  obj.onchange=()=>{const v=obj.value.trim();if(!v){delete p.target;}else if(options.has(v)){p.target=options.get(v);}else{const n=Number(v.replace(/[#№\s]/g,''));const sv=Number.isInteger(n)&&cat.surveys.find(s=>s.id===n);const pr=cat.products.find(x=>x.toLowerCase()===v.toLowerCase());if(sv)p.target={channel:sv.channel,id:sv.id,product:null};else if(pr)p.target={channel:'communication',id:null,product:pr};else{canvasFlash='Не нашёл «'+v+'» — выберите опрос или продукт из подсказок.';renderCanvas();return;}}
+   canvasFocus=null;canvasFlash=p.target?'Объект холста: '+targetLabel(p.target)+'. Пересчитано блоков: '+bound+'.':'Объект холста сброшен — блоки показывают свои значения.';touch();renderCanvas();};
+  const period=el('select');period.setAttribute('aria-label','Период холста');period.add(new Option('период: как в блоках',''));for(const [d,t] of [[14,'14 дней'],[30,'30 дней'],[60,'60 дней'],[90,'90 дней'],[180,'полгода'],[365,'год']])period.add(new Option(t,String(d)));period.value=p.days?String(p.days):'';period.onchange=()=>{if(period.value)p.days=Number(period.value);else delete p.days;if(p.days>=180&&!p.grain)p.grain='week';touch();renderCanvas();};
+  const grain=el('select');grain.setAttribute('aria-label','Группировка холста');grain.add(new Option('группировка: как в блоках',''));for(const [k,t] of [['day','по дням'],['week','по неделям'],['month','по месяцам']])grain.add(new Option(t,k));grain.value=p.grain||'';grain.onchange=()=>{if(grain.value)p.grain=grain.value;else delete p.grain;touch();renderCanvas();};
+  const head=el('div','canvas-params-row');head.append(el('span','canvas-params-label','Параметры'),obj,list,period,grain);
+  const info=el('div','canvas-params-row');info.append(el('small','pulse-muted','⛓ связано блоков: '+bound+' из '+canvas.blocks.length+(bound?'':' — отметьте блоки «по параметрам холста» в «Настроить»')));
+  if(bound<canvas.blocks.filter(b=>BINDABLE.has(b.kind)).length)info.append(button('Связать все графики и показатели',()=>{for(const b of canvas.blocks)if(BINDABLE.has(b.kind))b.bind=true;canvasFlash='Все графики и показатели следуют за параметрами холста.';touch();renderCanvas();},'pulse-btn ghost small'));
+  if(canvasFocus&&canvasFocus.canvasId===canvas.id){const chip=el('span','canvas-focus');chip.append(document.createTextNode('Фильтр: '+targetLabel(canvasFocus.target)+' '));chip.append(button('сделать параметром',()=>{p.target=canvasFocus.target;canvasFocus=null;canvasFlash='Фильтр сохранён как объект холста.';touch();renderCanvas();},'pulse-linkbtn'),button('×',()=>setCanvasFocus(null),'canvas-tbtn'));info.append(chip);}
+  if(bound&&!p.target&&!canvasFocus&&canvas.template==='team')bar.classList.add('needs-target');
+  bar.append(head,info);return bar;
+ }
+ function drawPlan(host,canvas){
+  const plan=pendingPlan,card=el('section','canvas-pending canvas-plan'),head=el('div','canvas-bh');
+  head.append(el('span','canvas-new','План холста · из вашей задачи'),el('span','pulse-tag',plan.source));card.append(head);
+  const name=el('input','canvas-name-input');name.value=plan.name;name.maxLength=80;name.setAttribute('aria-label','Название нового холста');card.append(name);
+  card.append(el('p','pulse-muted','Задача: «'+plan.query+'»'));
+  const pp=plan.params||{};card.append(el('p','pulse-muted','Параметры: '+(pp.target?targetLabel(pp.target):'объект не выбран')+(pp.days?' · '+pp.days+' дней':'')+(pp.grain?' · '+({day:'по дням',week:'по неделям',month:'по месяцам'})[pp.grain]:'')));
+  for(const n of plan.notes||[])card.append(el('p','pulse-muted',n));
+  const list=el('ol','canvas-plan-list'),fake={id:'plan',params:pp};
+  plan.blocks.forEach((b,i)=>{const li=el('li'),l=el('label','pulse-check'),c=el('input');c.type='checkbox';c.checked=plan.keep[i];c.onchange=()=>{plan.keep[i]=c.checked;};const rb=resolveBlock(b,fake);l.append(c,document.createTextNode(' '+BLOCK_NAMES[b.kind]+(b.kind==='note'?' · '+(b.text||'').trim():blockTitle(rb)!==BLOCK_NAMES[b.kind]?' · '+blockTitle(rb).replace(BLOCK_NAMES[b.kind]+' · ',''):'')+(b.bind?' ⛓':'')));li.append(l);list.append(li);});
+  card.append(list,el('p','canvas-trust','✓ Модель (если подключена) выбрала только блоки и объекты из справочника. Все числа посчитает платформа по вашей выгрузке.'));
+  const actions=el('div','pulse-row'),chosen=()=>plan.blocks.filter((_,i)=>plan.keep[i]).map(b=>({...b,uid:newUid()}));
+  actions.append(button('Создать холст',e=>busy(e.target,canvasLine,async()=>{const blocks=chosen();if(!blocks.length)throw new Error('Отметьте хотя бы один блок.');await saveCanvas({name:name.value.trim()||plan.name,template:'plan',blocks,params:structuredClone(pp)},true);pendingPlan=null;canvasFocus=null;canvasFlash='Холст «'+(name.value.trim()||plan.name)+'» собран: '+blocks.length+' '+plural(blocks.length,'блок','блока','блоков')+'.';renderCanvas();}),'pulse-btn accent'),
+   button('Добавить на этот холст',()=>{const blocks=chosen();canvas.blocks.push(...blocks);if(pp.target&&!canvas.params?.target)canvas.params={...(canvas.params||{}),target:pp.target};pendingPlan=null;canvasFlash='Добавлено блоков: '+blocks.length+'.';touch();renderCanvas();},'pulse-btn'),
+   button('Отмена',()=>{pendingPlan=null;renderCanvas();},'pulse-btn ghost'));
+  card.append(actions);host.append(card);
+ }
+ function templateDialog(canvas){
+  const dialog=el('dialog','pulse-dialog'),form=el('form');form.method='dialog';dialog.append(form);document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove(),{once:true});
+  form.append(el('h2','','Сохранить как шаблон команды'),el('p','pulse-muted','В шаблон попадают блоки, их настройки и параметры холста — без данных. Коллеги увидят шаблон в «Шаблоны команды» этой папки проекта или получат его файлом.'));
+  const name=field(form,'Название шаблона','text',{maxlength:'80',required:''});name.value=canvas.name;
+  const description=field(form,'Описание','text',{maxlength:'300',placeholder:'для чего этот холст'});
+  let author='';try{author=localStorage.getItem('pulse-author')||'';}catch{}const who=field(form,'Автор','text',{maxlength:'80'});who.value=author;
+  const keep=el('label','pulse-check'),box=el('input');box.type='checkbox';keep.append(box,document.createTextNode(' Сохранить с текущим объектом ('+targetLabel(canvas.params?.target)+')'));if(!canvas.params?.target)box.disabled=true;form.append(keep);
+  const line=el('p','pulse-status');const row=el('div','pulse-row'),ok=el('button','pulse-btn accent','Сохранить шаблон');ok.type='submit';row.append(button('Отмена',()=>dialog.close(),'pulse-btn ghost'),ok);form.append(line,row);
+  form.onsubmit=e=>{e.preventDefault();busy(ok,line,async()=>{try{localStorage.setItem('pulse-author',who.value);}catch{}const r=await post({action:'canvas-template-save',template:{name:name.value,description:description.value,author:who.value,keepTarget:box.checked,params:canvas.params||{},blocks:canvas.blocks}});teamTemplates=r.templates;dialog.close();canvasFlash='Шаблон «'+r.template.name+'» сохранён в «Шаблоны команды».';renderCanvas();});};
+  dialog.showModal();name.focus();
  }
  function askBar(canvas){
   const form=el('form','canvas-ask'),input=el('input'),go=el('button','pulse-btn accent','Добавить блок');
@@ -692,7 +763,8 @@ function create(main){
   for(const ex of examples.slice(0,5))chips.append(button(ex,()=>{input.value=ex;form.requestSubmit();},'canvas-chip'));
   chips.append(button('＋ заметка',()=>{canvas.blocks.push({kind:'note',span:6,text:'',uid:newUid()});canvasEdit=true;touch();renderCanvas();},'canvas-chip'));
   form.onsubmit=e=>{e.preventDefault();const q=input.value.trim();if(!q)return;busy(go,canvasLine,async()=>{const r=await post({action:'canvas-ask',query:q,useModel:true});pendingBlock={block:{...r.block,uid:r.block.uid||newUid()},source:r.source,notes:r.notes||[],understood:r.understood};input.value='';renderCanvas();});};
-  const row=el('div','canvas-ask-row');row.append(input,go);form.append(row,chips);return form;
+  const plan=button('Собрать холст',()=>{const q=input.value.trim();if(!q){input.placeholder='Опишите задачу: «подготовь холст к комитету по кредитам: что просело за месяц и прогноз плана»';input.focus();return;}busy(plan,canvasLine,async()=>{const r=await post({action:'canvas-plan',query:q,useModel:true});pendingPlan={...r,blocks:r.blocks.map(b=>({...b,uid:newUid()})),keep:r.blocks.map(()=>true)};pendingBlock=null;input.value='';renderCanvas();});},'pulse-btn');plan.title='GigaCode (или локальный планировщик) соберёт холст из блоков под задачу; числа посчитает платформа';
+  const row=el('div','canvas-ask-row');row.append(input,go,plan);form.append(row,chips);return form;
  }
  function drawPending(host,canvas){
   const {block,source,notes,understood}=pendingBlock,card=el('section','canvas-pending'),head=el('div','canvas-bh');
@@ -739,13 +811,16 @@ function create(main){
    const row=el('div','canvas-edit-row'),mv=d=>{const j=i+d;if(j<0||j>=canvas.blocks.length)return;[canvas.blocks[i],canvas.blocks[j]]=[canvas.blocks[j],canvas.blocks[i]];touch();renderCanvas();};
    const prev=button('←',()=>mv(-1),'canvas-tbtn'),next=button('→',()=>mv(1),'canvas-tbtn');prev.setAttribute('aria-label','Переместить раньше');next.setAttribute('aria-label','Переместить позже');prev.disabled=!i;next.disabled=i===canvas.blocks.length-1;
    const width=el('select');width.setAttribute('aria-label','Ширина блока');for(const [k,t] of [[3,'¼ строки'],[4,'⅓ строки'],[6,'½ строки'],[8,'⅔ строки'],[12,'вся строка']])width.add(new Option(t,String(k)));width.value=String(b.span||6);width.onchange=()=>{b.span=Number(width.value);touch();renderCanvas();};
-   row.append(prev,next,width);card.append(row);
+   row.append(prev,next,width);
+   if(BINDABLE.has(b.kind)){const l=el('label','pulse-check'),c=el('input');c.type='checkbox';c.checked=Boolean(b.bind);c.onchange=()=>{if(c.checked)b.bind=true;else delete b.bind;touch();renderCanvas();};l.append(c,document.createTextNode(' по параметрам холста'));row.append(l);}
+   card.append(row);
   }
-  if(b.kind!=='note'&&b.kind!=='status'&&blockTitle(b)!==BLOCK_NAMES[b.kind])card.append(el('h3','canvas-title',blockTitle(b)));
+  const rb=resolveBlock(b,canvas);if(b.bind){const link=el('span','canvas-bound','⛓');link.title='Блок следует за параметрами холста';head.querySelector('.canvas-kind').append(' ',link);}
+  if(b.kind!=='note'&&b.kind!=='status'&&blockTitle(rb)!==BLOCK_NAMES[b.kind])card.append(el('h3','canvas-title',blockTitle(rb)));
   if(canvasEdit&&b.kind!=='note'&&b.kind!=='status'&&b.kind!=='problems'&&b.kind!=='signals')card.append(blockSettings(b,()=>{touch();renderCanvas();}));
   const body=el('div','canvas-body');card.append(body);
   if(b.kind==='note'&&canvasEdit){const t=el('textarea','canvas-note-edit');t.value=b.text||'';t.maxLength=1200;t.rows=3;t.setAttribute('aria-label','Текст заметки');t.oninput=()=>{b.text=t.value;touch();};body.append(t);}
-  else canvasSpecs.set(b.uid,fillBlock(b,body).then(spec=>({...spec,node:body})));
+  else canvasSpecs.set(b.uid,fillBlock(rb,body).then(spec=>({...spec,node:body})));
   if(canvasEdit){
    card.draggable=true;
    card.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/plain',String(i));e.dataTransfer.effectAllowed='move';card.classList.add('is-drag');canvasDrag=i;});
@@ -766,9 +841,9 @@ function create(main){
   const spec={title:blockTitle(b),subtitle:'',bullets:[],kpis:[]};
   try{
    if(b.kind==='status'){const text=brief.narrative?.status||headline();body.append(el('p','canvas-status',text));const bank=el('div','pulse-bank');for(const x of brief.bank||[])bank.append(el('span','pulse-bank-chip '+(x.alert?'bad':'ok'),x.label+(x.alert?': '+x.reasons.join(', '):': без существенных изменений')));body.append(bank);spec.title=text;spec.bullets=(brief.bank||[]).map(x=>x.label+(x.alert?': '+x.reasons.join(', '):': без изменений'));return spec;}
-   if(b.kind==='problems'){const items=decisionProblems(),notes=new Map((brief.narrative?.items||[]).map(i=>[i.key,i.note]));if(!items.length)body.append(el('p','pulse-empty','В фокусе всё стабильно.'));const shown=items.slice(0,big?4:(b.span||6)>=8?3:2);for(const p of shown)body.append(problemCard(p,notes.get(p.key)||p.hint));if(items.length>shown.length)body.append(el('p','pulse-muted','Ещё '+(items.length-shown.length)+' — во вкладке «Брифинг».'));spec.title='Требует решения · '+items.length;spec.bullets=items.slice(0,5).map(p=>p.title+': '+p.line);return spec;}
+   if(b.kind==='problems'){const f=b._filter,items=decisionProblems().filter(p=>!f||(f.id?p.id===f.id&&p.channel===f.channel:(p.products||[]).includes(f.product))),notes=new Map((brief.narrative?.items||[]).map(i=>[i.key,i.note]));if(!items.length)body.append(el('p','pulse-empty',f?'По объекту «'+targetLabel(f)+'» проблем, требующих решения, нет.':'В фокусе всё стабильно.'));const shown=items.slice(0,big?4:(b.span||6)>=8?3:2);for(const p of shown){const card=problemCard(p,notes.get(p.key)||p.hint);if(!big&&!f){const fb=button('Фокус холста',()=>setCanvasFocus({channel:p.channel,id:p.id,product:null}),'pulse-btn ghost');fb.title='Отфильтровать связанные блоки холста по этому опросу';card.querySelector('.pulse-row')?.append(fb);}body.append(card);}if(items.length>shown.length)body.append(el('p','pulse-muted','Ещё '+(items.length-shown.length)+' — во вкладке «Брифинг».'));spec.title='Требует решения · '+items.length;spec.bullets=items.slice(0,5).map(p=>p.title+': '+p.line);return spec;}
    if(b.kind==='kpi'){const k=(brief.kpis||[]).find(x=>x.channel===(b.channel||'communication')),m=b.metric||'answers';if(!k){body.append(el('b','pulse-tile-value','—'));return spec;}const a=k.baseline[m],v=k.current[m];body.append(el('b','pulse-tile-value',fmt(v,m)));const delta=m==='answers'||m==='sends'?pctChange(a,v):a===null||v===null?'нет базы':signed(v-a,m==='csi'?' балла':' п.п.');body.append(el('small','','к прошлой неделе: '+delta));spec.kpis=[[KPI_METRICS[m],fmt(v,m)],['к прошлой неделе',delta]];return spec;}
-   if(b.kind==='signals'){const list=brief.signals||[];const ul=el('ul','pulse-tile-list');for(const s of list.slice(0,big?8:5))ul.append(el('li',s.severity==='urgent'?'bad':'','#'+s.id+' · '+s.name+' — '+s.reasons[0]));if(!list.length)ul.append(el('li','','Сигналов нет'));body.append(ul);spec.title='Сигналы недели · '+list.length;spec.bullets=list.slice(0,6).map(s=>'#'+s.id+' · '+s.name+' — '+s.reasons[0]);return spec;}
+   if(b.kind==='signals'){const f=b._filter,list=(brief.signals||[]).filter(s=>!f||(f.id?s.id===f.id:true));const ul=el('ul','pulse-tile-list');for(const s of list.slice(0,big?8:5))ul.append(el('li',s.severity==='urgent'?'bad':'','#'+s.id+' · '+s.name+' — '+s.reasons[0]));if(!list.length)ul.append(el('li','','Сигналов нет'));body.append(ul);spec.title='Сигналы недели · '+list.length;spec.bullets=list.slice(0,6).map(s=>'#'+s.id+' · '+s.name+' — '+s.reasons[0]);return spec;}
    if(b.kind==='shifts'){const vis=visibleShifts().filter(s=>(!b.product||(s.products||[]).includes(b.product))&&(!b.id||s.id===b.id));body.append(el('b','pulse-tile-value',String(vis.length)));const ul=el('ul','pulse-tile-list');for(const s of vis.slice(0,big?6:3))ul.append(el('li',s.direction==='down'?'bad':'good','#'+s.id+' · '+s.label.toLowerCase()+' '+change(s)+' с '+dateLabel(s.date)));body.append(ul);spec.bullets=vis.slice(0,6).map(s=>'#'+s.id+' · '+s.label.toLowerCase()+' '+change(s)+' с '+dateLabel(s.date));return spec;}
    if(b.kind==='note'){body.append(el('p','canvas-note',b.text||'Пустая заметка — нажмите «Настроить», чтобы написать.'));spec.bullets=[b.text||''].filter(Boolean);return spec;}
    if(b.kind==='forecast'){const d=await post({action:'whatif',channel:b.channel||'communication',id:b.id??null,product:b.product??null});spec.subtitle=d.month;
@@ -776,7 +851,7 @@ function create(main){
     else{body.append(el('b','pulse-tile-value',nf.format(d.scenario.forecast)),el('small','','ответов к концу месяца · план не задан'));spec.kpis=[['Ответов к концу месяца',nf.format(d.scenario.forecast)]];}
     body.append(button('Что если…',()=>{select('whatif');whatifPrefill({id:b.id??null,channel:b.channel||'communication'});},'pulse-btn ghost'));return spec;}
    if(b.kind==='portfolio'){const d=await post({action:'portfolio',channel:b.channel||'communication',groupBy:b.groupBy||'product'});const ul=el('ul','canvas-groups');
-    for(const g of d.groups.slice(0,big?8:5)){const li=el('li','lvl-'+g.level);li.append(el('i'),el('span','',g.name),el('small','',(g.answersChange==null?'—':signed(g.answersChange))+(g.csi==null?'':' · CSI '+cf.format(g.csi))));ul.append(li);}
+    for(const g of d.groups.slice(0,big?8:5)){const li=el('li','lvl-'+g.level+((b.groupBy||'product')==='product'?' is-link':''));if((b.groupBy||'product')==='product'&&!big){li.tabIndex=0;li.setAttribute('role','button');li.title='Отфильтровать холст по продукту «'+g.name+'»';const pick=()=>setCanvasFocus({channel:b.channel||'communication',id:null,product:g.name});li.onclick=pick;li.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();pick();}};}li.append(el('i'),el('span','',g.name),el('small','',(g.answersChange==null?'—':signed(g.answersChange))+(g.csi==null?'':' · CSI '+cf.format(g.csi))));ul.append(li);}
     body.append(el('small','pulse-muted',d.channelLabel+' · '+d.groups.length+' групп · красных '+d.groups.filter(g=>g.level==='bad').length),ul,button('Весь портфель',()=>select('portfolio'),'pulse-btn ghost'));
     spec.title='Портфель групп · '+d.channelLabel;spec.bullets=d.groups.slice(0,6).map(g=>g.name+': ответы '+(g.answersChange==null?'—':signed(g.answersChange))+(g.csi==null?'':', CSI '+cf.format(g.csi)));return spec;}
    if(CHARTABLE.has(b.kind)){
@@ -799,7 +874,7 @@ function create(main){
  }
  function canvasShow(canvas,start){
   if(!canvas.blocks.length)return;
-  const slides=canvas.blocks.map((b,i)=>()=>{const s=el('div','show-body canvas-show');s.append(el('p','pulse-eyebrow',canvas.name+' · '+(i+1)+' из '+canvas.blocks.length+' · '+BLOCK_NAMES[b.kind]));if(b.kind!=='status')s.append(el('h1','',b.kind==='note'?(b.text||'').split('\n')[0].slice(0,140):blockTitle(b)));const body=el('div','canvas-body');s.append(body);if(b.kind==='note'){const rest=(b.text||'').split('\n').slice(1).join('\n');if(rest)body.append(el('p','canvas-note',rest));}else fillBlock(b,body,true);return s;});
+  const slides=canvas.blocks.map((b,i)=>()=>{const s=el('div','show-body canvas-show');s.append(el('p','pulse-eyebrow',canvas.name+' · '+(i+1)+' из '+canvas.blocks.length+' · '+BLOCK_NAMES[b.kind]));if(b.kind!=='status')s.append(el('h1','',b.kind==='note'?(b.text||'').split('\n')[0].slice(0,140):blockTitle(resolveBlock(b,canvas))));const body=el('div','canvas-body');s.append(body);if(b.kind==='note'){const rest=(b.text||'').split('\n').slice(1).join('\n');if(rest)body.append(el('p','canvas-note',rest));}else fillBlock(resolveBlock(b,canvas),body,true);return s;});
   openShow(slides,'Холст «'+canvas.name+'»',start);post({action:'journal-add',kind:'canvas-shown'}).catch(()=>{});
  }
  async function canvasSlides(canvas){
@@ -812,7 +887,7 @@ function create(main){
  async function exportCanvasPptx(canvas){const {slides}=await canvasSlides(canvas);await exportPptx(slides,{product:'canvas',revision:new Date().toISOString().slice(0,10).replace(/-/g,'')},brandSettings());post({action:'journal-add',kind:'canvas-exported',format:'pptx'}).catch(()=>{});canvasLine.textContent='PPTX скачан: '+slides.length+' '+plural(slides.length,'слайд','слайда','слайдов')+'.';}
  async function exportCanvasEml(canvas){const {slides,images}=await canvasSlides(canvas);download('canvas-'+new Date().toISOString().slice(0,10)+'.eml',buildEml(canvas.name,slides,images,brandSettings().accent),'message/rfc822');post({action:'journal-add',kind:'canvas-exported',format:'eml'}).catch(()=>{});canvasLine.textContent='Черновик письма скачан — откройте его в почте.';}
  function printCanvas(canvas){const grid=panels.canvas.querySelector('.canvas-grid');if(!grid)return;const w=window.open('','_blank');if(!w)throw new Error('Разрешите всплывающие окна для печати.');const css=[...document.querySelectorAll('link[rel=stylesheet]')].map(l=>'<link rel="stylesheet" href="'+l.href+'">').join('');const root=document.documentElement;w.document.write('<!doctype html><html lang="ru" data-theme="'+(root.dataset.theme||'dark')+'" style="'+root.style.cssText.replace(/"/g,'&quot;')+'"><head><meta charset="utf-8"><title>'+escapeHtml(canvas.name)+'</title>'+css+'</head><body class="pulse-print canvas-print"><h1>'+escapeHtml(canvas.name)+'</h1><div class="canvas-grid">'+grid.innerHTML+'</div></body></html>');w.document.close();setTimeout(()=>w.print(),500);}
- function importCanvas(){const picker=document.createElement('input');picker.type='file';picker.accept='.json,application/json';picker.onchange=async()=>{const file=picker.files[0];if(!file)return;try{const d=JSON.parse(await file.text());if(d.format!=='genui-canvas'||!Array.isArray(d.blocks))throw new Error('Это не файл холста GEN UI.');await saveCanvas({name:String(d.name||'Холст коллеги').slice(0,80),template:d.template||'import',blocks:d.blocks.map(b=>({...b,uid:newUid()}))},true);pendingBlock=null;renderCanvas();}catch(error){alert(error.message);}};picker.click();}
+ function importCanvas(){const picker=document.createElement('input');picker.type='file';picker.accept='.json,application/json';picker.onchange=async()=>{const file=picker.files[0];if(!file)return;try{const d=JSON.parse(await file.text());if(!['genui-canvas','genui-canvas-template'].includes(d.format)||!Array.isArray(d.blocks))throw new Error('Это не файл холста или шаблона GEN UI.');if(d.format==='genui-canvas-template'){await post({action:'canvas-template-save',template:{name:d.name,description:d.description||'',author:d.author||'',params:d.params||{},blocks:d.blocks}});teamTemplates=null;canvasFlash='Шаблон «'+d.name+'» добавлен в «Шаблоны команды».';renderCanvas();return;}await saveCanvas({name:String(d.name||'Холст коллеги').slice(0,80),template:d.template||'import',params:d.params||{},blocks:d.blocks.map(b=>({...b,uid:newUid()}))},true);pendingBlock=null;renderCanvas();}catch(error){alert(error.message);}};picker.click();}
  /* --- эффект «было → стало» --- */
  async function renderEffect(){
   const host=panels.effect;host.replaceChildren(el('h2','','Эффект платформы: было → стало'));const line=el('p','pulse-status');line.setAttribute('role','status');

@@ -92,6 +92,10 @@ def prepare_payload(root, stage, payload):
         return metadata(result)
     if stage == 'pulse-whatif':
         return metadata({'userQuery': payload.get('userQuery', ''), 'products': list(payload.get('products', []))[:60]})
+    if stage == 'pulse-canvas-plan':
+        return metadata({'userQuery': payload.get('userQuery', ''), 'products': list(payload.get('products', []))[:60],
+                         'surveys': [project(row, ('id', 'name', 'channel')) for row in payload.get('surveys', [])[:40]],
+                         'kinds': list(payload.get('kinds', []))[:12]})
     if stage == 'pulse-canvas':
         return metadata({'userQuery': payload.get('userQuery', ''), 'products': list(payload.get('products', []))[:60],
                          'surveys': [project(row, ('id', 'name', 'channel')) for row in payload.get('surveys', [])[:40]]})
