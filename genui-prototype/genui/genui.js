@@ -154,11 +154,41 @@ function coverageText(coverage){
  if(!observedDays)return 'Нет наблюдений';
  return observedDays+' из '+expectedDays+' дн. с данными'+(Number.isInteger(metricDays)?' · по показателю '+metricDays+' из '+expectedDays+' дн.':'');
 }
+/* PNG графиков ответа: заголовок, цветная легенда (как на экране: цвет, штрих, только включённые линии),
+   график на всю ширину без пустых полей; высота страницы считается по содержимому. */
+function visualLayout(host){
+ /* Для PNG график перерисовывается под ширину картинки: пропорции и размер текста как на слайде, без растяжения. */
+ const widened=[];for(const card of host.querySelectorAll('.charts .v2-chart')){if(card.closest('[hidden]')||!card.redraw)continue;const plot=card.querySelector('.v2-chart-scroll');if(!plot)continue;widened.push([card,plot,plot.style.width]);plot.style.width='1220px';card.redraw();}
+ const svgs=[...host.querySelectorAll('.charts svg.v2-chart-svg, .charts .explorer-composition svg')].filter(s=>s.closest('.chat-message')===host&&!s.closest('[hidden]')&&s.getBoundingClientRect().width>0);
+ const measure=document.createElement('canvas').getContext('2d'),W=1600,M=48,inner=W-M*2;let y=84;const blocks=[];
+ for(const svg of svgs){
+  const card=svg.closest('.v2-chart')||svg.closest('.chat-message'),box=svg.viewBox.baseVal,title=svgs.length>1?(card.querySelector('h3')?.textContent||''):'';
+  const composition=svg.closest('.explorer-composition'),legend=composition?[...composition.parentElement.querySelectorAll('.explorer-modes span')].map(n=>({label:n.textContent,color:n.style.borderLeftColor||'#f0f0f0',dash:false})):[...card.querySelectorAll('.v2-chart-series')].filter(n=>n.querySelector('input')?.checked!==false).map(n=>({label:n.querySelector('b')?.textContent||'',color:getComputedStyle(n).getPropertyValue('--series-color').trim()||'#f0f0f0',dash:n.querySelector('i')?.style.borderTopStyle==='dashed'}));
+  measure.font='18px sans-serif';const rows=[];let row=[],rowWidth=0;for(const item of legend){const w=40+measure.measureText(item.label).width+28;if(row.length&&rowWidth+w>inner){rows.push(row);row=[];rowWidth=0;}row.push({...item,w});rowWidth+=w;}if(row.length)rows.push(row);
+  const top=y+(title?34:0),legendTop=top,chartTop=legendTop+rows.length*30+14,scale=inner/box.width,chartHeight=box.height*scale;
+  blocks.push({svg,title,titleY:y+24,rows,legendTop,chartTop,scale,chartHeight});y=chartTop+chartHeight+40;
+ }
+ return {svgs,blocks,width:W,height:Math.ceil(y+28),restore(){for(const [card,plot,width] of widened){plot.style.width=width;card.redraw();}}};
+}
 async function exportVisualPng(host,data,size,options){
- const svgs=[...host.querySelectorAll('.charts svg')].filter(s=>s.closest('.chat-message')===host&&!s.closest('[hidden]')&&s.getBoundingClientRect().width>0);if(!svgs.length)return exportPng({...data,...(size?{pngSize:size,pngOptions:options,meetingTitle:options?.title,returnCanvas:true}:{})});if(!size)return window.ChartAppearance.openPNG((target,opts)=>exportVisualPng(host,data,target,opts),{name:data.exportFilename||'genui-chart.png',title:'GEN UI · '+data.periodLabel,width:3200,height:Math.min(12000,(140+svgs.length*650)*2)});
- const canvas=document.createElement('canvas');const logicalHeight=140+svgs.length*650,factor=Math.min(size.width/1600,size.height/logicalHeight);canvas.width=Math.ceil(1600*factor);canvas.height=Math.ceil(logicalHeight*factor);const c=canvas.getContext('2d');c.scale(factor,factor);c.fillStyle='#181818';c.fillRect(0,0,canvas.width,canvas.height);c.fillStyle='#f0f0f0';c.font='bold 26px sans-serif';c.fillText(options?.title??('GEN UI · '+data.periodLabel),48,48);
- for(let i=0;i<svgs.length;i++){const original=svgs[i],copy=original.cloneNode(true),sources=[original,...original.querySelectorAll('*')],targets=[copy,...copy.querySelectorAll('*')];sources.forEach((element,j)=>{const style=getComputedStyle(element);for(const key of ['fill','stroke','stroke-width','opacity','font-family','font-size','font-weight','paint-order'])targets[j].style.setProperty(key,style.getPropertyValue(key));});copy.setAttribute('xmlns','http://www.w3.org/2000/svg');if(options?.showXAxis===false)copy.querySelectorAll('[data-axis-tick]').forEach(n=>n.remove());const box=original.viewBox.baseVal;const rasterScale=Math.min(1500/box.width,450/box.height)*factor;copy.setAttribute('width',Math.ceil(box.width*rasterScale));copy.setAttribute('height',Math.ceil(box.height*rasterScale));const url=URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(copy)],{type:'image/svg+xml;charset=utf-8'}));try{const img=new Image();await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=url;});const card=original.closest('.v2-chart')||original.parentElement.parentElement;c.fillStyle='#f0f0f0';c.font='bold 20px sans-serif';if(svgs.length>1)c.fillText(card.querySelector('h3').textContent,48,100+i*650);c.font='14px sans-serif';const labels=[...card.querySelectorAll('.v2-chart-series b')].map(n=>n.textContent);labels.forEach((label,j)=>c.fillText(label,48,130+i*650+j*22));const scale=Math.min(1500/box.width,450/box.height);c.drawImage(img,48,180+i*650,box.width*scale,box.height*scale);}finally{URL.revokeObjectURL(url);}}
- if(options?.showFootnotes!==false){c.font='14px sans-serif';c.fillStyle='#b5b5b5';c.fillText('Источник: '+data.source+' · '+data.periodLabel,48,logicalHeight-24);}return window.ChartAppearance.fit(canvas,size.width,size.height);
+ const layout=visualLayout(host);if(!size||!layout.svgs.length)layout.restore();if(!layout.svgs.length)return exportPng({...data,...(size?{pngSize:size,pngOptions:options,meetingTitle:options?.title,returnCanvas:true}:{})});
+ if(!size)return window.ChartAppearance.openPNG((target,opts)=>exportVisualPng(host,data,target,opts),{name:data.exportFilename||'genui-chart.png',title:'GEN UI · '+data.periodLabel,width:3200,height:Math.min(12000,Math.round(layout.height*2))});
+ const factor=size.width/layout.width,canvas=document.createElement('canvas');canvas.width=Math.ceil(layout.width*factor);canvas.height=Math.ceil(layout.height*factor);
+ const c=canvas.getContext('2d');c.scale(factor,factor);c.fillStyle='#181818';c.fillRect(0,0,layout.width,layout.height);c.fillStyle='#f0f0f0';c.font='bold 30px sans-serif';c.fillText(options?.title??('GEN UI · '+data.periodLabel),48,52);
+ try{for(const block of layout.blocks){
+  const original=block.svg,copy=original.cloneNode(true),sources=[original,...original.querySelectorAll('*')],targets=[copy,...copy.querySelectorAll('*')];
+  sources.forEach((element,j)=>{const style=getComputedStyle(element);for(const key of ['fill','stroke','stroke-width','stroke-dasharray','stroke-linejoin','opacity','fill-opacity','font-family','font-size','font-weight','paint-order'])targets[j].style.setProperty(key,style.getPropertyValue(key));});
+  copy.querySelectorAll('.v2-label-halo').forEach(n=>n.style.setProperty('stroke','#181818'));
+  copy.style.setProperty('opacity','1');copy.style.setProperty('animation','none');/* график мог быть в анимации появления после перерисовки */
+  copy.setAttribute('xmlns','http://www.w3.org/2000/svg');if(options?.showXAxis===false)copy.querySelectorAll('[data-axis-tick]').forEach(n=>n.remove());
+  const box=original.viewBox.baseVal,pixel=block.scale*factor;copy.setAttribute('width',Math.ceil(box.width*pixel));copy.setAttribute('height',Math.ceil(box.height*pixel));copy.style.width=copy.style.height='';
+  if(block.title){c.fillStyle='#f0f0f0';c.font='bold 22px sans-serif';c.fillText(block.title,48,block.titleY);}
+  c.font='18px sans-serif';block.rows.forEach((row,r)=>{let x=48;const y=block.legendTop+r*30+18;for(const item of row){c.strokeStyle=item.color;c.lineWidth=4;c.setLineDash(item.dash?[7,5]:[]);c.beginPath();c.moveTo(x,y-6);c.lineTo(x+30,y-6);c.stroke();c.setLineDash([]);c.fillStyle=item.color;c.beginPath();c.arc(x+15,y-6,4,0,Math.PI*2);c.fill();c.fillStyle='#e8e8e8';c.fillText(item.label,x+40,y);x+=item.w;}});
+  const url=URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(copy)],{type:'image/svg+xml;charset=utf-8'}));
+  try{const img=new Image();await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;img.src=url;});c.drawImage(img,48,block.chartTop,box.width*block.scale,block.chartHeight);}finally{URL.revokeObjectURL(url);}
+ }}finally{layout.restore();}
+ if(options?.showFootnotes!==false){c.font='15px sans-serif';c.fillStyle='#b5b5b5';c.fillText('Источник: '+data.source+' · '+data.periodLabel,48,layout.height-22);}
+ return window.ChartAppearance.fit(canvas,size.width,size.height);
 }
 function renderTurn(turn){
  const data=turn.data,host=turn.element;const visual=data.visual||{type:'line',theme:'default'};const colors=visual.theme==='presentation'?['#ffad66','#7eb8cc','#d3c6a5','#b0a5d7','#84b5a0','#e4a7a0']:palette;destroyCharts(host);host.replaceChildren();host.id='answer-'+turn.number;host.dataset.turnId=turn.number;

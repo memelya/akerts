@@ -27,7 +27,9 @@ window.ProductExplorer={analyze,attach({data,charts,colors,onOpen}){
  const label=(text,input)=>{const l=el('label',text);l.append(input);return l;};controls.append(label('Показатель',metric),label('Период',period),label('Сравнение',baseline));
  const body=el('div');body.setAttribute('aria-live','polite');panel.append(body);
  let view='total';const buttons={};
- for(const [key,text] of [['total','Общий график'],['surveys','Линии опросов'],['shares','Доли опросов']]){const b=el('button',text);b.type='button';b.dataset.explorerView=key;b.onclick=()=>{view=key;drawView();};modes.append(b);buttons[key]=b;}
+ /* Виды «по опросам» имеют смысл только для двух и более опросов: у одного опроса доля всегда 100%. */
+ const several=data.members.length>1;if(!several)modes.hidden=true;
+ for(const [key,text] of (several?[['total','Общий график'],['surveys','Линии опросов'],['shares','Вклад опросов, %']]:[])){const b=el('button',text);b.type='button';b.dataset.explorerView=key;b.onclick=()=>{view=key;drawView();};modes.append(b);buttons[key]=b;}
  function select(key){const index=data.months.indexOf(key);if(index<0)return;period.value=String(index);drawPanel();}
  function series(){return data.details.map((detail,i)=>({key:'member:'+i,label:'#'+data.members[i].id+' · '+(data.members[i].channel==='success_screen'?'Экран успеха':'Пуш+СМС'),color:colors[i%colors.length],values:detail.blocks.find(b=>b.metric===metric.value)?.values||[]}));}
  function drawView(){
@@ -37,7 +39,7 @@ window.ProductExplorer={analyze,attach({data,charts,colors,onOpen}){
   if(view==='surveys'){
    window.V2Chart(alt,{title:metric.selectedOptions[0].text+' по опросам',badge:'Состав продукта',context:data.periodLabel,help:'Нажмите на точку, чтобы разобрать вклад опросов за период.',onSelect:r=>select(r.key),modes:[{key:'period',label:'По периодам',rows:data.months.map((m,i)=>({key:m,label:date(m),short:m.length===10?m.slice(8)+'.'+m.slice(5,7):date(m),...Object.fromEntries(items.map(s=>[s.key,s.values[i]??null]))}))}],series:items.map(s=>({...s,total:s.values[Number(period.value)]})),receipt:[['Расчёт','Исходные значения по каждому опросу. Пропуски не заменяются нулями.']]});return;
   }
-  alt.append(el('h3','Доли опросов · '+metric.selectedOptions[0].text),el('p','Каждый столбец — 100% известных значений периода. Нажмите на сегмент для подробного разбора.'));
+  alt.append(el('h3','Вклад опросов · '+metric.selectedOptions[0].text),el('p','Какую часть показателя периода дал каждый опрос: столбец — 100% суммы по выбранным опросам. Нажмите на сегмент для подробного разбора.'));
   const legend=el('div');legend.className='explorer-modes';items.forEach(s=>{const label=el('span',s.label);label.style.borderLeft='8px solid '+s.color;label.style.paddingLeft='8px';legend.append(label);});alt.append(legend);
   const scroll=el('div');scroll.className='explorer-composition';alt.append(scroll);
   const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg'),width=Math.max(700,scroll.clientWidth,data.months.length*78+70),height=320,slot=(width-70)/data.months.length;svg.setAttribute('viewBox',`0 0 ${width} ${height}`);svg.setAttribute('width',width);svg.setAttribute('height',height);svg.setAttribute('role','group');svg.setAttribute('aria-label','Доли опросов по периодам');scroll.append(svg);

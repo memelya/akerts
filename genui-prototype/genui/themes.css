@@ -425,3 +425,5 @@ input.sa-switch:focus-visible{outline:2px solid var(--accent);outline-offset:2px
 .status-admin .sa-table .sa-icon-btn{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;width:auto;margin:0 2px 0 0}
 .sa-table td:nth-child(4){min-width:110px}
 .sa-table .sa-lock{display:none}
+.v2-chart-svg text.v2-label-halo{paint-order:stroke;stroke:var(--surface,#181818);stroke-width:4px;stroke-linejoin:round}
+.v2-chart-svg text.v2-label-small{font-size:11px}
