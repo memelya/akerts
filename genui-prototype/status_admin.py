@@ -401,7 +401,7 @@ class StatusDirectory:
             if not row:
                 raise StatusError('Группа не найдена.', 404)
             if row['is_system']:
-                raise StatusError('Системную группу «' + row['name'] + '» удалить нельзя — её можно скрыть из дашбордов.', 409)
+                raise StatusError('Системную группу «' + row['name'] + '» удалить нельзя, её можно скрыть из дашбордов.', 409)
             target = request.get('move_to')
             if target is None:
                 target = self.ungrouped_id(db)
@@ -434,14 +434,14 @@ class StatusDirectory:
             page = max(1, int(query.get('page', 1)))
             size = min(500, max(1, int(query.get('page_size', 100))))
         except (TypeError, ValueError):
-            raise StatusError('page и page_size — целые числа.', 400)
+            raise StatusError('page и page_size: целые числа.', 400)
         where, args = [], []
         if query.get('group_id') not in (None, ''):
             try:
                 where.append('group_id=?')
                 args.append(int(query['group_id']))
             except ValueError:
-                raise StatusError('group_id — целое число.', 400)
+                raise StatusError('group_id: целое число.', 400)
         if query.get('q'):
             term = '%' + str(query['q']).strip().casefold().replace('ё', 'е') + '%'
             where.append('(CAST(code AS TEXT) LIKE ? OR ru_lower(description) LIKE ? OR ru_lower(COALESCE(alias, \'\')) LIKE ?)')
@@ -510,7 +510,7 @@ class StatusDirectory:
             self.check_version(row, request)
             values = self.code_fields(request, True, row)
             if row['is_system'] and 'code' in values and values['code'] != row['code']:
-                raise StatusError('Числовой код системного статуса менять нельзя — он приходит из выгрузки.', 409, {'code': 'Системный код'})
+                raise StatusError('Числовой код системного статуса менять нельзя, он приходит из выгрузки.', 409, {'code': 'Системный код'})
             if 'code' in values and db.execute('SELECT 1 FROM status_codes WHERE code=? AND id<>?', (values['code'], cid)).fetchone():
                 raise StatusError('Код ' + str(values['code']) + ' уже есть в справочнике.', 409, {'code': 'Код уже используется'})
             if 'group_id' in values and not db.execute('SELECT 1 FROM status_groups WHERE id=?', (values['group_id'],)).fetchone():
@@ -548,7 +548,7 @@ class StatusDirectory:
             if not row:
                 raise StatusError('Код не найден.', 404)
             if row['is_system']:
-                raise StatusError('Системный код ' + str(row['code']) + ' удалить нельзя — его можно выключить или перенести.', 409)
+                raise StatusError('Системный код ' + str(row['code']) + ' удалить нельзя, его можно выключить или перенести.', 409)
             db.execute('DELETE FROM status_codes WHERE id=?', (cid,))
             self.bump(db, 'code-delete', str(row['code']))
             return {'ok': True}
@@ -681,7 +681,7 @@ class StatusDirectory:
             dialect = ';' if sample.split('\n', 1)[0].count(';') >= sample.split('\n', 1)[0].count(',') else ','
             reader = csv.DictReader(io.StringIO(sample), delimiter=dialect)
             if not reader.fieldnames or not {'code', 'description'} <= {f.strip().lower() for f in reader.fieldnames}:
-                raise StatusError('В CSV нужны столбцы code и description; group, alias, sort_order, is_active — по желанию.', 400)
+                raise StatusError('В CSV нужны столбцы code и description; group, alias, sort_order, is_active: по желанию.', 400)
             groups = {}
             for line, raw in enumerate(reader, start=2):
                 row = {str(k).strip().lower(): (v or '').strip() for k, v in raw.items() if k}
@@ -846,7 +846,7 @@ class StatusDirectory:
             series.append({k: v for k, v in item.items() if k != 'sort'} | {'points': points})
         return {'group_by': group_by, 'grain': grain, 'periods': sorted(events_total), 'eventsTotal': [events_total[p] for p in sorted(events_total)],
                 'series': series, 'unknown': self.unknown_codes(rows), 'revision': self.tree()['revision'], 'settings': settings,
-                'method': 'События каждого status_det выгрузки пуш+СМС сгруппированы по справочнику статусов. Доля — от всех событий периода. '
+                'method': 'События каждого status_det выгрузки пуш+СМС сгруппированы по справочнику статусов. Доля: от всех событий периода. '
                           'Коды без группы, а также выключенные коды и группы, попадают в «Без группы», чтобы сумма сходилась с событиями.'}
 
 

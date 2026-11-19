@@ -581,7 +581,7 @@ class Pulse:
         items, facts = self.narrative_items(brief)
         if not facts:
             narrative = {'status': canned_status(brief, items), 'items': [], 'facts': [], 'generatedAt': now(), 'revision': brief['revision'],
-                         'source': 'Проблем в фокусе нет — модель не вызывалась', 'trust': {'facts': 0, 'refs': 0, 'rejected': 0, 'platformNumbers': True}}
+                         'source': 'Проблем в фокусе нет: модель не вызывалась', 'trust': {'facts': 0, 'refs': 0, 'rejected': 0, 'platformNumbers': True}}
             self.save_narrative(brief['revision'], narrative)
             return narrative
         self.stage('Отправляю темы в GigaCode')
@@ -772,7 +772,7 @@ class Pulse:
                 'requiredSendsPerDay': required_sends, 'requiredResponseRate': required_rate, 'verdict': verdict,
                 'completion': forecast / plan * 100 if plan else None,
                 'series': {'actual': cumulative, 'projection': projection, 'plan': plan_line},
-                'method': 'База — средние отправки за последние 7 дней с данными и отклик за 14 дней. Прогноз = ответы с начала месяца + '
+                'method': 'База: средние отправки за последние 7 дней с данными и отклик за 14 дней. Прогноз = ответы с начала месяца + '
                           'оставшиеся календарные дни × отправки в день × отклик. План распределён по календарным дням. Пропуски не считаются нулями.'}
 
     def whatif_parse(self, request):
@@ -894,7 +894,7 @@ class Pulse:
                 continue
             seen_groups.add(group)
             slides.append({'kind': 'cluster', 'title': cluster['title'],
-                           'subtitle': cluster['channelLabel'] + ' · ' + cluster['from'] + (' — ' + cluster['to'] if cluster['to'] != cluster['from'] else ''),
+                           'subtitle': cluster['channelLabel'] + ' · ' + cluster['from'] + ('–' + cluster['to'] if cluster['to'] != cluster['from'] else ''),
                            'kpis': [['Опросов', str(len(members))],
                                     ['Продукты', ', '.join(p for p, _ in cluster['products'][:3])]],
                            'bullets': ['#' + str(m['id']) + ' · ' + m['name'] + ' · ' + change_label(m) + ' с ' + m['date'] for m in members[:6]],
@@ -914,7 +914,7 @@ class Pulse:
                                     ['Изменение', change_label(shift)]],
                            'bullets': [shift_sentence(s) for s in group]
                                       + (['Недельный мониторинг этот сдвиг уже не показывает: он старше сравниваемых недель.'] if shift['hiddenFromWeekly'] else [])
-                                      + ['Похожий прошлый случай: ' + n['title'] + ' — ' + n['cause'] for n in memory[:1]],
+                                      + ['Похожий прошлый случай: ' + n['title'] + ': ' + n['cause'] for n in memory[:1]],
                            'conclusion': 'Назначить проверку и записать вывод в память расследований.',
                            'series': shift['series'], 'metric': shift['metric'], 'marker': shift['date']})
         for signal in brief.get('signals', []):
@@ -1034,7 +1034,7 @@ class Pulse:
                 return self.checked(live)
         except Exception as error:  # в демо показ не должен срываться из-за CLI
             rejected = 1 if 'отклон' in str(error).lower() else 0
-            reason = ('ответ GigaCode не принят проверкой — ' if rejected else 'GigaCode недоступна — ') + str(error)[:160]
+            reason = ('ответ GigaCode не принят проверкой: ' if rejected else 'GigaCode недоступна: ') + str(error)[:160]
         for text in ('Отправляю факты в GigaCode', 'Проверяю ссылки и числа по фактам'):
             self.stage(text)
             time.sleep(.6)
@@ -1175,12 +1175,12 @@ class Pulse:
             if len(ranked) == 1:
                 conclusion = span + '«' + worst['label'] + '»: ' + show(worst) + '.'
             elif key(worst) < 0:
-                conclusion = span + 'сильнее всего просел «' + worst['label'] + '» (' + show(worst) + '), лучше всех — «' + best['label'] + '» (' + show(best) + ').'
+                conclusion = span + 'сильнее всего просел «' + worst['label'] + '» (' + show(worst) + '), лучше всех: «' + best['label'] + '» (' + show(best) + ').'
             else:
                 conclusion = span + 'снижений нет: минимум у «' + worst['label'] + '» (' + show(worst) + '), максимум у «' + best['label'] + '» (' + show(best) + ').'
         return {'metric': metric, 'label': METRIC_LABELS[metric], 'days': days, 'grain': grain, 'from': start, 'to': latest, 'items': output,
                 'conclusion': conclusion,
-                'method': 'Дневные значения за ' + str(days) + ' дней по ' + latest + '. «За период» — последние 7 дней с данными к первым 7; «за неделю» — к предыдущим 7. Пропуски не считаются нулями.'}
+                'method': 'Дневные значения за ' + str(days) + ' дней по ' + latest + '. «За период»: последние 7 дней с данными к первым 7; «за неделю»: к предыдущим 7. Пропуски не считаются нулями.'}
 
     # -- point ----------------------------------------------------------------------
     def point_facts(self, state, revision, channel, ident, product, metric, date):
@@ -1233,7 +1233,7 @@ class Pulse:
             if item.get('ids') and not ids & set(item['ids']):
                 continue
             if dt.date.fromisoformat(start) - dt.timedelta(days=3) <= anchor <= dt.date.fromisoformat(end) + dt.timedelta(days=3):
-                add('Событие календаря запусков рядом с датой (совпадение — не доказательство причины)', str(item.get('title') or 'событие')[:120], '', start)
+                add('Событие календаря запусков рядом с датой (совпадение не доказывает причину)', str(item.get('title') or 'событие')[:120], '', start)
         return facts
 
     def point(self, request):
@@ -1464,8 +1464,8 @@ class Pulse:
                    + str(len({(r['channel'], r['id']) for r in strong})) + ' опросов.') if strong else 'После ' + date + ' заметных изменений нет.'
         return {'date': date, 'rows': output[:40], 'total': len(output), 'strong': len(strong), 'summary': summary,
                 'scope': 'опросы события: ' + ', '.join('#' + str(i) for i in ids) if ids else 'все опросы' + (' канала ' + CHANNEL_LABELS[channel] if channel else ''),
-                'method': '7 дней до даты события против 7 дней начиная с неё (среднее за день с данными; CSI — взвешенный). '
-                          'Заметно: от 15% для объёмов, от 0,15 балла для CSI. Совпадение по времени — не доказательство причины.'}
+                'method': '7 дней до даты события против 7 дней начиная с неё (среднее за день с данными; CSI: взвешенный). '
+                          'Заметно: от 15% для объёмов, от 0,15 балла для CSI. Совпадение по времени не доказывает причину.'}
 
     # -- проверка защиты: выдуманное число ----------------------------------------------
     def trust_demo(self, request):
@@ -1688,12 +1688,12 @@ class Pulse:
                 'total': steps(rows, total_losses, total_codes),
                 'periods': [{'key': key, **steps(by_period[key], loss_period.get(key), code_period.get(key))} for key in sorted(by_period)],
                 'surveys': surveys, 'surveyCount': len(by_survey), 'unknownCodes': statuses.unknown_codes(status_rows)[:20],
-                'method': ('Воронка по дневным строкам выгрузки. События = 100%. Шаги отсечений — активные группы справочника статусов '
+                'method': ('Воронка по дневным строкам выгрузки. События = 100%. Шаги отсечений: активные группы справочника статусов '
                            '(Администрирование → Статусы) с ролью «отсечение», в их порядке и с их названиями; неотправленная часть событий '
-                           'каждого status_det относится к группе своего кода. Коды без группы, выключенные коды и группы — в «Без группы». '
-                           'Отправки и ответы — доля от событий; отклик = ответы / отправки.')
+                           'каждого status_det относится к группе своего кода. Коды без группы, выключенные коды и группы: в «Без группы». '
+                           'Отправки и ответы: доля от событий; отклик = ответы / отправки.')
                           if cutoffs else
-                          'Воронка по дневным строкам выгрузки. События = 100%; отправки — события со статусом SENDED; ответы — доля от событий; '
+                          'Воронка по дневным строкам выгрузки. События = 100%; отправки: события со статусом SENDED; ответы: доля от событий; '
                           'отклик = ответы / отправки. Статусы status_det и их группы относятся к пуш+СМС; для экранов успеха отсечений нет.'}
 
     # -- холсты: один объект вместо разделов -------------------------------------------
@@ -1777,7 +1777,7 @@ class Pulse:
         if block['kind'] == 'compare':
             items = block.get('items')
             if not isinstance(items, list) or not 1 <= len(items) <= 5:
-                raise ValueError('В блоке сравнения — от одного до пяти объектов.')
+                raise ValueError('В блоке сравнения: от одного до пяти объектов.')
             item['items'] = [self.clean_target(t) for t in items]
         if block.get('bind'):
             item['bind'] = True  # блок берёт объект и период из параметров холста
@@ -1836,7 +1836,7 @@ class Pulse:
         clean['needsTarget'] = any(b.get('bind') for b in clean['blocks']) and 'target' not in params
         items = [t for t in self.canvas_templates()['templates'] if t.get('name', '').casefold() != name.casefold()]
         if len(items) >= 50:
-            raise ValueError('Шаблонов может быть до 50 — удалите ненужный.')
+            raise ValueError('Шаблонов может быть до 50. Удалите ненужный.')
         items.append(clean)
         atomic_json(self.templates_path, {'version': 1, 'templates': items})
         self.log('canvas-template-saved')
@@ -1866,7 +1866,7 @@ class Pulse:
         try:
             return self.finish_plan(self.checked(lambda: self.canvas_plan_model(query, state)))
         except Exception as error:  # сборка не должна срываться из-за CLI
-            local['notes'].append('GigaCode не собрала план (' + str(error)[:140] + ') — показан локальный план.')
+            local['notes'].append('GigaCode не собрала план (' + str(error)[:140] + '), показан локальный план.')
             return self.finish_plan(local)
 
     def finish_plan(self, plan):
@@ -1953,7 +1953,7 @@ class Pulse:
             value['canvases'][value['canvases'].index(found)] = clean
         else:
             if len(value['canvases']) >= 30:
-                raise ValueError('Холстов может быть до 30 — удалите ненужный.')
+                raise ValueError('Холстов может быть до 30. Удалите ненужный.')
             value['canvases'].append(clean)
             self.log('canvas-created', template=clean['template'])
         value['active'] = clean['id']
@@ -1995,7 +1995,7 @@ class Pulse:
             return self.checked(lambda: self.canvas_ask_model(query, state))
         except Exception as error:  # вопрос не должен срываться из-за CLI: показываем локальный разбор
             parsed['block'] = self.clean_block(parsed['block'])
-            parsed['notes'].append('GigaCode не помогла разобрать вопрос (' + str(error)[:140] + ') — показан локальный разбор.')
+            parsed['notes'].append('GigaCode не помогла разобрать вопрос (' + str(error)[:140] + '), показан локальный разбор.')
             return parsed
 
     def canvas_ask_model(self, query, state):
@@ -2197,8 +2197,8 @@ class Pulse:
         return {'channel': channel, 'channelLabel': CHANNEL_LABELS[channel], 'groupBy': group_by, 'groupLabel': self.GROUPINGS[group_by],
                 'groupings': self.GROUPINGS, 'through': latest, 'window': [cut, latest], 'previousWindow': [prior, (end - dt.timedelta(days=7)).isoformat()],
                 'month': end.strftime('%Y-%m'), 'groups': output, 'surveys': len(members),
-                'method': 'Ответы — последние 7 дней к предыдущим 7 по ' + latest + '. CSI — средневзвешенный по оценкам 1–5. '
-                          'Темп плана — ответы с начала месяца к плану, распределённому по календарным дням (только опросы с планом). '
+                'method': 'Ответы: последние 7 дней к предыдущим 7 по ' + latest + '. CSI: средневзвешенный по оценкам 1–5. '
+                          'Темп плана: ответы с начала месяца к плану, распределённому по календарным дням (только опросы с планом). '
                           'Красный: ответы −15% и хуже, CSI −0,1 и хуже или темп плана ниже 75%. Жёлтый: ответы −5%, CSI −0,05, темп ниже 90% или есть проблемы.'}
 
     # -- dispatcher ------------------------------------------------------------
@@ -2451,7 +2451,7 @@ def shift_facts(pulse, state, revision, shift):
         if ids and shift['id'] not in ids:
             continue
         if dt.date.fromisoformat(start) - dt.timedelta(days=3) <= anchor <= dt.date.fromisoformat(end) + dt.timedelta(days=3):
-            add('Событие календаря запусков рядом с датой сдвига (совпадение — не доказательство причины)',
+            add('Событие календаря запусков рядом с датой сдвига (совпадение не доказывает причину)',
                 str(item.get('title') or item.get('name') or item.get('note') or 'запуск')[:120], '', start + ' — ' + end)
     return facts
 
@@ -2504,7 +2504,7 @@ def parse_whatif(query, state):
         params['plan'] = float(re.sub(r'\s', '', match[1]))
     understood = any(params[k] is not None for k in ('responseRate', 'sendsPerDay', 'sendsChangePct', 'plan', 'id', 'product'))
     if params['id'] is None and params['product'] is None:
-        notes.append('Опрос или продукт не указан — сценарий считается по всем опросам канала.')
+        notes.append('Опрос или продукт не указан, сценарий считается по всем опросам канала.')
     return {'params': params, 'understood': understood, 'notes': notes}
 
 
@@ -2629,7 +2629,7 @@ def plan_canvas(query, state):
     subject = ('#' + str(target['id'])) if target and target.get('id') else (target or {}).get('product') or ('сравнение' if len(targets) > 1 else '')
     name = ' · '.join([' + '.join(labels[i] for i in intents[:2])] + ([subject] if subject else []))
     if not targets:
-        notes.append('Опрос или продукт в задаче не найден — выберите объект в параметрах холста, и связанные блоки пересчитаются для него.')
+        notes.append('Опрос или продукт в задаче не найден. Выберите объект в параметрах холста, и связанные блоки пересчитаются для него.')
     unique = [b for b in unique if b['kind'] != 'note'][:10] + [b for b in unique if b['kind'] == 'note'][:2]
     return {'name': name[:80], 'blocks': unique, 'params': params, 'intents': intents, 'notes': notes, 'query': query}
 
@@ -2686,9 +2686,9 @@ def parse_canvas_query(query, state):
         elif re.search(r'по месяц|помесячн|ежемесячн', q):
             block['grain'] = 'month'
     if not understood:
-        notes.append('В вопросе нет опроса, продукта, показателя или типа блока — показан общий график. Свободный вопрос к данным лучше задать в «Диалоге».')
+        notes.append('В вопросе нет опроса, продукта, показателя или типа блока, показан общий график. Свободный вопрос к данным лучше задать в «Диалоге».')
     elif block['kind'] in ('chart', 'compare') and not targets:
-        notes.append('Опрос или продукт не найден в вопросе — блок построен по всем опросам канала «' + CHANNEL_LABELS[channel] + '».')
+        notes.append('Опрос или продукт не найден в вопросе, блок построен по всем опросам канала «' + CHANNEL_LABELS[channel] + '».')
     return {'block': block, 'understood': understood, 'notes': notes}
 
 METRIC_LABELS = {'sends': 'Отправки', 'answers': 'Ответы', 'events': 'События', 'csi': 'CSI', 'responseRate': 'Отклик, %',
@@ -2761,12 +2761,12 @@ def canned_explain(facts, options, notes=()):
         hypotheses.append({'text': 'Входящий поток событий: ' + fact_value(events[0]) + ' против ' + fact_value(events[1])
                            + '. Стоит проверить источник событий.', 'refs': [f['ref'] for f in events[:2]]})
     if calendar:
-        hypotheses.append({'text': 'Рядом с датой в календаре есть событие «' + str(calendar[0]['value']) + '». Совпадение по времени — гипотеза, не доказательство.',
+        hypotheses.append({'text': 'Рядом с датой в календаре есть событие «' + str(calendar[0]['value']) + '». Совпадение по времени: гипотеза, не доказательство.',
                            'refs': [calendar[0]['ref']]})
     if notes:
         hypotheses.append({'text': 'Похожий прошлый случай из памяти расследований: ' + notes[0]['title'] + '.', 'refs': [facts[0]['ref']]})
     if not hypotheses:
-        hypotheses.append({'text': 'Сопутствующие показатели изменились слабо — вероятна локальная причина этого опроса.', 'refs': [facts[0]['ref']]})
+        hypotheses.append({'text': 'Сопутствующие показатели изменились слабо, вероятна локальная причина этого опроса.', 'refs': [facts[0]['ref']]})
     summary = facts[0]['label'] + ': ' + fact_value(facts[0]) + ('; ' + facts[1]['label'].lower() + ': ' + fact_value(facts[1]) if len(facts) > 1 else '') \
         + ('. Изменение: ' + str(change['value']) if change else '') + '.'
     return {'summary': summary[:300], 'hypotheses': hypotheses[:3], 'checks': options[:3], 'facts': facts,
@@ -2784,7 +2784,7 @@ def canned_narrative(brief, facts):
         parts.append('групповых инцидентов: ' + str(len(clusters)))
     if down:
         parts.append('устойчивых снижений: ' + str(len(down)))
-    headline = ('В фокусе — ' + ', '.join(parts) + '.') if parts else 'Существенных отклонений нет, показатели стабильны.'
+    headline = ('В фокусе: ' + ', '.join(parts) + '.') if parts else 'Существенных отклонений нет, показатели стабильны.'
     bullets = []
     for fact in facts:
         if fact['label'].startswith('Групповое') and len(bullets) < 2:
@@ -2856,7 +2856,7 @@ def build_problems(shifts, signals, focus, favorites):
         if urgent:
             score, kind = 100, 'urgent'
             line = urgent[0]['reasons'][0]
-            hint = 'Похоже на остановку коммуникаций — проверьте запуск и стоп-листы.'
+            hint = 'Похоже на остановку коммуникаций: проверьте запуск и стоп-листы.'
         if main:
             change = short_pct(main['relative']) if main['relative'] is not None else signed_num(main['delta']).replace('-', '−') + ' балла'
             shift_line = main['label'] + ' ' + change + ' с ' + human_date(main['date']) + ' (' + compact(main['before'], main['metric']) + ' → ' + compact(main['after'], main['metric']) + (' в день' if main['metric'] != 'csi' else '') + ')'
@@ -2865,25 +2865,25 @@ def build_problems(shifts, signals, focus, favorites):
                 kind = 'shift'
                 line, since = shift_line, main['date']
                 if main['relative'] is not None and main['relative'] <= -90:
-                    hint = 'Почти полная остановка — проверьте, не выключен ли опрос или триггер.'
+                    hint = 'Почти полная остановка: проверьте, не выключен ли опрос или триггер.'
                 elif main['metric'] == 'csi':
-                    hint = 'Снизилась оценка — проверьте изменения в продукте или анкете в эту дату.'
+                    hint = 'Снизилась оценка: проверьте изменения в продукте или анкете в эту дату.'
                 elif main['metric'] == 'sends':
-                    hint = 'Меньше отправок — проверьте стоп-листы, политику контактов и входящий поток событий.'
+                    hint = 'Меньше отправок: проверьте стоп-листы, политику контактов и входящий поток событий.'
                 else:
-                    hint = 'Меньше ответов — проверьте отправки и отклик, затем запуск коммуникаций.'
+                    hint = 'Меньше ответов: проверьте отправки и отклик, затем запуск коммуникаций.'
             else:
                 line += ' · ' + shift_line
                 since = main['date']
         if not kind and group['signals']:
             score, kind = 40, 'weekly'
             line = group['signals'][0]['reasons'][0]
-            hint = 'Свежее изменение за неделю — посмотрите динамику по дням.'
+            hint = 'Свежее изменение за неделю: посмотрите динамику по дням.'
         if not kind:
             up = group['shifts'][0]
             score, kind = 5, 'growth'
             line = up['label'] + ' ' + (short_pct(up['relative']) if up['relative'] is not None else signed_num(up['delta'])) + ' с ' + human_date(up['date'])
-            since, hint = up['date'], 'Рост — убедитесь, что он ожидаем (кампания, новый триггер).'
+            since, hint = up['date'], 'Рост: убедитесь, что он ожидаем (кампания, новый триггер).'
         avg = group['avgAnswers']
         low = avg is not None and avg < MIN_FOCUS_ANSWERS and kind != 'urgent'
         output.append({'key': 'problem:' + channel + ':' + str(ident), 'channel': channel, 'channelLabel': CHANNEL_LABELS[channel], 'id': ident,
@@ -2900,7 +2900,7 @@ def canned_status(brief, items):
     focus = [p for p in brief.get('problems', []) if p['inFocus'] and not p['lowVolume'] and p['kind'] != 'growth']
     bank = [b for b in brief.get('bank', []) if b['alert']]
     head = ('В вашем фокусе требуют решения ' + str(len(focus)) + ' ' + plural(len(focus), 'опрос', 'опроса', 'опросов')) if focus else 'В вашем фокусе проблем нет'
-    tail = '; по банку — ' + ', '.join(b['label'] + ': ' + ', '.join(b['reasons']) for b in bank) if bank else '; по банку существенных изменений нет'
+    tail = '; по банку: ' + ', '.join(b['label'] + ': ' + ', '.join(b['reasons']) for b in bank) if bank else '; по банку существенных изменений нет'
     return head + tail + '.'
 
 

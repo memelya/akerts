@@ -38,21 +38,21 @@ function attach(host,data){
    periodSelect.replaceChildren(new Option('Весь период · '+monthName(cut(result.from))+' — '+monthName(cut(result.to)),'all'),...result.periods.map(p=>new Option(monthName(p.key),p.key)));periodSelect.value=period;
    title.textContent='Воронка · '+result.channelLabel;sub.textContent=(params.ids?.length===1?'Опрос #'+params.ids[0]:result.surveyCount+' опрос(ов)')+' · события → '+(result.lossGroups.some(g=>result.total.groups[g.slug]?.events)?result.lossGroups.filter(g=>result.total.groups[g.slug]?.events).map(g=>g.name.toLowerCase()).join(' → ')+' → ':'')+'отправки → ответы → отклик';
    focus=focus||(result.lossGroups.length?'g:'+[...result.lossGroups].sort((a,b)=>(result.total.groups[b.slug]?.events||0)-(result.total.groups[a.slug]?.events||0))[0].slug:null);
-   if(result.unknownCodes?.length)status.textContent='В выгрузке есть коды, которых нет в справочнике: '+result.unknownCodes.slice(0,6).map(c=>c.code).join(', ')+'. Они посчитаны в «Без группы» — добавьте их в «Администрирование → Статусы».';
+   if(result.unknownCodes?.length)status.textContent='В выгрузке есть коды, которых нет в справочнике: '+result.unknownCodes.slice(0,6).map(c=>c.code).join(', ')+'. Они посчитаны в «Без группы», добавьте их в «Администрирование → Статусы».';
    draw();}
   catch(error){status.textContent=error.message;status.classList.add('is-error');}
  }
  const current=()=>period==='all'?result.total:result.periods.find(p=>p.key===period)||result.total;
  function steps(d){
-  const list=[{key:'events',label:'События',value:d.events,share:100,hint:'Все события опроса за период — вершина воронки, 100%.'}];
-  for(const g of result.lossGroups){const v=d.groups[g.slug];if(!(result.total.groups[g.slug]?.events))continue;list.push({key:'g:'+g.slug,slug:g.slug,label:g.name,color:g.color,loss:true,value:v?.events||0,share:v?.share,hint:(g.description||g.name)+'. Доля от событий. Нажмите — коды группы.'});}
+  const list=[{key:'events',label:'События',value:d.events,share:100,hint:'Все события опроса за период, 100%.'}];
+  for(const g of result.lossGroups){const v=d.groups[g.slug];if(!(result.total.groups[g.slug]?.events))continue;list.push({key:'g:'+g.slug,slug:g.slug,label:g.name,color:g.color,loss:true,value:v?.events||0,share:v?.share,hint:(g.description||g.name)+'. Доля от событий. Нажмите, чтобы увидеть коды группы.'});}
   if((result.total.unexplained||0)>0)list.push({key:'unexplained',label:'Прочие статусы',loss:true,value:d.unexplained,share:d.unexplainedShare,hint:'Не отправлено, но статус не попал в группы отсечений (например, группа с ролью «не участвует»).'});
-  list.push({key:'sends',label:'Отправки',value:d.sends,share:d.sendShare,hint:'Дошло до клиента. Доля от событий.'},{key:'answers',label:'Ответы',value:d.answers,share:d.answerShare,hint:'Ответы на опрос. Доля от событий; отклик — от отправок.'});
+  list.push({key:'sends',label:'Отправки',value:d.sends,share:d.sendShare,hint:'Дошло до клиента. Доля от событий.'},{key:'answers',label:'Ответы',value:d.answers,share:d.answerShare,hint:'Ответы на опрос. Доля от событий, отклик считается от отправок.'});
   return list;
  }
  function draw(){
   const d=current();kpis.replaceChildren();
-  for(const [name,value,note] of [['События',compact(d.events),'100% · вершина воронки'],['Отправки',compact(d.sends),pct(d.sendShare)+' событий'],['Ответы',compact(d.answers),pct(d.answerShare)+' событий'],['Отклик',pct(d.response),'ответы / отправки']]){const k=el('div','funnel-kpi');k.append(el('span','',name),el('b','',value),el('small','',note));kpis.append(k);}
+  for(const [name,value,note] of [['События',compact(d.events),'100%'],['Отправки',compact(d.sends),pct(d.sendShare)+' событий'],['Ответы',compact(d.answers),pct(d.answerShare)+' событий'],['Отклик',pct(d.response),'ответы / отправки']]){const k=el('div','funnel-kpi');k.append(el('span','',name),el('b','',value),el('small','',note));kpis.append(k);}
   drawDiagram(d);drawDrill(d);drawDetails();
  }
  function drawDiagram(d){
@@ -80,7 +80,7 @@ function attach(host,data){
    root.append(g);
   });
   root.append(svg('text',{x:mid,y:H+8,'text-anchor':'middle',class:'funnel-response'},'Отклик: '+pct(d.response)+' = ответы '+compact(d.answers)+' / отправки '+compact(d.sends)));
-  const empty=result.lossGroups.filter(g=>!result.total.groups[g.slug]?.events).map(g=>g.name);diagram.append(root,el('p','funnel-hint','Нажмите на группу отсечений — ниже откроются её коды status_det, таблицы отсортируются по ней. Ширина — доля от событий.'+(empty.length?' Без событий за период: '+empty.join(', ')+'.':'')));
+  const empty=result.lossGroups.filter(g=>!result.total.groups[g.slug]?.events).map(g=>g.name);diagram.append(root,...(empty.length?[el('p','funnel-hint','Без событий за период: '+empty.join(', ')+'.')]:[]));
  }
  function drawDrill(d){
   drill.replaceChildren();const group=focus?.startsWith('g:')?result.lossGroups.find(g=>'g:'+g.slug===focus):null;if(!group||!result.drillDown)return;
@@ -107,7 +107,7 @@ function attach(host,data){
    const col=columns().find(c=>c.key===focus),value=r=>col?col.get(r)?.share??-1:focus==='sends'?r.sendShare??-1:focus==='answers'?r.answerShare??-1:r.events,sorted=[...result.surveys].sort((a,b)=>value(b)-value(a));
    const rows=()=>sorted.map(s=>({key:s.id,cells:['#'+s.id+' · '+s.name,...cells(s)]}));
    const sec2=el('div','funnel-section'),bar2=el('div','funnel-section-head');bar2.append(el('h4','','По опросам · сортировка: '+(col?.label||({sends:'отправки',answers:'ответы'})[focus]||'события')+(result.surveyCount>result.surveys.length?' · топ-'+result.surveys.length+' по событиям из '+result.surveyCount:'')),copyButton(()=>headers('Опрос'),rows));
-   sec2.append(bar2,el('p','funnel-hint','Весь выбранный период. Где отсечение выше, чем у остальных, — там и ищите причину.'),table(headers('Опрос'),rows()));details.append(sec2);
+   sec2.append(bar2,table(headers('Опрос'),rows()));details.append(sec2);
   }
   const method=el('details','funnel-method');method.append(el('summary','','Как рассчитано'),el('p','',result.method+' Версия справочника статусов: '+result.statusRevision+'.'));details.append(method);
  }

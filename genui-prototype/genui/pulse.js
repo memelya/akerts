@@ -41,7 +41,7 @@ function lineChart({series,marker,events=[],width=Math.max(320,Math.min(1100,(ch
  root.append(svg('rect',{x:pad.l,y:pad.t,width:w,height:h,class:'plot-bg'}));
  for(let i=0;i<=3;i++){const v=lo+(hi-lo)*i/3,y=Y(v);root.append(svg('line',{x1:pad.l,x2:width-pad.r,y1:y,y2:y,class:'grid'}));const t=svg('text',{x:pad.l-6,y:y+4,'text-anchor':'end',class:'axis'});t.textContent=format(v);root.append(t);}
  for(const d of [dates[0],dates[Math.floor(dates.length/2)],dates.at(-1)]){const t=svg('text',{x:X(d),y:height-6,'text-anchor':'middle',class:'axis'});t.textContent=dateLabel(d);root.append(t);}
- for(const ev of events){if(ev.date<dates[0]||ev.date>dates.at(-1))continue;const ex=X(ev.date);const line=svg('line',{x1:ex,x2:ex,y1:pad.t,y2:pad.t+h,class:'event'});const flag=svg('path',{d:`M${ex} ${pad.t}l8 4l-8 4z`,class:'event-flag'});const tip=svg('title');tip.textContent=dateLabel(ev.date)+' · '+ev.title+(onEvent?' — нажмите, чтобы увидеть, что сдвинулось после':'');flag.append(tip);root.append(line,flag);if(onEvent){const hit=svg('rect',{x:ex-7,y:pad.t-2,width:16,height:h+4,class:'event-hit',tabindex:'0',role:'button','aria-label':'Событие '+dateLabel(ev.date)+': '+ev.title});const t2=svg('title');t2.textContent=tip.textContent;hit.append(t2);const fire=()=>onEvent(ev);hit.addEventListener('click',fire);hit.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();fire();}});root.append(hit);}}
+ for(const ev of events){if(ev.date<dates[0]||ev.date>dates.at(-1))continue;const ex=X(ev.date);const line=svg('line',{x1:ex,x2:ex,y1:pad.t,y2:pad.t+h,class:'event'});const flag=svg('path',{d:`M${ex} ${pad.t}l8 4l-8 4z`,class:'event-flag'});const tip=svg('title');tip.textContent=dateLabel(ev.date)+' · '+ev.title+(onEvent?'. Нажмите, чтобы увидеть, что сдвинулось после':'');flag.append(tip);root.append(line,flag);if(onEvent){const hit=svg('rect',{x:ex-7,y:pad.t-2,width:16,height:h+4,class:'event-hit',tabindex:'0',role:'button','aria-label':'Событие '+dateLabel(ev.date)+': '+ev.title});const t2=svg('title');t2.textContent=tip.textContent;hit.append(t2);const fire=()=>onEvent(ev);hit.addEventListener('click',fire);hit.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();fire();}});root.append(hit);}}
  if(marker){const mx=X(marker);root.append(svg('line',{x1:mx,x2:mx,y1:pad.t,y2:pad.t+h,class:'marker'}));const t=svg('text',{x:mx+4,y:pad.t+10,class:'axis marker-label'});t.textContent='сдвиг '+dateLabel(marker);root.append(t);}
  series.forEach((s,si)=>{
   if(!s.points.length)return;const cls=s.cls||'c'+si%5;
@@ -54,10 +54,9 @@ function lineChart({series,marker,events=[],width=Math.max(320,Math.min(1100,(ch
    for(const p of chosen){const text=format(p[1]),tw=text.length*charW,px=X(p[0]),py=Y(p[1]);let placed=null;for(const dy of [-8,14,-20,26]){const x=Math.max(pad.l,Math.min(width-pad.r-tw,px-tw/2)),y=py+dy,box={x,y:y-10,w:tw,h:12};if(y<10||y>height-pad.b+2||boxes.some(o=>box.x<o.x+o.w+3&&box.x+box.w+3>o.x&&box.y<o.y+o.h+2&&box.y+box.h+2>o.y))continue;placed=box;break;}
     if(!placed)continue;boxes.push(placed);const t=svg('text',{x:placed.x,y:placed.y+10,class:'point-label '+(s.cls||'c'+si%5)});t.textContent=text;root.append(t);root.append(svg('circle',{cx:px,cy:py,r:2.5,class:'point-dot '+(s.cls||'c'+si%5)}));}});
  }
- if(onPoint)series.forEach((s,si)=>{if(s.pick===false)return;for(const p of s.points){const c=svg('circle',{cx:X(p[0]),cy:Y(p[1]),r:Math.max(4,Math.min(9,w/Math.max(s.points.length,1)/2)),class:'hit',tabindex:'0',role:'button','aria-label':(s.name?s.name+' · ':'')+dateLabel(p[0])+': '+format(p[1])+'. Объяснить точку'});const tip=svg('title');tip.textContent=(s.name?s.name+' · ':'')+dateLabel(p[0])+': '+format(p[1])+' — нажмите, чтобы объяснить';c.append(tip);const fire=()=>{root.querySelectorAll('.hit.is-picked').forEach(n=>n.classList.remove('is-picked'));c.classList.add('is-picked');onPoint(p[0],p[1],si,s);};c.addEventListener('click',fire);c.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();fire();}});root.append(c);}});
+ if(onPoint)series.forEach((s,si)=>{if(s.pick===false)return;for(const p of s.points){const c=svg('circle',{cx:X(p[0]),cy:Y(p[1]),r:Math.max(4,Math.min(9,w/Math.max(s.points.length,1)/2)),class:'hit',tabindex:'0',role:'button','aria-label':(s.name?s.name+' · ':'')+dateLabel(p[0])+': '+format(p[1])+'. Объяснить точку'});const tip=svg('title');tip.textContent=(s.name?s.name+' · ':'')+dateLabel(p[0])+': '+format(p[1])+'. Нажмите, чтобы объяснить';c.append(tip);const fire=()=>{root.querySelectorAll('.hit.is-picked').forEach(n=>n.classList.remove('is-picked'));c.classList.add('is-picked');onPoint(p[0],p[1],si,s);};c.addEventListener('click',fire);c.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();fire();}});root.append(c);}});
  host.append(root);
  const legend=el('div','pulse-legend');series.forEach((s,si)=>{if(s.name){const item=el('span','pulse-legend-item '+(s.cls||'c'+si%5));item.append(el('i'),document.createTextNode(s.name));legend.append(item);}});
- if(onPoint)legend.append(el('span','pulse-legend-hint','Нажмите на точку, чтобы получить объяснение'));
  if(legend.childElementCount)host.append(legend);
  return host;
 }
@@ -116,7 +115,7 @@ function create(main){
  const panels={brief:el('div','pulse-panel'),canvas:el('div','pulse-panel'),portfolio:el('div','pulse-panel'),compare:el('div','pulse-panel'),skills:el('div','pulse-panel'),effect:el('div','pulse-panel'),whatif:el('div','pulse-panel'),memory:el('div','pulse-panel'),meeting:el('div','pulse-panel')};
  const tabNames={brief:'Брифинг',canvas:'Холсты',portfolio:'Портфель групп',compare:'Сравнение',whatif:'Что если',skills:'Скилы',memory:'Память',meeting:'Встреча в один клик',effect:'Эффект'};
  for(const [key,name] of Object.entries(tabNames)){const t=button(name,()=>select(key),'pulse-tab');t.setAttribute('role','tab');t.dataset.tab=key;tabs.append(t);}
- const showButton=button('▶ Режим показа',()=>showMode(),'pulse-btn accent'),mailButton=button('Бриф письмом',e=>busy(e.target,status,async()=>{select('meeting');await renderMeetingForm();panels.meeting.querySelector('.pulse-btn.accent')?.click();status.textContent='Черновик собран — нажмите «Письмо (.eml)» или «Скачать PPTX».';}),'pulse-btn ghost'),demoReset=button('Сбросить демо',e=>{if(!confirm('Вернуть демо в исходное состояние? Заметки и резюме демо будут очищены.'))return;busy(e.target,status,async()=>{brief=await post({action:'demo-reset'});panels.compare.replaceChildren();panels.whatif.replaceChildren();panels.meeting.replaceChildren();renderBrief();status.textContent='Демо возвращено в исходное состояние.';});},'pulse-btn ghost'),demoBadge=el('span','pulse-tag warn','ДЕМО-ДАННЫЕ');demoReset.hidden=demoBadge.hidden=true;
+ const showButton=button('Режим показа',()=>showMode(),'pulse-btn accent'),mailButton=button('Бриф письмом',e=>busy(e.target,status,async()=>{select('meeting');await renderMeetingForm();panels.meeting.querySelector('.pulse-btn.accent')?.click();status.textContent='Черновик собран. Выгрузите его кнопкой «Письмо (.eml)» или «Скачать PPTX».';}),'pulse-btn ghost'),demoReset=button('Сбросить демо',e=>{if(!confirm('Вернуть демо в исходное состояние? Заметки и резюме демо будут очищены.'))return;busy(e.target,status,async()=>{brief=await post({action:'demo-reset'});panels.compare.replaceChildren();panels.whatif.replaceChildren();panels.meeting.replaceChildren();renderBrief();status.textContent='Демо возвращено в исходное состояние.';});},'pulse-btn ghost'),demoBadge=el('span','pulse-tag warn','ДЕМО-ДАННЫЕ');demoReset.hidden=demoBadge.hidden=true;
  const headText=el('div'),tools=el('div','pulse-row pulse-tools');headText.append(title,meta);tools.append(demoBadge,showButton,mailButton,refresh,demoReset);header.append(headText,tools);
  page.append(header,status,tabs,...Object.values(panels));
  function select(key){tab=key;for(const t of tabs.children){const on=t.dataset.tab===key;t.classList.toggle('active',on);t.setAttribute('aria-selected',String(on));}for(const [k,p] of Object.entries(panels))p.hidden=k!==key;
@@ -136,26 +135,26 @@ function create(main){
   const host=panels.brief;host.replaceChildren();
   if(!brief)return;
   const generated=new Date(brief.generatedAt);
-  meta.textContent=brief.empty?'Данных пока нет.':'Подготовлено '+generated.toLocaleString('ru-RU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+' · версия данных '+String(brief.revision).slice(0,8)+' · готовится автоматически при каждой новой загрузке CSV';
+  meta.textContent=brief.empty?'Данных пока нет.':'Подготовлено '+generated.toLocaleString('ru-RU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+' · версия данных '+String(brief.revision).slice(0,8)+'';
   demoBadge.hidden=demoReset.hidden=!brief.demo;showButton.hidden=mailButton.hidden=Boolean(brief.empty);
   if(brief.empty){host.append(onboarding());return;}
   clustersHost=shiftsHost=null;host.append(statusCard(),decisionsSection(),analystSection());
  }
  const ai=()=>Boolean(brief?.modelReady||brief?.demo);
- function trustLine(trust){return el('p','pulse-trust','Паспорт доверия: фактов в основе — '+trust.facts+' · ссылок на факты — '+trust.refs+' · чисел вне фактов — 0 (иначе ответ отклоняется целиком)'+(trust.rejected?' · отклонено ответов модели: '+trust.rejected:''));}
+ function trustLine(trust){return el('p','pulse-trust','Проверено по фактам: '+trust.facts+', чисел вне фактов нет'+(trust.rejected?'. Отклонено ответов модели: '+trust.rejected:''));}
  function narrativeCard(){
   const card=el('section','pulse-card pulse-narrative');const statusLine=el('p','pulse-status'),steps=el('div','pulse-steps-host');statusLine.setAttribute('role','status');
-  card.append(el('p','pulse-eyebrow','Резюме для руководителя'));
+  
   if(brief.narrative){
    card.append(el('h2','',brief.narrative.headline));const list=el('ul');
    const facts=new Map(brief.narrative.facts.map(f=>[f.ref,f]));
    for(const b of brief.narrative.bullets){const li=el('li','',b.text);const refs=el('span','pulse-refs');for(const r of b.refs){const f=facts.get(r);const chip=el('abbr','pulse-ref',r);if(f)chip.title=f.label+': '+(typeof f.value==='number'?fmt(f.value):f.value)+(f.unit?' '+f.unit:'')+(f.period?' · '+f.period:'');refs.append(chip);}li.append(refs);list.append(li);}
-   card.append(list,el('p','pulse-muted',(brief.narrative.source||'GigaCode CLI')+' · '+new Date(brief.narrative.generatedAt).toLocaleString('ru-RU')+' · наведите на ссылку F…, чтобы увидеть факт'));
+   card.append(list,el('p','pulse-muted',(brief.narrative.source||'GigaCode CLI')+' · '+new Date(brief.narrative.generatedAt).toLocaleString('ru-RU')+''));
    if(brief.narrative.trust)card.append(trustLine(brief.narrative.trust));
    card.append(verdictRow('Резюме брифинга · '+(brief.narrative.source||''),brief.narrative.canned));
   }else{
    card.append(el('h2','',headline()));
-   card.append(el('p','pulse-muted',ai()?'Резюме собрано правилами. GigaCode может сформулировать его для руководителя — числа будут проверены по фактам.':'Резюме собрано правилами. Подключите GigaCode CLI, чтобы получать формулировку модели.'));
+   card.append(el('p','pulse-muted',ai()?'Резюме собрано правилами. GigaCode может сформулировать его для руководителя, числа проверяются по фактам.':'Резюме собрано правилами. Подключите GigaCode CLI, чтобы получать формулировку модели.'));
   }
   const controls=el('div','pulse-row');
   if(ai())controls.append(button(brief.narrative?'Переформулировать':'Сформулировать через GigaCode',e=>busy(e.target,statusLine,async()=>{const n=await runJob({action:'narrate'},steps);brief.narrative=n;renderBrief();}),'pulse-btn accent'));
@@ -167,7 +166,7 @@ function create(main){
  function headline(){
   const down=brief.shifts.filter(s=>s.direction==='down').length,urgent=brief.signals.filter(s=>s.severity==='urgent').length;
   const parts=[];if(urgent)parts.push(urgent+' срочн. сигнал(ов)');if(brief.clusters.length)parts.push(brief.clusters.length+' групповых инцидента(ов)');if(down)parts.push(down+' устойчивых снижений');
-  return parts.length?'Сегодня в фокусе: '+parts.join(', ')+'.':'Существенных отклонений не найдено — показатели стабильны.';
+  return parts.length?'Сегодня в фокусе: '+parts.join(', ')+'.':'Существенных отклонений нет.';
  }
  function kpiRow(){
   const row=el('div','pulse-kpis');
@@ -196,7 +195,7 @@ function create(main){
  }
  function clusterCard(c){
   const card=el('article','pulse-card pulse-cluster');
-  card.append(el('span','pulse-tag '+(c.direction==='down'?'bad':''),c.channelLabel+' · '+dateLabel(c.from)+(c.to!==c.from?' — '+dateLabel(c.to):'')),el('h3','',c.title),el('p','pulse-muted',c.hint));
+  card.append(el('span','pulse-tag '+(c.direction==='down'?'bad':''),c.channelLabel+' · '+dateLabel(c.from)+(c.to!==c.from?'–'+dateLabel(c.to):'')),el('h3','',c.title),el('p','pulse-muted',c.hint));
   const list=el('ul','pulse-members');for(const m of c.members)list.append(el('li','','#'+m.id+' · '+m.name+' · '+change(m)+' с '+dateLabel(m.date)));card.append(list);
   card.append(el('p','pulse-muted','Продукты: '+c.products.map(([p,n])=>p+' ('+n+')').join(', ')));
   card.append(button('Записать общую причину',()=>openNote({channel:c.channel,metric:c.metric,direction:c.direction,date:c.from,title:c.title,products:c.products.map(p=>p[0])})));
@@ -224,7 +223,7 @@ function create(main){
   card.append(lineChart({series:[{points:s.series,cls:'primary',segments:[[first,s.lastBefore,s.before],[s.date,last,s.after]],zeroless:s.metric==='csi'}],marker:s.date,format:v=>s.metric==='csi'?cf.format(v):nf.format(v),label:s.label+' по дням, опрос '+s.id,height:150,
    events:eventsFor(s.channel,[s.id]),onEvent:ev=>{steps.replaceChildren();renderImpact(out,ev,line);},
    onPoint:date=>openPoint(out,steps,{channel:s.channel,id:s.id,metric:s.metric,date,key:s.key,title:'#'+s.id+' · '+s.label.toLowerCase()+' · '+dateLabel(date)},line)}));
-  if(s.memory?.length){const mem=el('div','pulse-memory');mem.append(el('b','','Похоже на прошлый случай'));for(const n of s.memory)mem.append(el('p','',n.title+' — '+n.cause+(n.action?' · помогло: '+n.action:'')+' ('+new Date(n.created).toLocaleDateString('ru-RU')+')'));card.append(mem);}
+  if(s.memory?.length){const mem=el('div','pulse-memory');mem.append(el('b','','Похоже на прошлый случай'));for(const n of s.memory)mem.append(el('p','',n.title+': '+n.cause+(n.action?' · помогло: '+n.action:'')+' ('+new Date(n.created).toLocaleDateString('ru-RU')+')'));card.append(mem);}
   const actions=el('div','pulse-row');
   actions.append(button('Похожие опросы',e=>busy(e.target,line,async()=>{steps.replaceChildren();renderSimilar(out,await post({action:'similar',channel:s.channel,id:s.id,metric:s.metric,date:s.date}));})));
   actions.append(button('Факты и проверки',e=>busy(e.target,line,async()=>{steps.replaceChildren();renderExplain(out,{...await post({action:'explain',channel:s.channel,id:s.id,metric:s.metric,useModel:false}),shiftRef:{channel:s.channel,id:s.id,metric:s.metric}});})));
@@ -236,7 +235,7 @@ function create(main){
  function renderSimilar(host,data){
   host.replaceChildren();const box=el('div','pulse-subcard');
   box.append(el('h4','','Похожие изменения: '+data.label.toLowerCase()+' вокруг '+dateLabel(data.date)),el('p','pulse-muted','Сравнено опросов: '+data.compared+' · '+data.window));
-  if(!data.matches.length){box.append(el('p','','Похожих изменений у других опросов нет — вероятна локальная причина этого опроса.'));host.append(box);return;}
+  if(!data.matches.length){box.append(el('p','','У других опросов похожих изменений нет, вероятна локальная причина.'));host.append(box);return;}
   box.append(el('p','','Такое же направление у '+data.total+' опросов. '+(data.total>=2?'Это похоже на общую причину.':'')));
   const table=el('table','pulse-table');const head=el('tr');for(const h of ['Опрос','До','После','Изменение'])head.append(el('th','',h));table.append(head);
   for(const m of data.matches.slice(0,12)){const r=el('tr');r.append(el('td','','#'+m.id+' · '+m.name),el('td','',fmt(m.before,data.metric)),el('td','',fmt(m.after,data.metric)),el('td','',change(m)));table.append(r);}
@@ -260,7 +259,7 @@ function create(main){
  /* --- первый запуск --- */
  function onboarding(){
   const box=el('section','pulse-card pulse-onboarding');
-  box.append(el('p','pulse-eyebrow','Первый запуск · 3 шага'),el('h2','','Подключим данные за минуту'));
+  box.append(el('h2','','Подключите данные'));
   const steps=el('ol','pulse-steps');
   const s1=el('li');s1.append(el('b','','Перетащите выгрузки CSV сюда'),el('p','pulse-muted','push-sms.csv, success-screen.csv и при желании products.csv. Заголовки проверяются сразу, файлы сохраняются в папку date.'));
   const drop=el('div','pulse-drop','Перетащите файлы или нажмите, чтобы выбрать');drop.tabIndex=0;drop.setAttribute('role','button');
@@ -272,7 +271,7 @@ function create(main){
   drop.addEventListener('drop',e=>{e.preventDefault();e.stopPropagation();drop.classList.remove('is-over');uploadFiles([...e.dataTransfer.files],log);});
   s1.append(drop,picker,log);
   const s2=el('li');s2.append(el('b','','Проверьте данные'),el('p','pulse-muted','После загрузки проект перечитает CSV и покажет качество данных.'));const check=el('a','pulse-link','Открыть «Данные» →');check.href='#admin-data';s2.append(check);
-  const s3=el('li');s3.append(el('b','','Подключите GigaCode (по желанию)'),el('p','pulse-muted','Без модели работают все расчёты. С моделью — резюме, объяснения и разбор вопросов. Запустите START_GIGACODE.cmd.'));const conn=el('a','pulse-link','Подключение →');conn.href='#admin-connection';s3.append(conn);
+  const s3=el('li');s3.append(el('b','','Подключите GigaCode (по желанию)'),el('p','pulse-muted','Без модели работают все расчёты. Модель добавляет резюме, объяснения и разбор вопросов. Запустите START_GIGACODE.cmd.'));const conn=el('a','pulse-link','Подключение →');conn.href='#admin-connection';s3.append(conn);
   steps.append(s1,s2,s3);box.append(steps);return box;
  }
 
@@ -280,7 +279,7 @@ function create(main){
  let whatifForm=null;
  async function renderWhatIf(){
   const host=panels.whatif;host.replaceChildren();const cat=await ensureCatalog();
-  host.append(el('h2','','Что если'),el('p','pulse-muted','Задайте вопрос словами или параметрами. Прогноз считается локально; модель только переводит вопрос в параметры.'));
+  host.append(el('h2','','Что если'),el('p','pulse-muted','Прогноз считает платформа, модель только разбирает вопрос.'));
   const ask=el('form','pulse-ask'),q=el('input');q.type='text';q.placeholder='Например: что если отклик по продукту Вклады упадёт до 3% и отправки −20%?';q.setAttribute('aria-label','Вопрос «что если»');
   const go=button('Разобрать вопрос');go.type='submit';ask.append(q,go);const askStatus=el('p','pulse-status');askStatus.setAttribute('role','status');
   const grid=el('div','pulse-form-grid');
@@ -304,7 +303,7 @@ function create(main){
  function renderScenario(host,d){
   host.replaceChildren();const card=el('div','pulse-card pulse-scenario');host.append(card);
   const scope=d.scope.id?'Опрос #'+d.scope.id:d.scope.product?'Продукт '+d.scope.product:'Все опросы канала';
-  card.append(el('p','pulse-eyebrow',scope+' · '+d.scope.channelLabel+' · '+d.month+' · данные по '+dateLabel(d.through)));
+  card.append(el('h3','',scope+' · '+d.scope.channelLabel+' · '+d.month));
   const sliders=el('div','pulse-sliders'),body=el('div','pulse-scenario-body'),base=d.baseline;
   const rate0=d.scenario.responseRate??base.responseRate??1,change0=base.sendsPerDay?(d.scenario.sendsPerDay/base.sendsPerDay-1)*100:0;
   const rate=slider(sliders,'Отклик',0.1,Math.max(10,Math.ceil((base.responseRate||rate0)*2.5)),0.1,Math.round(rate0*10)/10,v=>df.format(v)+'%');
@@ -329,15 +328,15 @@ function create(main){
    tile('Прогноз без изменений',nf.format(x.baseline.forecast),'текущий темп');
    if(x.plan&&x.remainingDays){tile('Нужно отправок в день',x.requiredSendsPerDay===null?'—':nf.format(x.requiredSendsPerDay),'при отклике сценария');tile('Нужный отклик',x.requiredResponseRate===null?'—':df.format(x.requiredResponseRate)+'%','при отправках сценария');}
    body.append(tiles,lineChart({series:[{name:'Факт, накопительно',points:x.series.actual,cls:'primary'},{name:'Прогноз сценария',points:x.series.projection,cls:'dashed'},{name:'План',points:x.series.plan,cls:'muted'}],label:'Накопленные ответы и прогноз',height:200}));
-   body.append(el('p','pulse-muted',x.method+(x.planSource?' · план: '+x.planSource:'')+' · ползунки пересчитывают прогноз мгновенно, без обращения к серверу'));
+   body.append(el('p','pulse-muted',x.method+(x.planSource?' · план: '+x.planSource:'')+''));
   }
   rate.addEventListener('input',()=>draw(recompute()));shift.addEventListener('input',()=>draw(recompute()));
-  card.append(el('p','pulse-muted','Двигайте ползунки — прогноз и вердикт по плану меняются сразу.'),sliders,body);draw(d);
+  card.append(sliders,body);draw(d);
  }
 
  /* --- память --- */
  async function renderMemory(){
-  const host=panels.memory;host.replaceChildren(el('h2','','Память расследований'),el('p','pulse-muted','Выводы прошлых разборов. При похожем сдвиге (тот же опрос, показатель, направление или продукт) пульс напомнит о них.'));
+  const host=panels.memory;host.replaceChildren(el('h2','','Память расследований'),el('p','pulse-muted','При похожем сдвиге пульс напомнит об этих выводах.'));
   const add=button('Добавить вывод',()=>openNote({}),'pulse-btn accent');host.append(add);
   const list=el('div','pulse-notes');host.append(list);
   try{const {notes}=await post({action:'notes'});if(!notes.length)list.append(el('p','pulse-empty','Записей пока нет. Нажмите «Записать вывод» на карточке сдвига.'));
@@ -361,7 +360,7 @@ function create(main){
  /* --- встреча --- */
  async function renderMeetingForm(){
   const host=panels.meeting;host.replaceChildren();const cat=await ensureCatalog();
-  host.append(el('h2','','Встреча в один клик'),el('p','pulse-muted','Черновик слайдов из групповых инцидентов, сдвигов и срочных сигналов. Заголовки и выводы можно править прямо на слайдах, затем выгрузить PPTX.'));
+  host.append(el('h2','','Встреча в один клик'),el('p','pulse-muted','Слайды из групповых инцидентов, сдвигов и срочных сигналов. Заголовки и выводы правятся прямо на слайдах.'));
   const row=el('div','pulse-form-grid'),product=field(row,'Продукт','select');product.add(new Option('Все продукты',''));for(const p of cat.products)product.add(new Option(p,p));
   const limit=field(row,'Тем, не больше','number',{min:'1',max:'10',value:'5'});
   const go=button('Собрать черновик',null,'pulse-btn accent'),line=el('p','pulse-status'),deck=el('div','pulse-deck');line.setAttribute('role','status');
@@ -394,10 +393,10 @@ function create(main){
    deck.append(slide);slides.push({source:s,slide,t,sub,ul,concl,chart});});
   const read=()=>slides.map(({source,t,sub,ul,concl})=>({...source,title:t.textContent.trim(),subtitle:sub.textContent.trim(),bullets:[...ul.children].map(li=>li.textContent.trim()).filter(Boolean),conclusion:concl.textContent.trim()}));
   template.onchange=accent.oninput=org.oninput=applyLook;
-  logo.onchange=()=>{const file=logo.files[0];if(!file)return;if(file.size>300*1024){line.textContent='Логотип больше 300 КБ — выберите файл меньше.';line.classList.add('is-error');return;}const reader=new FileReader();reader.onload=()=>{brand.logo=String(reader.result);line.textContent='Логотип добавлен.';line.classList.remove('is-error');applyLook();};reader.readAsDataURL(file);};
+  logo.onchange=()=>{const file=logo.files[0];if(!file)return;if(file.size>300*1024){line.textContent='Логотип больше 300 КБ. Выберите файл меньше.';line.classList.add('is-error');return;}const reader=new FileReader();reader.onload=()=>{brand.logo=String(reader.result);line.textContent='Логотип добавлен.';line.classList.remove('is-error');applyLook();};reader.readAsDataURL(file);};
   actions.append(button('Скачать PPTX',e=>busy(e.target,line,async()=>{await exportPptx(read(),data,brand);logExport('pptx');line.textContent='PPTX скачан: шаблон «'+TEMPLATES[brand.template].name+'».';}),'pulse-btn accent'),
-   button('Письмо (.eml)',e=>busy(e.target,line,async()=>{const images=[];for(const item of slides)images.push(item.chart?await svgToPng(item.chart.querySelector('svg'),'#ffffff'):null);const content=read();download('pulse-'+String(data.revision).slice(0,8)+'.eml',buildEml(content[0].title+' · '+content[0].subtitle,content,images,brand.accent),'message/rfc822');logExport('eml');line.textContent='Письмо скачано: откройте файл — это черновик в почтовой программе.';})),
-   button('Текст для мессенджера',e=>busy(e.target,line,async()=>{const text=read().map(s=>s.title+(s.subtitle?' — '+s.subtitle:'')+'\n'+s.bullets.map(b=>'• '+b).join('\n')+(s.conclusion?'\nВывод: '+s.conclusion:'')).join('\n\n');await navigator.clipboard.writeText(text);line.textContent='Текст скопирован в буфер обмена.';})),
+   button('Письмо (.eml)',e=>busy(e.target,line,async()=>{const images=[];for(const item of slides)images.push(item.chart?await svgToPng(item.chart.querySelector('svg'),'#ffffff'):null);const content=read();download('pulse-'+String(data.revision).slice(0,8)+'.eml',buildEml(content[0].title+' · '+content[0].subtitle,content,images,brand.accent),'message/rfc822');logExport('eml');line.textContent='Черновик письма скачан.';})),
+   button('Текст для мессенджера',e=>busy(e.target,line,async()=>{const text=read().map(s=>s.title+(s.subtitle?'. '+s.subtitle:'')+'\n'+s.bullets.map(b=>'• '+b).join('\n')+(s.conclusion?'\nВывод: '+s.conclusion:'')).join('\n\n');await navigator.clipboard.writeText(text);line.textContent='Текст скопирован в буфер обмена.';})),
    button('Печать / PDF',()=>printDeck(deck),'pulse-btn ghost'));
   applyLook();
  }
@@ -425,7 +424,7 @@ function create(main){
  const compareState={items:[],metric:'answers',days:60,index:false};
  async function renderCompare(){
   const host=panels.compare;host.replaceChildren();const cat=await ensureCatalog();
-  host.append(el('h2','','Сравнение'),el('p','pulse-muted','Добавьте до пяти опросов или продуктов. Линии накладываются на один график; нажмите на любую точку, чтобы получить объяснение.'));
+  host.append(el('h2','','Сравнение'),el('p','pulse-muted','До пяти опросов или продуктов на одном графике.'));
   const add=el('form','pulse-form-grid pulse-compare-add');
   const channel=field(add,'Канал','select');channel.add(new Option('Пуш + СМС','communication'));channel.add(new Option('Экран успеха','success_screen'));
   const survey=field(add,'Опрос (номер)','number',{min:'1',placeholder:'например, 1427'});
@@ -471,13 +470,13 @@ function create(main){
  function showMode(){
   if(!brief||brief.empty)return;closeShow();
   const slides=[];
-  slides.push(()=>{const s=el('div','show-body'),items=decisionProblems(),notes=new Map((brief.narrative?.items||[]).map(i=>[i.key,i.note]));s.append(el('p','pulse-eyebrow','Пульс дня · мой фокус · '+(brief.focus?.total||0)+' опросов'),el('h1','',brief.narrative?.status||headline()));const ul=el('ul','show-bullets');for(const p of items.slice(0,5)){const li=el('li');li.append(el('b','',p.title+': '),document.createTextNode(p.line));const n=notes.get(p.key)||p.hint;if(n)li.append(el('div','pulse-muted',n));ul.append(li);}if(items.length)s.append(ul);const bank=el('div','pulse-bank');for(const b of brief.bank||[])bank.append(el('span','pulse-bank-chip '+(b.alert?'bad':'ok'),b.label+(b.alert?': '+b.reasons.join(', '):': без существенных изменений')));s.append(bank);return s;});
+  slides.push(()=>{const s=el('div','show-body'),items=decisionProblems(),notes=new Map((brief.narrative?.items||[]).map(i=>[i.key,i.note]));s.append(el('h1','',brief.narrative?.status||headline()));const ul=el('ul','show-bullets');for(const p of items.slice(0,5)){const li=el('li');li.append(el('b','',p.title+': '),document.createTextNode(p.line));const n=notes.get(p.key)||p.hint;if(n)li.append(el('div','pulse-muted',n));ul.append(li);}if(items.length)s.append(ul);const bank=el('div','pulse-bank');for(const b of brief.bank||[])bank.append(el('span','pulse-bank-chip '+(b.alert?'bad':'ok'),b.label+(b.alert?': '+b.reasons.join(', '):': без существенных изменений')));s.append(bank);return s;});
   if(brief.changes&&(brief.changes.counts.added||brief.changes.counts.worse||brief.changes.counts.resolved))slides.push(()=>changesCard());
   for(const c of brief.clusters.slice(0,3))slides.push(()=>{const s=el('div','show-body');s.append(el('p','pulse-eyebrow','Групповой инцидент'),clusterCard(c));for(const m of c.members.slice(0,2)){const full=brief.shifts.find(x=>x.id===m.id&&x.metric===c.metric);if(full)s.append(shiftCard(full));}return s;});
   const inCluster=new Set(brief.clusters.flatMap(c=>c.members.map(m=>m.id+':'+c.metric)));
   for(const sft of brief.shifts.filter(x=>!inCluster.has(x.id+':'+x.metric)).slice(0,5))slides.push(()=>{const s=el('div','show-body');s.append(el('p','pulse-eyebrow',sft.direction==='down'?'Устойчивое снижение':'Устойчивый рост'),shiftCard(sft));return s;});
-  if(brief.signals.length)slides.push(()=>{const s=el('div','show-body');s.append(el('p','pulse-eyebrow','Сигналы недельного сравнения'),el('h1','','Что случилось на этой неделе'));for(const g of brief.signals.slice(0,6)){const card=el('article','pulse-card pulse-signal '+g.severity);card.append(el('span','pulse-tag '+(g.severity==='urgent'?'bad':''),g.severity==='urgent'?'Срочно':'Внимание'),el('h3','','#'+g.id+' · '+g.name),el('p','',g.reasons.join(' · ')));s.append(card);}return s;});
-  slides.push(()=>{const s=el('div','show-body');s.append(el('p','pulse-eyebrow','Что дальше'),el('h1','','От отклонения — к решению'));const row=el('div','pulse-row');row.append(button('Смоделировать «что если»',()=>{closeShow();select('whatif');},'pulse-btn accent'),button('Сравнить опросы и продукты',()=>{closeShow();select('compare');}),button('Собрать презентацию',()=>{closeShow();select('meeting');}));s.append(row);return s;});
+  if(brief.signals.length)slides.push(()=>{const s=el('div','show-body');s.append(el('h1','','Сигналы недели'));for(const g of brief.signals.slice(0,6)){const card=el('article','pulse-card pulse-signal '+g.severity);card.append(el('span','pulse-tag '+(g.severity==='urgent'?'bad':''),g.severity==='urgent'?'Срочно':'Внимание'),el('h3','','#'+g.id+' · '+g.name),el('p','',g.reasons.join(' · ')));s.append(card);}return s;});
+  slides.push(()=>{const s=el('div','show-body');s.append(el('h1','','Что дальше'));const row=el('div','pulse-row');row.append(button('Смоделировать «что если»',()=>{closeShow();select('whatif');},'pulse-btn accent'),button('Сравнить опросы и продукты',()=>{closeShow();select('compare');}),button('Собрать презентацию',()=>{closeShow();select('meeting');}));s.append(row);return s;});
   openShow(slides,'Режим показа',0);
  }
  function openShow(slides,label,start){
@@ -500,30 +499,30 @@ function create(main){
   const groups=[];
   for(const s of [...shifts].sort((a,b)=>a.date<b.date?-1:1)){const d=Date.parse(s.date);const g=groups.find(g=>g.metric===s.metric&&g.direction===s.direction&&g.channel===s.channel&&Math.abs(d-g.anchor)<=2*864e5);if(g)g.members.push(s);else groups.push({metric:s.metric,direction:s.direction,channel:s.channel,channelLabel:s.channelLabel,anchor:d,members:[s],label:s.label});}
   return groups.filter(g=>new Set(g.members.map(m=>m.id)).size>=2).map(g=>{const dates=g.members.map(m=>m.date).sort(),prod={};for(const m of g.members)for(const p of (m.products?.length?m.products:['без продукта']))prod[p]=(prod[p]||0)+1;
-   return {...g,from:dates[0],to:dates.at(-1),products:Object.entries(prod).sort((a,b)=>b[1]-a[1]),title:(g.direction==='down'?'Групповое снижение':'Групповой рост')+': '+g.label.toLowerCase()+' у '+g.members.length+' опросов',hint:'Одновременное изменение у нескольких опросов чаще указывает на общую причину (стоп-лист, загрузка, интеграция), чем на независимые инциденты. Это гипотеза для проверки.'};})
+   return {...g,from:dates[0],to:dates.at(-1),products:Object.entries(prod).sort((a,b)=>b[1]-a[1]),title:(g.direction==='down'?'Групповое снижение':'Групповой рост')+': '+g.label.toLowerCase()+' у '+g.members.length+' опросов',hint:'Вероятна общая причина: стоп-лист, загрузка или интеграция.'};})
    .sort((a,b)=>(a.direction!=='down')-(b.direction!=='down')||b.members.length-a.members.length);
  }
  function sensitivityBar(){
   const box=el('section','pulse-card pulse-sens'),cat=brief.candidates||[],products=[...new Set(cat.flatMap(s=>s.products||[]))].sort();
   const head=el('div','pulse-row'),count=el('b','pulse-sens-count'),saved=el('span','pulse-muted');head.append(el('span','pulse-eyebrow','Чувствительность сигналов'),count,saved);
-  const row=el('div','pulse-sens-row'),label1=el('span','pulse-muted','Мягче — больше сигналов'),label2=el('span','pulse-muted','Строже — только сильные');
+  const row=el('div','pulse-sens-row'),label1=el('span','pulse-muted','Больше сигналов'),label2=el('span','pulse-muted','Только сильные');
   const range=el('input');range.type='range';range.min='0.6';range.max='2';range.step='0.05';range.setAttribute('aria-label','Чувствительность сигналов');
   const scope=el('select');scope.setAttribute('aria-label','Для какого продукта');scope.add(new Option('Все продукты',''));for(const p of products)scope.add(new Option(p,p));
   row.append(label1,range,label2,scope);
   const actions=el('div','pulse-row'),line=el('p','pulse-status');line.setAttribute('role','status');
   const save=button('Сохранить',e=>busy(e.target,line,async()=>{await post({action:'settings',sensitivity:Number(range.value),product:scope.value});sensOverride=null;brief=await post({action:'brief'});renderBrief();status.textContent='Чувствительность сохранена'+(scope.value?' для продукта «'+scope.value+'»':' для всех продуктов')+'.';}),'pulse-btn accent');
   const reset=button('Сбросить',e=>busy(e.target,line,async()=>{await post({action:'settings',sensitivity:null,reset:true,product:scope.value});sensOverride=null;brief=await post({action:'brief'});renderBrief();}),'pulse-btn ghost');
-  actions.append(save,reset,el('span','pulse-muted','Порог «1,0» — исходные правила: от 25% (CSI — от 0,25 балла). Сдвиги ищутся заранее, ползунок только отбирает — без пересчёта.'));
+  actions.append(save,reset,el('span','pulse-muted','Порог 1,0: изменение от 25%, для CSI от 0,25 балла.'));
   function sync(){const level=Number(range.value);sensOverride={level,product:scope.value};const vis=visibleShifts();count.textContent='Сдвигов: '+vis.length+' из '+cat.length+' кандидатов · порог '+df.format(level);renderShiftSections(vis);}
-  function setFrom(){const v=scope.value?(levels()[scope.value]??levels()['']??1):(levels()['']??1);range.value=String(v);const own=Object.entries(levels()).filter(([k])=>k).map(([k,v])=>k+': '+df.format(v));saved.textContent='сохранено: все — '+df.format(levels()['']??1)+(own.length?' · '+own.join(' · '):'');sync();}
+  function setFrom(){const v=scope.value?(levels()[scope.value]??levels()['']??1):(levels()['']??1);range.value=String(v);const own=Object.entries(levels()).filter(([k])=>k).map(([k,v])=>k+': '+df.format(v));saved.textContent='сохранено для всех: '+df.format(levels()['']??1)+(own.length?' · '+own.join(' · '):'');sync();}
   range.addEventListener('input',sync);scope.addEventListener('change',setFrom);
   box.append(head,row,actions,line);setTimeout(setFrom,0);return box;
  }
  function renderShiftSections(vis){
   if(!shiftsHost)return;cardsByKey=new Map();
   const clusters=clientClusters(vis);clustersHost.replaceChildren();
-  if(clusters.length){clustersHost.append(el('h2','','Групповые инциденты · '+clusters.length),el('p','pulse-muted','Однотипные сдвиги у нескольких опросов в пределах двух дней. Вероятна общая причина — проверьте её один раз, а не по каждому опросу.'));for(const c of clusters)clustersHost.append(clusterCard(c));}
-  shiftsHost.replaceChildren(el('h2','','Сдвиги уровня за 8 недель · '+vis.length),el('p','pulse-muted','Устойчивая ступень в дневном ряду: минимум 7 дней до и после и подтверждение в последние 7 дней. Пропуски не считаются нулями. Флажки на графике — события календаря; нажмите, чтобы увидеть, что сдвинулось после них.'));
+  if(clusters.length){clustersHost.append(el('h2','','Групповые инциденты · '+clusters.length),el('p','pulse-muted','Однотипные сдвиги нескольких опросов в пределах двух дней.'));for(const c of clusters)clustersHost.append(clusterCard(c));}
+  shiftsHost.replaceChildren(el('h2','','Сдвиги уровня за 8 недель · '+vis.length),el('p','pulse-muted','Ступень в дневном ряду: не меньше 7 дней до и после, подтверждена последними 7 днями. Пропуски не считаются нулями.'));
   if(!vis.length)shiftsHost.append(el('p','pulse-empty','Устойчивых сдвигов при этом пороге нет.'));
   for(const s of vis){const card=shiftCard(s);cardsByKey.set(s.key,card);shiftsHost.append(card);}
  }
@@ -557,8 +556,8 @@ function create(main){
   const wrap=el('div','pulse-trust-demo'),line=el('p','pulse-status');line.setAttribute('role','status');
   const go=button('Проверить защиту: подставить выдуманное число',e=>busy(e.target,line,async()=>{
    const r=await post({action:'trust-demo',...ref});wrap.querySelector('.pulse-trust-result')?.remove();const box=el('div','pulse-trust-result');
-   for(const [label,item] of [['Ответ по фактам',r.honest],['Ответ с выдуманным числом',r.tampered]]){const ok=item.outcome==='accepted';const rowEl=el('div','pulse-trust-row '+(ok?'good':'bad'));rowEl.append(el('b','',(ok?'✓ Принят · ':'✕ Отклонён · ')+label),el('p','','«'+item.text+'»'));if(item.reason)rowEl.append(el('p','pulse-muted',item.reason));box.append(rowEl);}
-   box.append(el('p','pulse-muted','Так же проверяется каждый ответ GigaCode: любое число, которого нет среди фактов F…, отклоняет ответ целиком. Проверка записана в журнал эффекта.'));wrap.append(box);}),'pulse-btn ghost');
+   for(const [label,item] of [['Ответ по фактам',r.honest],['Ответ с выдуманным числом',r.tampered]]){const ok=item.outcome==='accepted';const rowEl=el('div','pulse-trust-row '+(ok?'good':'bad'));rowEl.append(el('b','',(ok?'Принят · ':'Отклонён · ')+label),el('p','','«'+item.text+'»'));if(item.reason)rowEl.append(el('p','pulse-muted',item.reason));box.append(rowEl);}
+   box.append(el('p','pulse-muted','Так же проверяется каждый ответ GigaCode: число, которого нет среди фактов, отклоняет ответ целиком.'));wrap.append(box);}),'pulse-btn ghost');
   wrap.append(go,line);return wrap;
  }
  /* --- галерея вопросов и скилы --- */
@@ -585,11 +584,11 @@ function create(main){
  }
  async function runSkill(skill){const q=await fillParams(skill.query);if(!q)return;post({action:'skill-run',skillId:skill.id||null,builtin:skill.id?null:skill.name}).catch(()=>{});if(skill.kind==='whatif'||/^что если/i.test(q))api().whatif(q);else askDialog(q);}
  async function saveSkill(preset={}){
-  paramDialog.replaceChildren();const form=el('form');form.method='dialog';form.append(el('h2','','Сохранить как скил'),el('p','pulse-muted','Скил — повторяемый запрос. Замените номер опроса или продукт на {опрос} или {продукт}, чтобы выбирать их при запуске.'));
+  paramDialog.replaceChildren();const form=el('form');form.method='dialog';form.append(el('h2','','Сохранить как скил'),el('p','pulse-muted','Замените номер опроса или продукт на {опрос} или {продукт}, чтобы выбирать их при запуске.'));
   const name=field(form,'Название','text',{maxlength:'120',required:''});name.value=preset.name||'';const query=field(form,'Запрос','textarea',{maxlength:'1200',rows:'3',required:''});query.value=preset.query||'';
   const role=field(form,'Для кого','select');for(const r of ['Все','Руководитель','Аналитик','Владелец опроса'])role.add(new Option(r,r));
   const line=el('p','pulse-status'),row=el('div','pulse-row'),ok=button('Сохранить',null,'pulse-btn accent');ok.type='submit';row.append(ok,button('Отмена',()=>paramDialog.close(),'pulse-btn ghost'));form.append(row,line);
-  form.onsubmit=e=>{e.preventDefault();busy(ok,line,async()=>{await post({action:'skill-save',name:name.value,query:query.value,role:role.value});paramDialog.close();skillsCache=null;if(tab==='skills')renderSkills();status.textContent='Скил «'+name.value+'» сохранён — он в «Скилах» и в Ctrl+K.';});};
+  form.onsubmit=e=>{e.preventDefault();busy(ok,line,async()=>{await post({action:'skill-save',name:name.value,query:query.value,role:role.value});paramDialog.close();skillsCache=null;if(tab==='skills')renderSkills();status.textContent='Скил «'+name.value+'» сохранён в «Скилах» и в Ctrl+K.';});};
   paramDialog.append(form);paramDialog.showModal();name.focus();
  }
  let skillsCache=null,skillRole='Все';
@@ -657,7 +656,7 @@ function create(main){
   const taken=new Set((canvasStore?.canvases||[]).map(c=>c.name));let name=t.name,n=2;while(taken.has(name))name=t.name+' '+n++;
   const blocks=t.blocks.map(b=>({...b,uid:newUid(),...(BINDABLE.has(b.kind)&&t.bindAll?{bind:true}:{})}));
   await saveCanvas({name,template:t.key,blocks,params:structuredClone(t.params||{})},true);canvasEdit=false;pendingBlock=null;pendingPlan=null;canvasFocus=null;
-  if(t.needsTarget||(blocks.some(b=>b.bind)&&!(t.params||{}).target&&t.key!=='morning'&&t.key!=='committee'))canvasFlash='Выберите опрос или продукт в параметрах холста — связанные блоки ⛓ посчитаются для него.';renderCanvas();
+  if(t.needsTarget||(blocks.some(b=>b.bind)&&!(t.params||{}).target&&t.key!=='morning'&&t.key!=='committee'))canvasFlash='Выберите опрос или продукт в параметрах холста. Связанные блоки ⛓ посчитаются для него.';renderCanvas();
  }
  async function openCanvas(id){canvasStore=await post({action:'canvas-open',id});pendingBlock=null;pendingPlan=null;canvasFocus=null;renderCanvas();}
  async function renderCanvas(){
@@ -665,7 +664,7 @@ function create(main){
   if(!canvasStore){try{canvasStore=await post({action:'canvas-list'});}catch(error){host.replaceChildren(el('p','pulse-status is-error',error.message));return;}
    if(!canvasStore.canvases.length){await createFromTemplate(canvasTemplates(cat)[0],true);return;}}
   if(!brief){host.replaceChildren(el('p','pulse-muted','Открываем брифинг…'));return;}
-  if(brief.empty){host.replaceChildren(el('h2','','Холсты'),el('p','pulse-empty','Загрузите выгрузки (перетащите CSV в окно) — блоки холстов посчитаются по ним.'));return;}
+  if(brief.empty){host.replaceChildren(el('h2','','Холсты'),el('p','pulse-empty','Перетащите CSV в окно, и блоки холстов посчитаются по ним.'));return;}
   const canvas=activeCanvas();host.replaceChildren();canvasSpecs=new Map();
   const layout=el('div','canvas-layout'),side=el('nav','canvas-side'),col=el('div','canvas-main');side.setAttribute('aria-label','Мои холсты');
   side.append(el('p','canvas-side-label','Мои холсты'));
@@ -682,18 +681,18 @@ function create(main){
   if(!canvas){col.append(el('p','pulse-empty','Выберите шаблон слева.'));return;}
   const head=el('div','canvas-head'),name=canvasEdit?el('input','canvas-name-input'):el('h2','canvas-name',canvas.name);
   if(canvasEdit){name.value=canvas.name;name.maxLength=80;name.setAttribute('aria-label','Название холста');name.onchange=()=>{if(name.value.trim()){canvas.name=name.value.trim();touch();}};}
-  const meta=el('span','pulse-tag',canvas.blocks.length+' '+plural(canvas.blocks.length,'блок','блока','блоков')+' · пересчитывается с каждой выгрузкой');
+  const meta=el('span','pulse-tag',canvas.blocks.length+' '+plural(canvas.blocks.length,'блок','блока','блоков')+'');
   const tools=el('div','pulse-row canvas-tools');
   tools.append(button(canvasEdit?'Готово':'Настроить',()=>{canvasEdit=!canvasEdit;renderCanvas();},'pulse-btn'+(canvasEdit?' accent':' ghost')));
   const exp=el('details','canvas-export'),sum=el('summary','pulse-btn ghost','Экспорт ▾'),menu=el('div','canvas-menu');menu.setAttribute('role','menu');exp.append(sum,menu);
   const item=(label,sub,run)=>{const b=button('',e=>{exp.open=false;busy(sum,canvasLine,run);},'canvas-menu-item');b.setAttribute('role','menuitem');b.append(el('span','',label),el('small','',sub));menu.append(b);};
   item('PPTX · фирменный шаблон','слайд на каждый блок, оформление из «Встречи»',()=>exportCanvasPptx(canvas));
   item('Письмо (.eml)','статус, блоки и картинки графиков',()=>exportCanvasEml(canvas));
-  item('PDF / печать','холст как есть, на бумагу к комитету',()=>printCanvas(canvas));
-  item('Файл холста для коллеги','только устройство холста, без данных: у коллеги блоки посчитаются по его выгрузке',()=>{download('canvas-'+new Date().toISOString().slice(0,10)+'.genui-canvas.json',JSON.stringify({format:'genui-canvas',version:1,name:canvas.name,template:canvas.template||null,params:canvas.params||{},blocks:canvas.blocks},null,1),'application/json');canvasLine.textContent='Файл холста скачан. Данных внутри нет — только блоки.';});
-  item('Сохранить как шаблон команды','блоки и параметры без данных; объект выбирается при создании',()=>templateDialog(canvas));
-  item('Файл шаблона для коллеги','шаблон можно добавить в «Шаблоны команды» на другом компьютере',()=>{download('template-'+new Date().toISOString().slice(0,10)+'.genui-template.json',JSON.stringify({format:'genui-canvas-template',version:1,name:canvas.name,params:{...(canvas.params||{}),target:undefined},blocks:canvas.blocks.map(({uid,question,...b})=>b)},null,1),'application/json');canvasLine.textContent='Файл шаблона скачан: в нём только устройство холста, без данных и без выбранного объекта.';});
-  tools.append(exp,button('▶ Показать',()=>canvasShow(canvas,0),'pulse-btn accent'));
+  item('PDF / печать','',()=>printCanvas(canvas));
+  item('Файл холста для коллеги','без данных: блоки посчитаются по выгрузке коллеги',()=>{download('canvas-'+new Date().toISOString().slice(0,10)+'.genui-canvas.json',JSON.stringify({format:'genui-canvas',version:1,name:canvas.name,template:canvas.template||null,params:canvas.params||{},blocks:canvas.blocks},null,1),'application/json');canvasLine.textContent='Файл холста скачан, данных в нём нет.';});
+  item('Сохранить как шаблон команды','без данных и без объекта',()=>templateDialog(canvas));
+  item('Файл шаблона для коллеги','',()=>{download('template-'+new Date().toISOString().slice(0,10)+'.genui-template.json',JSON.stringify({format:'genui-canvas-template',version:1,name:canvas.name,params:{...(canvas.params||{}),target:undefined},blocks:canvas.blocks.map(({uid,question,...b})=>b)},null,1),'application/json');canvasLine.textContent='Файл шаблона скачан.';});
+  tools.append(exp,button('Показать',()=>canvasShow(canvas,0),'pulse-btn accent'));
   if(canvasEdit)tools.append(button('Выровнять размеры',()=>{const span=typicalSpan(canvas,'chart');for(const x of canvas.blocks)if(!['status','note','problems','compare','portfolio'].includes(x.kind))x.span=span;canvasFlash='Графики и показатели выровнены: '+({3:'¼',4:'⅓',6:'½',8:'⅔',12:'вся'})[span]+' строки.';touch();renderCanvas();},'pulse-btn ghost'));
   if(canvasEdit)tools.append(button('Удалить холст',e=>{if(!confirm('Удалить холст «'+canvas.name+'»?'))return;busy(e.target,canvasLine,async()=>{canvasStore=await post({action:'canvas-delete',id:canvas.id});canvasEdit=false;if(!canvasStore.canvases.length)canvasStore=null;renderCanvas();});},'pulse-btn ghost'));
   head.append(name,meta,tools);
@@ -702,10 +701,10 @@ function create(main){
   canvasFlash='';
   col.append(head,paramsBar(canvas,cat),askBar(canvas),canvasLine);
   const preview=el('div','canvas-preview-host');col.append(preview);if(pendingPlan)drawPlan(preview,canvas);if(pendingBlock)drawPending(preview,canvas);
-  if(canvasEdit)col.append(el('p','pulse-muted','Перетащите блок: на левую половину другого блока — поставить перед ним; график на правую половину другого графика — сравнить на одном графике. Под заголовком блока — ← → и ширина. Удалить блок — 🗑 в углу (можно вернуть).'));
+  if(canvasEdit)col.append(el('p','pulse-muted','Перетащите блок на левую половину другого, чтобы поставить перед ним, или график на правую половину другого графика, чтобы сравнить их.'));
   const grid=el('div','canvas-grid'+(canvasEdit?' is-edit':''));col.append(grid);
   canvasResize?.disconnect();let gridWidth=0,resizeTimer=null;canvasResize=new ResizeObserver(([entry])=>{const w=Math.round(entry.contentRect.width);if(!gridWidth){gridWidth=w;return;}if(Math.abs(w-gridWidth)<40||tab!=='canvas')return;gridWidth=w;clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(!panels.canvas.querySelector('.canvas-note-edit:focus'))renderCanvas();},350);});canvasResize.observe(grid);
-  if(!canvas.blocks.length)grid.append(el('p','pulse-empty canvas-empty','Холст пуст. Спросите что-нибудь в строке выше — ответ станет первым блоком.'));
+  if(!canvas.blocks.length)grid.append(el('p','pulse-empty canvas-empty','Холст пуст. Задайте вопрос в строке выше, ответ станет первым блоком.'));
   canvas.blocks.forEach((b,i)=>grid.append(blockCard(canvas,b,i)));
  }
  function paramsBar(canvas,cat){
@@ -715,13 +714,13 @@ function create(main){
   for(const sv of cat.surveys){const label='#'+sv.id+' · '+sv.name+(sv.channel==='success_screen'?' · экран успеха':'');options.set(label,{channel:sv.channel,id:sv.id,product:null});}
   for(const label of options.keys())list.append(new Option(label));
   const labelOf=t=>{for(const [k,v] of options)if(sameTarget(v,t))return k;return t?targetLabel(t):'';};
-  const obj=el('input');obj.type='search';obj.setAttribute('list',listId);obj.placeholder='все опросы — введите номер, название или продукт';obj.setAttribute('aria-label','Объект холста: опрос или продукт');obj.value=labelOf(p.target);
-  obj.onchange=()=>{const v=obj.value.trim();if(!v){delete p.target;}else if(options.has(v)){p.target=options.get(v);}else{const n=Number(v.replace(/[#№\s]/g,''));const sv=Number.isInteger(n)&&cat.surveys.find(s=>s.id===n);const pr=cat.products.find(x=>x.toLowerCase()===v.toLowerCase());if(sv)p.target={channel:sv.channel,id:sv.id,product:null};else if(pr)p.target={channel:'communication',id:null,product:pr};else{canvasFlash='Не нашёл «'+v+'» — выберите опрос или продукт из подсказок.';renderCanvas();return;}}
-   canvasFocus=null;canvasFlash=p.target?'Объект холста: '+targetLabel(p.target)+'. Пересчитано блоков: '+bound+'.':'Объект холста сброшен — блоки показывают свои значения.';touch();renderCanvas();};
+  const obj=el('input');obj.type='search';obj.setAttribute('list',listId);obj.placeholder='Все опросы';obj.setAttribute('aria-label','Объект холста: опрос или продукт');obj.value=labelOf(p.target);
+  obj.onchange=()=>{const v=obj.value.trim();if(!v){delete p.target;}else if(options.has(v)){p.target=options.get(v);}else{const n=Number(v.replace(/[#№\s]/g,''));const sv=Number.isInteger(n)&&cat.surveys.find(s=>s.id===n);const pr=cat.products.find(x=>x.toLowerCase()===v.toLowerCase());if(sv)p.target={channel:sv.channel,id:sv.id,product:null};else if(pr)p.target={channel:'communication',id:null,product:pr};else{canvasFlash='Не нашёл «'+v+'». Выберите опрос или продукт из подсказок.';renderCanvas();return;}}
+   canvasFocus=null;canvasFlash=p.target?'Объект холста: '+targetLabel(p.target)+'. Пересчитано блоков: '+bound+'.':'Объект холста сброшен, блоки показывают свои значения.';touch();renderCanvas();};
   const period=el('select');period.setAttribute('aria-label','Период холста');period.add(new Option('период: как в блоках',''));for(const [d,t] of [[14,'14 дней'],[30,'30 дней'],[60,'60 дней'],[90,'90 дней'],[180,'полгода'],[365,'год']])period.add(new Option(t,String(d)));period.value=p.days?String(p.days):'';period.onchange=()=>{if(period.value)p.days=Number(period.value);else delete p.days;if(p.days>=180&&!p.grain)p.grain='week';touch();renderCanvas();};
   const grain=el('select');grain.setAttribute('aria-label','Группировка холста');grain.add(new Option('группировка: как в блоках',''));for(const [k,t] of [['day','по дням'],['week','по неделям'],['month','по месяцам']])grain.add(new Option(t,k));grain.value=p.grain||'';grain.onchange=()=>{if(grain.value)p.grain=grain.value;else delete p.grain;touch();renderCanvas();};
   const head=el('div','canvas-params-row');head.append(el('span','canvas-params-label','Параметры'),obj,list,period,grain);
-  const info=el('div','canvas-params-row');info.append(el('small','pulse-muted','⛓ связано блоков: '+bound+' из '+canvas.blocks.length+(bound?'':' — отметьте блоки «по параметрам холста» в «Настроить»')));
+  const info=el('div','canvas-params-row');info.append(el('small','pulse-muted','Связано блоков: '+bound+' из '+canvas.blocks.length));
   if(bound<canvas.blocks.filter(b=>BINDABLE.has(b.kind)).length)info.append(button('Связать все графики и показатели',()=>{for(const b of canvas.blocks)if(BINDABLE.has(b.kind))b.bind=true;canvasFlash='Все графики и показатели следуют за параметрами холста.';touch();renderCanvas();},'pulse-btn ghost small'));
   if(canvasFocus&&canvasFocus.canvasId===canvas.id){const chip=el('span','canvas-focus');chip.append(document.createTextNode('Фильтр: '+targetLabel(canvasFocus.target)+' '));chip.append(button('сделать параметром',()=>{p.target=canvasFocus.target;canvasFocus=null;canvasFlash='Фильтр сохранён как объект холста.';touch();renderCanvas();},'pulse-linkbtn'),button('×',()=>setCanvasFocus(null),'canvas-tbtn'));info.append(chip);}
   if(bound&&!p.target&&!canvasFocus&&canvas.template==='team')bar.classList.add('needs-target');
@@ -729,14 +728,14 @@ function create(main){
  }
  function drawPlan(host,canvas){
   const plan=pendingPlan,card=el('section','canvas-pending canvas-plan'),head=el('div','canvas-bh');
-  head.append(el('span','canvas-new','План холста · из вашей задачи'),el('span','pulse-tag',plan.source));card.append(head);
+  head.append(el('span','pulse-tag',plan.source));card.append(head);
   const name=el('input','canvas-name-input');name.value=plan.name;name.maxLength=80;name.setAttribute('aria-label','Название нового холста');card.append(name);
   card.append(el('p','pulse-muted','Задача: «'+plan.query+'»'));
   const pp=plan.params||{};card.append(el('p','pulse-muted','Параметры: '+(pp.target?targetLabel(pp.target):'объект не выбран')+(pp.days?' · '+pp.days+' дней':'')+(pp.grain?' · '+({day:'по дням',week:'по неделям',month:'по месяцам'})[pp.grain]:'')));
   for(const n of plan.notes||[])card.append(el('p','pulse-muted',n));
   const list=el('ol','canvas-plan-list'),fake={id:'plan',params:pp};
   plan.blocks.forEach((b,i)=>{const li=el('li'),l=el('label','pulse-check'),c=el('input');c.type='checkbox';c.checked=plan.keep[i];c.onchange=()=>{plan.keep[i]=c.checked;};const rb=resolveBlock(b,fake);l.append(c,document.createTextNode(' '+BLOCK_NAMES[b.kind]+(b.kind==='note'?' · '+(b.text||'').trim():blockTitle(rb)!==BLOCK_NAMES[b.kind]?' · '+blockTitle(rb).replace(BLOCK_NAMES[b.kind]+' · ',''):'')+(b.bind?' ⛓':'')));li.append(l);list.append(li);});
-  card.append(list,el('p','canvas-trust','✓ Модель (если подключена) выбрала только блоки и объекты из справочника. Все числа посчитает платформа по вашей выгрузке.'));
+  card.append(list,el('p','canvas-trust','Числа считает платформа по вашей выгрузке, модель выбирает только блоки.'));
   const actions=el('div','pulse-row'),chosen=()=>plan.blocks.filter((_,i)=>plan.keep[i]).map(b=>({...b,uid:newUid()}));
   actions.append(button('Создать холст',e=>busy(e.target,canvasLine,async()=>{const blocks=chosen();if(!blocks.length)throw new Error('Отметьте хотя бы один блок.');await saveCanvas({name:name.value.trim()||plan.name,template:'plan',blocks,params:structuredClone(pp)},true);pendingPlan=null;canvasFocus=null;canvasFlash='Холст «'+(name.value.trim()||plan.name)+'» собран: '+blocks.length+' '+plural(blocks.length,'блок','блока','блоков')+'.';renderCanvas();}),'pulse-btn accent'),
    button('Добавить на этот холст',()=>{const blocks=chosen();canvas.blocks.push(...blocks);if(pp.target&&!canvas.params?.target)canvas.params={...(canvas.params||{}),target:pp.target};pendingPlan=null;canvasFlash='Добавлено блоков: '+blocks.length+'.';touch();renderCanvas();},'pulse-btn'),
@@ -745,7 +744,7 @@ function create(main){
  }
  function templateDialog(canvas){
   const dialog=el('dialog','pulse-dialog'),form=el('form');form.method='dialog';dialog.append(form);document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove(),{once:true});
-  form.append(el('h2','','Сохранить как шаблон команды'),el('p','pulse-muted','В шаблон попадают блоки, их настройки и параметры холста — без данных. Коллеги увидят шаблон в «Шаблоны команды» этой папки проекта или получат его файлом.'));
+  form.append(el('h2','','Сохранить как шаблон команды'),el('p','pulse-muted','Шаблон хранит блоки и параметры холста, без данных.'));
   const name=field(form,'Название шаблона','text',{maxlength:'80',required:''});name.value=canvas.name;
   const description=field(form,'Описание','text',{maxlength:'300',placeholder:'для чего этот холст'});
   let author='';try{author=localStorage.getItem('pulse-author')||'';}catch{}const who=field(form,'Автор','text',{maxlength:'80'});who.value=author;
@@ -763,18 +762,18 @@ function create(main){
   for(const ex of examples.slice(0,5))chips.append(button(ex,()=>{input.value=ex;form.requestSubmit();},'canvas-chip'));
   chips.append(button('＋ заметка',()=>{canvas.blocks.push({kind:'note',span:6,text:'',uid:newUid()});canvasEdit=true;touch();renderCanvas();},'canvas-chip'));
   form.onsubmit=e=>{e.preventDefault();const q=input.value.trim();if(!q)return;busy(go,canvasLine,async()=>{const r=await post({action:'canvas-ask',query:q,useModel:true});pendingBlock={block:{...r.block,uid:r.block.uid||newUid()},source:r.source,notes:r.notes||[],understood:r.understood};input.value='';renderCanvas();});};
-  const plan=button('Собрать холст',()=>{const q=input.value.trim();if(!q){input.placeholder='Опишите задачу: «подготовь холст к комитету по кредитам: что просело за месяц и прогноз плана»';input.focus();return;}busy(plan,canvasLine,async()=>{const r=await post({action:'canvas-plan',query:q,useModel:true});pendingPlan={...r,blocks:r.blocks.map(b=>({...b,uid:newUid()})),keep:r.blocks.map(()=>true)};pendingBlock=null;input.value='';renderCanvas();});},'pulse-btn');plan.title='GigaCode (или локальный планировщик) соберёт холст из блоков под задачу; числа посчитает платформа';
+  const plan=button('Собрать холст',()=>{const q=input.value.trim();if(!q){input.placeholder='Опишите задачу: «подготовь холст к комитету по кредитам: что просело за месяц и прогноз плана»';input.focus();return;}busy(plan,canvasLine,async()=>{const r=await post({action:'canvas-plan',query:q,useModel:true});pendingPlan={...r,blocks:r.blocks.map(b=>({...b,uid:newUid()})),keep:r.blocks.map(()=>true)};pendingBlock=null;input.value='';renderCanvas();});},'pulse-btn');plan.title='Собрать холст из блоков под задачу';
   const row=el('div','canvas-ask-row');row.append(input,go,plan);form.append(row,chips);return form;
  }
  function drawPending(host,canvas){
   const {block,source,notes,understood}=pendingBlock,card=el('section','canvas-pending'),head=el('div','canvas-bh');
-  head.append(el('span','canvas-new','Новый блок · из вашего вопроса'),el('span','pulse-tag','ещё не закреплён'));
+  head.append(el('span','pulse-tag','Не закреплён'));
   card.append(head,el('h3','',blockTitle(block)));
-  if(block.question)card.append(el('p','pulse-muted','Вопрос: «'+block.question+'» · '+source+(understood?'':' · вопрос понят не полностью')));
+  if(block.question)card.append(el('p','pulse-muted','Вопрос: «'+block.question+'» · '+source+(understood?'':'. Вопрос понят не полностью')));
   for(const n of notes)card.append(el('p','pulse-muted',n));
   card.append(blockSettings(block,()=>renderCanvas()));
   const body=el('div','canvas-body');card.append(body);fillBlock(block,body);
-  card.append(el('p','canvas-trust','✓ Числа посчитаны платформой по вашей выгрузке. Модель могла выбрать только тип блока и объекты — чисел от модели 0.'));
+  card.append(el('p','canvas-trust','Числа посчитаны по вашей выгрузке. Модель выбрала только тип блока и объекты.'));
   const actions=el('div','pulse-row');
   actions.append(button('Закрепить на холсте',()=>{if(!['status','problems'].includes(block.kind))block.span=typicalSpan(canvas,block.kind);canvas.blocks.unshift(block);pendingBlock=null;touch();renderCanvas();},'pulse-btn accent'));
   const same=canvas.blocks.map((b,i)=>[b,i]).filter(([b])=>b.kind===block.kind||CHARTABLE.has(b.kind)&&CHARTABLE.has(block.kind));
@@ -800,7 +799,7 @@ function create(main){
  }
  function blockCard(canvas,b,i){
   const card=el('section','canvas-block span-'+(b.span||6)+' kind-'+b.kind);card.dataset.index=String(i);card.setAttribute('aria-label',blockTitle(b));
-  const head=el('div','canvas-bh');head.append(el('span','canvas-grip',canvasEdit?'⠿':''),el('span','canvas-kind',BLOCK_NAMES[b.kind]));
+  const head=el('div','canvas-bh');head.append(el('span','canvas-grip',canvasEdit?'⠿':''),el('span','canvas-kind',['note','status','problems','signals','shifts','portfolio','kpi','forecast'].includes(b.kind)&&blockTitle(resolveBlock(b,canvas))===BLOCK_NAMES[b.kind]?BLOCK_NAMES[b.kind]:''));
   const btns=el('div','canvas-bbtns');
   const tiny=(t,label,run)=>{const x=button(t,run,'canvas-tbtn');x.setAttribute('aria-label',label);x.title=label;btns.append(x);};
   tiny('▶','Показать с этого блока',()=>canvasShow(canvas,i));
@@ -841,11 +840,11 @@ function create(main){
   const spec={title:blockTitle(b),subtitle:'',bullets:[],kpis:[]};
   try{
    if(b.kind==='status'){const text=brief.narrative?.status||headline();body.append(el('p','canvas-status',text));const bank=el('div','pulse-bank');for(const x of brief.bank||[])bank.append(el('span','pulse-bank-chip '+(x.alert?'bad':'ok'),x.label+(x.alert?': '+x.reasons.join(', '):': без существенных изменений')));body.append(bank);spec.title=text;spec.bullets=(brief.bank||[]).map(x=>x.label+(x.alert?': '+x.reasons.join(', '):': без изменений'));return spec;}
-   if(b.kind==='problems'){const f=b._filter,items=decisionProblems().filter(p=>!f||(f.id?p.id===f.id&&p.channel===f.channel:(p.products||[]).includes(f.product))),notes=new Map((brief.narrative?.items||[]).map(i=>[i.key,i.note]));if(!items.length)body.append(el('p','pulse-empty',f?'По объекту «'+targetLabel(f)+'» проблем, требующих решения, нет.':'В фокусе всё стабильно.'));const shown=items.slice(0,big?4:(b.span||6)>=8?3:2);for(const p of shown){const card=problemCard(p,notes.get(p.key)||p.hint);if(!big&&!f){const fb=button('Фокус холста',()=>setCanvasFocus({channel:p.channel,id:p.id,product:null}),'pulse-btn ghost');fb.title='Отфильтровать связанные блоки холста по этому опросу';card.querySelector('.pulse-row')?.append(fb);}body.append(card);}if(items.length>shown.length)body.append(el('p','pulse-muted','Ещё '+(items.length-shown.length)+' — во вкладке «Брифинг».'));spec.title='Требует решения · '+items.length;spec.bullets=items.slice(0,5).map(p=>p.title+': '+p.line);return spec;}
+   if(b.kind==='problems'){const f=b._filter,items=decisionProblems().filter(p=>!f||(f.id?p.id===f.id&&p.channel===f.channel:(p.products||[]).includes(f.product))),notes=new Map((brief.narrative?.items||[]).map(i=>[i.key,i.note]));if(!items.length)body.append(el('p','pulse-empty',f?'По объекту «'+targetLabel(f)+'» проблем, требующих решения, нет.':'В фокусе всё стабильно.'));const shown=items.slice(0,big?4:(b.span||6)>=8?3:2);for(const p of shown){const card=problemCard(p,notes.get(p.key)||p.hint);if(!big&&!f){const fb=button('Фокус холста',()=>setCanvasFocus({channel:p.channel,id:p.id,product:null}),'pulse-btn ghost');fb.title='Отфильтровать связанные блоки холста по этому опросу';card.querySelector('.pulse-row')?.append(fb);}body.append(card);}if(items.length>shown.length)body.append(el('p','pulse-muted','Ещё '+(items.length-shown.length)+' во вкладке «Брифинг».'));spec.title='Требует решения · '+items.length;spec.bullets=items.slice(0,5).map(p=>p.title+': '+p.line);return spec;}
    if(b.kind==='kpi'){const k=(brief.kpis||[]).find(x=>x.channel===(b.channel||'communication')),m=b.metric||'answers';if(!k){body.append(el('b','pulse-tile-value','—'));return spec;}const a=k.baseline[m],v=k.current[m];body.append(el('b','pulse-tile-value',fmt(v,m)));const delta=m==='answers'||m==='sends'?pctChange(a,v):a===null||v===null?'нет базы':signed(v-a,m==='csi'?' балла':' п.п.');body.append(el('small','','к прошлой неделе: '+delta));spec.kpis=[[KPI_METRICS[m],fmt(v,m)],['к прошлой неделе',delta]];return spec;}
-   if(b.kind==='signals'){const f=b._filter,list=(brief.signals||[]).filter(s=>!f||(f.id?s.id===f.id:true));const ul=el('ul','pulse-tile-list');for(const s of list.slice(0,big?8:5))ul.append(el('li',s.severity==='urgent'?'bad':'','#'+s.id+' · '+s.name+' — '+s.reasons[0]));if(!list.length)ul.append(el('li','','Сигналов нет'));body.append(ul);spec.title='Сигналы недели · '+list.length;spec.bullets=list.slice(0,6).map(s=>'#'+s.id+' · '+s.name+' — '+s.reasons[0]);return spec;}
+   if(b.kind==='signals'){const f=b._filter,list=(brief.signals||[]).filter(s=>!f||(f.id?s.id===f.id:true));const ul=el('ul','pulse-tile-list');for(const s of list.slice(0,big?8:5))ul.append(el('li',s.severity==='urgent'?'bad':'','#'+s.id+' · '+s.name+': '+s.reasons[0]));if(!list.length)ul.append(el('li','','Сигналов нет'));body.append(ul);spec.title='Сигналы недели · '+list.length;spec.bullets=list.slice(0,6).map(s=>'#'+s.id+' · '+s.name+': '+s.reasons[0]);return spec;}
    if(b.kind==='shifts'){const vis=visibleShifts().filter(s=>(!b.product||(s.products||[]).includes(b.product))&&(!b.id||s.id===b.id));body.append(el('b','pulse-tile-value',String(vis.length)));const ul=el('ul','pulse-tile-list');for(const s of vis.slice(0,big?6:3))ul.append(el('li',s.direction==='down'?'bad':'good','#'+s.id+' · '+s.label.toLowerCase()+' '+change(s)+' с '+dateLabel(s.date)));body.append(ul);spec.bullets=vis.slice(0,6).map(s=>'#'+s.id+' · '+s.label.toLowerCase()+' '+change(s)+' с '+dateLabel(s.date));return spec;}
-   if(b.kind==='note'){body.append(el('p','canvas-note',b.text||'Пустая заметка — нажмите «Настроить», чтобы написать.'));spec.bullets=[b.text||''].filter(Boolean);return spec;}
+   if(b.kind==='note'){body.append(el('p','canvas-note',b.text||'Пустая заметка. Текст пишется в режиме «Настроить».'));spec.bullets=[b.text||''].filter(Boolean);return spec;}
    if(b.kind==='forecast'){const d=await post({action:'whatif',channel:b.channel||'communication',id:b.id??null,product:b.product??null});spec.subtitle=d.month;
     if(d.plan){const ok=d.scenario.forecast>=d.plan;body.append(el('b','pulse-tile-value '+(ok?'good':'bad'),df.format(d.completion)+'%'),el('small','',d.verdict+': '+nf.format(d.scenario.forecast)+' из '+nf.format(d.plan)+' · '+d.month));spec.kpis=[['Прогноз выполнения',df.format(d.completion)+'%'],['Ответов к концу месяца',nf.format(d.scenario.forecast)],['План',nf.format(d.plan)]];spec.conclusion=d.verdict;}
     else{body.append(el('b','pulse-tile-value',nf.format(d.scenario.forecast)),el('small','','ответов к концу месяца · план не задан'));spec.kpis=[['Ответов к концу месяца',nf.format(d.scenario.forecast)]];}
@@ -867,14 +866,14 @@ function create(main){
     if(data.items.length===1)body.append(el('small','','за период: '+(data.items[0].periodRelative!=null?signed(data.items[0].periodRelative):data.items[0].periodDelta!=null?signed(data.items[0].periodDelta):'—')));
     if(data.conclusion&&data.items.length>1)body.append(el('p','canvas-conclusion',data.conclusion));
     body.append(steps,pointOut);
-    spec.subtitle=data.label+' · '+dateLabel(data.from)+' — '+dateLabel(data.to)+(useIndex?' · индекс: первая неделя = 100':'');spec.series=data.items[0].series;spec.bullets=data.items.map(x=>x.label+': за период '+(x.periodRelative!=null?signed(x.periodRelative):x.periodDelta!=null?signed(x.periodDelta):'—'));spec.conclusion=data.conclusion||'';
+    spec.subtitle=data.label+' · '+dateLabel(data.from)+'–'+dateLabel(data.to)+(useIndex?' · индекс: первая неделя = 100':'');spec.series=data.items[0].series;spec.bullets=data.items.map(x=>x.label+': за период '+(x.periodRelative!=null?signed(x.periodRelative):x.periodDelta!=null?signed(x.periodDelta):'—'));spec.conclusion=data.conclusion||'';
     return spec;}
   }catch(error){body.append(el('p','pulse-status is-error',error.message));}
   return spec;
  }
  function canvasShow(canvas,start){
   if(!canvas.blocks.length)return;
-  const slides=canvas.blocks.map((b,i)=>()=>{const s=el('div','show-body canvas-show');s.append(el('p','pulse-eyebrow',canvas.name+' · '+(i+1)+' из '+canvas.blocks.length+' · '+BLOCK_NAMES[b.kind]));if(b.kind!=='status')s.append(el('h1','',b.kind==='note'?(b.text||'').split('\n')[0].slice(0,140):blockTitle(resolveBlock(b,canvas))));const body=el('div','canvas-body');s.append(body);if(b.kind==='note'){const rest=(b.text||'').split('\n').slice(1).join('\n');if(rest)body.append(el('p','canvas-note',rest));}else fillBlock(resolveBlock(b,canvas),body,true);return s;});
+  const slides=canvas.blocks.map((b,i)=>()=>{const s=el('div','show-body canvas-show');if(b.kind!=='status')s.append(el('h1','',b.kind==='note'?(b.text||'').split('\n')[0].slice(0,140):blockTitle(resolveBlock(b,canvas))));const body=el('div','canvas-body');s.append(body);if(b.kind==='note'){const rest=(b.text||'').split('\n').slice(1).join('\n');if(rest)body.append(el('p','canvas-note',rest));}else fillBlock(resolveBlock(b,canvas),body,true);return s;});
   openShow(slides,'Холст «'+canvas.name+'»',start);post({action:'journal-add',kind:'canvas-shown'}).catch(()=>{});
  }
  async function canvasSlides(canvas){
@@ -885,7 +884,7 @@ function create(main){
   return {slides,images};
  }
  async function exportCanvasPptx(canvas){const {slides}=await canvasSlides(canvas);await exportPptx(slides,{product:'canvas',revision:new Date().toISOString().slice(0,10).replace(/-/g,'')},brandSettings());post({action:'journal-add',kind:'canvas-exported',format:'pptx'}).catch(()=>{});canvasLine.textContent='PPTX скачан: '+slides.length+' '+plural(slides.length,'слайд','слайда','слайдов')+'.';}
- async function exportCanvasEml(canvas){const {slides,images}=await canvasSlides(canvas);download('canvas-'+new Date().toISOString().slice(0,10)+'.eml',buildEml(canvas.name,slides,images,brandSettings().accent),'message/rfc822');post({action:'journal-add',kind:'canvas-exported',format:'eml'}).catch(()=>{});canvasLine.textContent='Черновик письма скачан — откройте его в почте.';}
+ async function exportCanvasEml(canvas){const {slides,images}=await canvasSlides(canvas);download('canvas-'+new Date().toISOString().slice(0,10)+'.eml',buildEml(canvas.name,slides,images,brandSettings().accent),'message/rfc822');post({action:'journal-add',kind:'canvas-exported',format:'eml'}).catch(()=>{});canvasLine.textContent='Черновик письма скачан.';}
  function printCanvas(canvas){const grid=panels.canvas.querySelector('.canvas-grid');if(!grid)return;const w=window.open('','_blank');if(!w)throw new Error('Разрешите всплывающие окна для печати.');const css=[...document.querySelectorAll('link[rel=stylesheet]')].map(l=>'<link rel="stylesheet" href="'+l.href+'">').join('');const root=document.documentElement;w.document.write('<!doctype html><html lang="ru" data-theme="'+(root.dataset.theme||'dark')+'" style="'+root.style.cssText.replace(/"/g,'&quot;')+'"><head><meta charset="utf-8"><title>'+escapeHtml(canvas.name)+'</title>'+css+'</head><body class="pulse-print canvas-print"><h1>'+escapeHtml(canvas.name)+'</h1><div class="canvas-grid">'+grid.innerHTML+'</div></body></html>');w.document.close();setTimeout(()=>w.print(),500);}
  function importCanvas(){const picker=document.createElement('input');picker.type='file';picker.accept='.json,application/json';picker.onchange=async()=>{const file=picker.files[0];if(!file)return;try{const d=JSON.parse(await file.text());if(!['genui-canvas','genui-canvas-template'].includes(d.format)||!Array.isArray(d.blocks))throw new Error('Это не файл холста или шаблона GEN UI.');if(d.format==='genui-canvas-template'){await post({action:'canvas-template-save',template:{name:d.name,description:d.description||'',author:d.author||'',params:d.params||{},blocks:d.blocks}});teamTemplates=null;canvasFlash='Шаблон «'+d.name+'» добавлен в «Шаблоны команды».';renderCanvas();return;}await saveCanvas({name:String(d.name||'Холст коллеги').slice(0,80),template:d.template||'import',params:d.params||{},blocks:d.blocks.map(b=>({...b,uid:newUid()}))},true);pendingBlock=null;renderCanvas();}catch(error){alert(error.message);}};picker.click();}
  /* --- эффект «было → стало» --- */
@@ -893,8 +892,8 @@ function create(main){
   const host=panels.effect;host.replaceChildren(el('h2','','Эффект платформы: было → стало'));const line=el('p','pulse-status');line.setAttribute('role','status');
   let d;try{d=await post({action:'effect'});}catch(error){host.append(el('p','pulse-status is-error',error.message));return;}
   const b=d.baseline||{},rows=effectRows(d);
-  if(d.baselineDemo)host.append(el('p','pulse-tag warn','Пример базовых значений для демо — замените своими в форме ниже'));
-  host.append(el('p','pulse-muted','«Стало» считается по журналу этой папки'+(d.since?' с '+new Date(d.since).toLocaleString('ru-RU'):'')+'. «Было» — ваши базовые значения до платформы.'));
+  if(d.baselineDemo)host.append(el('p','pulse-tag warn','Базовые значения из демо. Замените их своими в форме ниже'));
+  host.append(el('p','pulse-muted','«Стало» считается по журналу этой папки'+(d.since?' с '+new Date(d.since).toLocaleString('ru-RU'):'')+'. «Было»: ваши значения до платформы.'));
   const grid=el('div','pulse-effect-grid');
   for(const r of rows){const card=el('article','pulse-card pulse-effect');card.append(el('span','pulse-muted',r.title));const pair=el('div','pulse-effect-pair');const was=el('div','was');was.append(el('small','','было'),el('b','',r.was));const now=el('div','now');now.append(el('small','','стало'),el('b','',r.now));pair.append(was,el('span','pulse-effect-arrow','→'),now);card.append(pair,el('p','pulse-muted',r.note));grid.append(card);}
   host.append(grid);
@@ -909,11 +908,11 @@ function create(main){
  function effectRows(d){
   const b=d.baseline||{},det=d.detection,cl=d.closure,mt=d.meeting,ai=d.ai;
   return [
-   {title:'Время до обнаружения отклонения',was:b.detectDays!=null?df.format(b.detectDays)+' дн.':'не задано',now:det.count?'в день загрузки':'—',note:det.count?'Найдено отклонений: '+det.count+(det.computeSeconds!=null?' · брифинг готов за '+df.format(Math.max(det.computeSeconds,0.1))+' с после загрузки':'')+(det.medianAgeDays!=null?' · найденные сдвиги к моменту сигнала длились в среднем (медиана) '+det.medianAgeDays+' дн.':''):'Загрузите данные — журнал начнёт считать.'},
-   {title:'От сигнала до записанной причины',was:b.closeDays!=null?df.format(b.closeDays)+' дн.':'не задано',now:cl.medianHours!=null?hours(cl.medianHours):'—',note:'Закрыто с выводом: '+cl.closed+' из '+(cl.closed+cl.open)+(cl.share!=null?' ('+df.format(cl.share)+'%)':'')+'. Вывод — запись в памяти расследований по тому же опросу.'},
+   {title:'Время до обнаружения отклонения',was:b.detectDays!=null?df.format(b.detectDays)+' дн.':'не задано',now:det.count?'в день загрузки':'—',note:det.count?'Найдено отклонений: '+det.count+(det.computeSeconds!=null?' · брифинг готов за '+df.format(Math.max(det.computeSeconds,0.1))+' с после загрузки':'')+(det.medianAgeDays!=null?' · найденные сдвиги к моменту сигнала длились в среднем (медиана) '+det.medianAgeDays+' дн.':''):'Загрузите данные, и журнал начнёт считать.'},
+   {title:'От сигнала до записанной причины',was:b.closeDays!=null?df.format(b.closeDays)+' дн.':'не задано',now:cl.medianHours!=null?hours(cl.medianHours):'—',note:'Закрыто с выводом: '+cl.closed+' из '+(cl.closed+cl.open)+(cl.share!=null?' ('+df.format(cl.share)+'%)':'')+'.'},
    {title:'Подготовка встречи',was:b.meetingHours!=null?df.format(b.meetingHours)+' ч':'не задано',now:mt.medianMinutes!=null?(mt.medianMinutes<1?'< 1 мин':df.format(mt.medianMinutes)+' мин'):'—',note:'Собрано черновиков: '+mt.built+' · выгружено: '+mt.exported+(d.savedMeetingHoursPerMonth!=null?' · экономия около '+df.format(d.savedMeetingHoursPerMonth)+' ч в месяц при '+df.format(b.meetingsPerMonth)+' встречах':'')},
    {title:'AI-разборы, принятые без правок',was:'нет разборов',now:ai.acceptedShare!=null?df.format(ai.acceptedShare)+'%':'—',note:'Оценок: '+ai.verdicts+' (принято '+ai.accepted+', исправить '+ai.edited+', отклонено '+ai.rejected+') · ответы модели: принято проверкой '+ai.checksAccepted+', отклонено '+ai.checksRejected+(ai.protectionTests?' · проверок защиты: '+ai.protectionTests:'')},
-   {title:'Ручные ежедневные проверки',was:b.checkHoursPerDay!=null?df.format(b.checkHoursPerDay)+' ч/день'+(b.people?' · '+df.format(b.people)+' чел.':''):'не задано',now:det.briefs?'автоматически':'—',note:'Брифингов подготовлено без участия людей: '+det.briefs+'. Брифинг пересчитывается сам при каждой новой выгрузке; люди работают с очередью сигналов, а не просматривают все опросы.'},
+   {title:'Ручные ежедневные проверки',was:b.checkHoursPerDay!=null?df.format(b.checkHoursPerDay)+' ч/день'+(b.people?' · '+df.format(b.people)+' чел.':''):'не задано',now:det.briefs?'автоматически':'—',note:'Брифингов подготовлено без участия людей: '+det.briefs+'.'},
   ];
  }
  function effectPptx(rows,d){
@@ -921,7 +920,7 @@ function create(main){
   const pptx=new window.PptxGenJS();pptx.layout='LAYOUT_WIDE';const slide=pptx.addSlide();slide.background={color:'FFFFFF'};
   slide.addShape(pptx.ShapeType.rect,{x:0,y:0,w:13.33,h:.12,fill:{color:accent},line:{color:accent}});
   slide.addText('Эффект платформы мониторинга опросов: было → стало',{x:.5,y:.35,w:12.3,h:.7,fontSize:26,bold:true,color:'1C1B19',fontFace:'Arial'});
-  slide.addText('По журналу пилота'+(d.since?' с '+new Date(d.since).toLocaleDateString('ru-RU'):'')+(d.baselineDemo?' · базовые значения — пример для демо':''),{x:.5,y:1.0,w:12.3,h:.4,fontSize:13,color:'716E67',fontFace:'Arial'});
+  slide.addText('По журналу пилота'+(d.since?' с '+new Date(d.since).toLocaleDateString('ru-RU'):'')+(d.baselineDemo?' · базовые значения из демо':''),{x:.5,y:1.0,w:12.3,h:.4,fontSize:13,color:'716E67',fontFace:'Arial'});
   const head=['Показатель','Было','Стало','Комментарий'].map(t=>({text:t,options:{bold:true,color:'FFFFFF',fill:{color:accent}}}));
   const body=rows.map(r=>[{text:r.title,options:{bold:true}},{text:r.was},{text:r.now,options:{bold:true,color:accent}},{text:r.note,options:{fontSize:10,color:'4A4843'}}]);
   slide.addTable([head,...body],{x:.5,y:1.6,w:12.3,colW:[3.0,1.8,2.0,5.5],fontSize:13,fontFace:'Arial',color:'1C1B19',border:{type:'solid',pt:.5,color:'DCD9D1'},valign:'middle',rowH:.75});
@@ -929,15 +928,15 @@ function create(main){
  }
  /* --- брифинг руководителя: мой фокус → группы → банк --- */
  function star(channel,id,on){
-  const b=button(on?'★':'☆',e=>{e.stopPropagation();busy(b,status,async()=>{const r=await post({action:'focus-toggle',channel,id});b.textContent=r.favorite?'★':'☆';b.setAttribute('aria-pressed',String(r.favorite));status.textContent=r.favorite?'Опрос #'+id+' добавлен в избранное — он теперь в вашем фокусе.':'Опрос #'+id+' убран из избранного.';brief=await post({action:'brief'});renderBrief();if(tab==='portfolio')renderPortfolio();});},'pulse-star');
-  b.setAttribute('aria-label',(on?'Убрать из избранного':'Добавить в избранное')+' опрос #'+id);b.setAttribute('aria-pressed',String(on));b.title=on?'В избранном — в вашем фокусе':'Добавить в избранное';return b;
+  const b=button(on?'★':'☆',e=>{e.stopPropagation();busy(b,status,async()=>{const r=await post({action:'focus-toggle',channel,id});b.textContent=r.favorite?'★':'☆';b.setAttribute('aria-pressed',String(r.favorite));status.textContent=r.favorite?'Опрос #'+id+' добавлен в избранное и в ваш фокус.':'Опрос #'+id+' убран из избранного.';brief=await post({action:'brief'});renderBrief();if(tab==='portfolio')renderPortfolio();});},'pulse-star');
+  b.setAttribute('aria-label',(on?'Убрать из избранного':'Добавить в избранное')+' опрос #'+id);b.setAttribute('aria-pressed',String(on));b.title=on?'В избранном и в фокусе':'Добавить в избранное';return b;
  }
  const decisionProblems=()=>(brief.problems||[]).filter(p=>p.inFocus&&!p.lowVolume&&p.kind!=='growth');
  function statusCard(){
   const card=el('section','pulse-card pulse-status-card'),line=el('p','pulse-status'),steps=el('div','pulse-steps-host');line.setAttribute('role','status');
   const focus=brief.focus||{total:0,top:0,favorites:0},items=decisionProblems();
   const status=brief.narrative?.status||(items.length?'В вашем фокусе требуют решения '+items.length+' '+plural(items.length,'опрос','опроса','опросов'):'В вашем фокусе проблем нет')+'.';
-  card.append(el('p','pulse-eyebrow','Мой фокус · '+focus.total+' '+plural(focus.total,'опрос','опроса','опросов')+' (топ '+focus.top+' + избранные '+focus.favorites+')'),el('h2','pulse-status-line',status));
+  card.append(el('h2','pulse-status-line',status),el('p','pulse-muted','Мой фокус: '+focus.total+' '+plural(focus.total,'опрос','опроса','опросов')));
   const bank=el('div','pulse-bank');
   for(const b of brief.bank||[]){const chip=el('span','pulse-bank-chip '+(b.alert?'bad':'ok'));chip.append(el('b','',b.label),document.createTextNode(b.alert?' · внимание: '+b.reasons.join(', '):' · без существенных изменений'),el('small','',' · 14 дней по '+dateLabel(b.through)));chip.title='Ответы '+(b.answersChange==null?'—':signed(b.answersChange))+', CSI '+(b.csiChange==null?'—':signed(b.csiChange,' балла'))+' к предыдущим 14 дням · опросов: '+b.surveys;bank.append(chip);}
   card.append(bank);
@@ -947,7 +946,7 @@ function create(main){
   box.onchange=()=>busy(box,line,async()=>{const s=await post({action:'settings',autoNarrate:box.checked});brief.settings=s;});auto.append(box,document.createTextNode(' Готовить AI-резюме заранее'));tools.append(auto);
   tools.append(button('Изменить фокус',()=>openFocus(),'pulse-btn ghost'));
   card.append(tools,line,steps);
-  if(brief.narrative){card.append(el('p','pulse-trust',(brief.narrative.source||'')+' · все числа подставлены платформой, модель пишет только слова — исказить число невозможно'+(brief.narrative.trust?.rejected?' · отклонено ответов модели: '+brief.narrative.trust.rejected:'')));card.append(verdictRow('Резюме брифинга · '+(brief.narrative.source||''),brief.narrative.canned));}
+  if(brief.narrative){card.append(el('p','pulse-trust',(brief.narrative.source||'')+''+(brief.narrative.trust?.rejected?' · отклонено ответов модели: '+brief.narrative.trust.rejected:'')));card.append(verdictRow('Резюме брифинга · '+(brief.narrative.source||''),brief.narrative.canned));}
   return card;
  }
  function problemCard(p,note){
@@ -966,7 +965,7 @@ function create(main){
   const sec=el('section','pulse-section'),items=decisionProblems(),notes=new Map((brief.narrative?.items||[]).map(i=>[i.key,i.note]));
   const order=brief.narrative?.items?.length?[...items].sort((a,b)=>{const ia=brief.narrative.items.findIndex(i=>i.key===a.key),ib=brief.narrative.items.findIndex(i=>i.key===b.key);return (ia<0?99:ia)-(ib<0?99:ib);}):items;
   sec.append(el('h2','','Требует решения'+(items.length?' · '+Math.min(items.length,5)+(items.length>5?' из '+items.length:''):'')));
-  if(!items.length){sec.append(el('p','pulse-empty','В вашем фокусе всё стабильно. Сигналы по остальным опросам — ниже, в блоке для аналитика.'));return sec;}
+  if(!items.length){sec.append(el('p','pulse-empty','В вашем фокусе всё стабильно. Сигналы по остальным опросам ниже, в блоке для аналитика.'));return sec;}
   for(const p of order.slice(0,5))sec.append(problemCard(p,notes.get(p.key)||p.hint));
   const rest=[...order.slice(5),...(brief.problems||[]).filter(p=>p.inFocus&&!p.lowVolume&&p.kind==='growth')];
   if(rest.length){const d=el('details','pulse-more');d.append(el('summary','','Ещё в фокусе: '+rest.length));for(const p of rest)d.append(problemCard(p,p.hint));sec.append(d);}
@@ -978,7 +977,7 @@ function create(main){
   const d=el('details','pulse-card pulse-analyst');d.append(el('summary','','Для аналитика: все сигналы и сдвиги · вне фокуса '+others.length+(others.some(p=>p.lowVolume)?' · из них малых опросов '+others.filter(p=>p.lowVolume).length:'')));
   const body=el('div','pulse-panel');d.append(body);let built=false;
   d.addEventListener('toggle',()=>{analystOpen=d.open;if(!d.open||built)return;built=true;
-   if(others.length){const list=el('section','pulse-section');list.append(el('h3','','Вне фокуса руководителя'),el('p','pulse-muted','Опросы не в топе и не в избранном, а также малые опросы (меньше '+(brief.focus?.minAnswers||5)+' ответов в день). Звёздочка добавляет опрос в фокус.'));for(const p of others.slice(0,30))list.append(problemCard(p,p.lowVolume?'Малый объём: в среднем '+df.format(p.avgAnswers||0)+' ответа в день — в фокус руководителя не выносится.':p.hint));body.append(list);}
+   if(others.length){const list=el('section','pulse-section');list.append(el('h3','','Вне фокуса руководителя'),el('p','pulse-muted','Опросы не в топе и не в избранном, а также малые опросы (меньше '+(brief.focus?.minAnswers||5)+' ответов в день). Звёздочка добавляет опрос в фокус.'));for(const p of others.slice(0,30))list.append(problemCard(p,p.lowVolume?'Малый объём: в среднем '+df.format(p.avgAnswers||0)+' ответа в день, в фокус руководителя не выносится.':p.hint));body.append(list);}
    body.append(el('h3','','Показатели каналов за неделю'),kpiRow(),changesCard(),sensitivityBar());
    clustersHost=el('section','pulse-section');shiftsHost=el('section','pulse-section');body.append(clustersHost,shiftsHost);renderShiftSections(visibleShifts());
    const signals=el('section','pulse-section');signals.append(el('h2','','Сигналы утреннего мониторинга · '+brief.signals.length));for(const s of brief.signals.slice(0,12)){const card=el('article','pulse-card pulse-signal '+s.severity);card.append(el('span','pulse-tag '+(s.severity==='urgent'?'bad':''),s.severity==='urgent'?'Срочно':'Внимание'),el('h3','','#'+s.id+' · '+s.name),el('p','',s.reasons.join(' · ')));signals.append(card);}body.append(signals);
@@ -1002,7 +1001,7 @@ function create(main){
  /* --- портфель групп --- */
  const portfolioState={channel:'communication',groupBy:'product',open:new Set()};
  async function renderPortfolio(){
-  const host=panels.portfolio;host.replaceChildren(el('h2','','Портфель групп'),el('p','pulse-muted','Опросы в крупных группах: где просели ответы, CSI или темп плана. Нажмите на группу, чтобы увидеть её опросы.'));
+  const host=panels.portfolio;host.replaceChildren(el('h2','','Портфель групп'),el('p','pulse-muted','Где просели ответы, CSI или темп плана.'));
   const controls=el('div','pulse-row');
   for(const [key,label] of [['communication','Пуш + СМС'],['success_screen','Экраны успеха']]){const b=button(label,()=>{portfolioState.channel=key;portfolioState.open.clear();renderPortfolio();},'pulse-btn'+(portfolioState.channel===key?' accent':' ghost'));b.setAttribute('aria-pressed',String(portfolioState.channel===key));controls.append(b);}
   const group=el('select');group.setAttribute('aria-label','Группировка');
@@ -1042,14 +1041,14 @@ async function readText(file){const buffer=await file.arrayBuffer();const bytes=
 async function uploadFiles(files,log){
  log.replaceChildren();let saved=0;
  for(const file of files){const row=el('p','pulse-upload-row','⏳ '+file.name);log.append(row);
-  try{if(file.size>150*1024*1024)throw new Error('файл больше 150 МБ — положите его в папку date вручную');const text=await readText(file);const name=guessName(file,text);if(!name)throw new Error('не удалось определить тип по имени и заголовку');
-   const result=await post({name,content:text},'/api/pulse/upload');row.textContent='✓ '+result.message;row.classList.add('good');saved++;}
-  catch(error){row.textContent='✕ '+file.name+': '+error.message;row.classList.add('bad');}
+  try{if(file.size>150*1024*1024)throw new Error('файл больше 150 МБ, положите его в папку date вручную');const text=await readText(file);const name=guessName(file,text);if(!name)throw new Error('не удалось определить тип по имени и заголовку');
+   const result=await post({name,content:text},'/api/pulse/upload');row.textContent=result.message;row.classList.add('good');saved++;}
+  catch(error){row.textContent=file.name+': '+error.message;row.classList.add('bad');}
  }
  if(saved){const done=el('p','pulse-upload-row','Перечитываем данные…');log.append(done);try{const r=await fetch('/api/genui/status');const s=await r.json();done.textContent=s.data?.error?'CSV сохранены, но не применены: '+s.data.error:'Данные обновлены: опросов '+(s.data?.surveys??0)+'. Брифинг готовится.';document.getElementById('refreshData')?.click();window.dispatchEvent(new CustomEvent('pulse:data'));}catch{done.textContent='CSV сохранены. Нажмите «Проверить данные».';}}
 }
 function globalDrop(){
- const overlay=el('div','pulse-drop-overlay','Отпустите CSV — сохраним в папку date и проверим заголовки');overlay.hidden=true;document.body.append(overlay);
+ const overlay=el('div','pulse-drop-overlay','Отпустите CSV, чтобы сохранить в папку date');overlay.hidden=true;document.body.append(overlay);
  const toast=el('div','pulse-toast');toast.hidden=true;toast.setAttribute('role','status');document.body.append(toast);let depth=0;
  const isFiles=e=>[...(e.dataTransfer?.types||[])].includes('Files');
  window.addEventListener('dragenter',e=>{if(!isFiles(e))return;depth++;overlay.hidden=false;});
@@ -1077,7 +1076,7 @@ function compactNav(){
 function palette(api){
  const box=el('dialog','pulse-palette');box.setAttribute('aria-label','Поиск и команды');
  const input=el('input');input.type='search';input.placeholder='Раздел, опрос, продукт или вопрос к данным…';input.setAttribute('aria-label','Поиск и команды');input.setAttribute('role','combobox');input.setAttribute('aria-controls','pulsePaletteList');input.setAttribute('aria-expanded','true');
- const listbox=el('div','pulse-palette-list');listbox.id='pulsePaletteList';listbox.setAttribute('role','listbox');const hint=el('p','pulse-muted','↑↓ — выбор · Enter — открыть · Esc — закрыть');
+ const listbox=el('div','pulse-palette-list');listbox.id='pulsePaletteList';listbox.setAttribute('role','listbox');const hint=el('p','pulse-muted','↑↓ выбор · Enter открыть · Esc закрыть');
  box.append(input,listbox,hint);document.body.append(box);
  let items=[],active=0,catalog=null,modelReady=false,skills=[],canvases=[];
  const norm=s=>s.toLowerCase().replace(/ё/g,'е');
@@ -1135,7 +1134,7 @@ function palette(api){
 function composerSkill(ui){
  const form=document.getElementById('queryForm'),input=document.getElementById('query');if(!form||!input)return;let last='';
  form.addEventListener('submit',()=>{if(input.value.trim())last=input.value.trim();},true);
- const bottom=form.querySelector('.composer-bottom')||form;const b=el('button','pulse-btn ghost pulse-save-skill','☆ В скилы');b.title='Сохранить запрос как скил';b.type='button';
+ const bottom=form.querySelector('.composer-bottom')||form;const b=el('button','pulse-btn ghost pulse-save-skill','В скилы');b.title='Сохранить запрос как скил';b.type='button';
  b.onclick=()=>{const q=input.value.trim()||last;if(!q){input.focus();return;}ui.saveSkill(q);};bottom.prepend(b);
 }
 /* ---------- крупные числа помещаются в плитку ---------- */

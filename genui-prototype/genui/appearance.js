@@ -32,7 +32,7 @@ function build(){
   const custom=el('label','appearance-custom','Свой цвет ');const input=el('input');input.type='color';input.value=current;input.oninput=()=>{state.accent=input.value;apply();};input.onchange=draw;custom.append(input);accents.append(custom);
   for(const [key,name] of Object.entries(BACKS)){const b=el('button','appearance-choice',name);b.type='button';b.setAttribute('aria-pressed',String(state.chart===key));b.onclick=()=>{state.chart=key;apply();draw();};backs.append(b);}
  }
- const note=el('p','pulse-muted','Изменения применяются сразу ко всем разделам и сохраняются в этом браузере. Презентация выгружается в выбранном шаблоне отдельно — на вкладке «Встреча в один клик».');
+ const note=el('p','pulse-muted','Настройки сохраняются в этом браузере и действуют во всех разделах.');
  const reset=el('button','pulse-btn ghost','Вернуть исходное оформление');reset.type='button';reset.onclick=()=>{state={theme:'dark',accent:'',chart:'none'};apply();draw();};
  panel.append(head,body,note,reset);document.body.append(panel);panel.addEventListener('click',e=>{if(e.target===panel)panel.close();});draw();
 }

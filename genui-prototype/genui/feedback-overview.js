@@ -40,7 +40,7 @@ function snapshot(host,s){
  host.append(el('p','Изменение числа ответов: '+difference,'feedback-delta'));
  if(s.factors){
   const leading=leadingDecline(s);
-  if(leading)host.append(el('p','Наибольший отрицательный вклад — '+leading[1].toLocaleLowerCase('ru-RU')+' ('+signed.format(s.factors[leading[0]])+').'));
+  if(leading)host.append(el('p','Наибольший отрицательный вклад: '+leading[1].toLocaleLowerCase('ru-RU')+' ('+signed.format(s.factors[leading[0]])+').'));
   host.append(table(['Фактор','База','Текущее окно','Вклад в ответы'],factors.map(([key,label])=>[
    label,amount(key,s.baseline[key]),amount(key,s.current[key]),signed.format(s.factors[key]),
   ])));
@@ -269,7 +269,7 @@ function renderAnswerChange(host,result,retry,onSaved=()=>{}){
  const comparison=span(scope.windows.current)+' к '+span(scope.windows.previous);
  const details=el('details',undefined,'feedback-breakdown');
  details.append(el('summary','Периоды, полнота и расчёт'),el('p',comparison),
-  el('p','Сопоставимых пар «опрос × день»: '+scope.pairCount+' из '+scope.surveyCount*7+'. Опросов в сравнении: '+scope.comparedSurveys+' из '+scope.surveyCount+'. Последняя дневная дата CSV в отборе — '+date(scope.latest||scope.through)+'.'));
+  el('p','Сопоставимых пар «опрос × день»: '+scope.pairCount+' из '+scope.surveyCount*7+'. Опросов в сравнении: '+scope.comparedSurveys+' из '+scope.surveyCount+'. Последняя дневная дата CSV в отборе: '+date(scope.latest||scope.through)+'.'));
  for(const [key,label] of [['previous','База'],['current','Текущее окно']]){
   const item=scope.comparisonCoverage[key];
   details.append(el('p',label+' · пропуски по парам «опрос × день»: '+item.missingSurveyDays+' · даты: '+(item.missing.map(date).join(', ')||'нет')+
@@ -294,7 +294,7 @@ function renderAnswerChange(host,result,retry,onSaved=()=>{}){
  host.append(el('p',headline+' '+whole.format(draft.baseline)+' → '+whole.format(draft.current)+' ответов.','feedback-delta'),el('p',comparison,'overview-source'));
  if(delta<0&&factor){
   const [key,label]=factor;
-  host.append(el('p','Наибольший вклад в снижение — '+label.toLocaleLowerCase('ru-RU')+' ('+amount(key,scope.baseline[key])+' → '+amount(key,scope.current[key])+').'));
+  host.append(el('p','Наибольший вклад в снижение: '+label.toLocaleLowerCase('ru-RU')+' ('+amount(key,scope.baseline[key])+' → '+amount(key,scope.current[key])+').'));
  }else if(delta<0&&!scope.factors)host.append(el('p','Для разложения снижения недостаточно данных о событиях или отправках.'));
  if(scope.pairCount<scope.surveyCount*7)host.append(el('p','Вывод по '+scope.comparedSurveys+' из '+scope.surveyCount+
   ' опросов. Известных ответов базы вне сравнения: '+whole.format(scope.comparisonCoverage.previous.excludedAnswers)+'.'));

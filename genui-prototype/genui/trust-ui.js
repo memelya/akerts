@@ -11,7 +11,7 @@ function report(host,value){
  if(value.from)host.append(node('p','Период источников: '+value.from+' — '+value.to));
  if(value.withoutProduct!==undefined)host.append(node('p','Опросов без продукта: '+value.withoutProduct));
  for(const issue of value.issues||[])host.append(node('p',issue,'trust-warning'));
- if(value.gaps?.length){const details=node('details');details.append(node('summary','Дни без строк внутри интервала · '+value.gapCount));for(const gap of value.gaps)details.append(node('p',`#${gap.id} · ${gap.channel==='communication'?'Пуш+СМС':'Экран успеха'} · ${gap.from} — ${gap.to} · ${gap.unobservedDays} дн.`));host.append(details);}
+ if(value.gaps?.length){const details=node('details');details.append(node('summary','Дни без строк внутри интервала · '+value.gapCount));for(const gap of value.gaps)details.append(node('p',`#${gap.id} · ${gap.channel==='communication'?'Пуш+СМС':'Экран успеха'} · ${gap.from}–${gap.to} · ${gap.unobservedDays} дн.`));host.append(details);}
 }
 function definition(host,item){host.append(node('h3',item.label+' · '+item.unit),node('p','Пуш+СМС: '+(item.communication||'Неприменимо')),node('p','Экран успеха: '+(item.success_screen||'Неприменимо')),node('p',item.note));}
 window.TrustUI={post,create({main,diagnostics,onChange}){

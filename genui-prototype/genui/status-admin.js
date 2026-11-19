@@ -44,7 +44,7 @@ function create(host){
 
  /* --- каркас --- */
  const head=el('div','sa-head'),title=el('div'),roleBadge=el('span','sa-role');
- title.append(el('h2','','Статусы status_det'),el('p','sa-muted','Группы и коды статусов: как они называются, в каком порядке и с каким цветом показываются в легендах, фильтрах и воронке. Числа считает платформа по выгрузке — справочник меняет только группировку и подписи.'));
+ title.append(el('h2','','Статусы status_det'),el('p','sa-muted','Справочник меняет группировку и подписи статусов, числа считаются по выгрузке.'));
  const tools=el('div','sa-tools');head.append(title,tools);
  const layout=el('div','sa-layout'),groupsCol=el('section','sa-groups'),codesCol=el('section','sa-codes'),side=el('aside','sa-side');
  groupsCol.setAttribute('aria-label','Группы статусов');codesCol.setAttribute('aria-label','Коды выбранной группы');side.setAttribute('aria-label','Превью и данные');
@@ -53,8 +53,8 @@ function create(host){
  function render(){
   tools.replaceChildren(roleBadge);roleBadge.textContent='Роль: '+(ROLE_NAMES[state.role]||state.role);roleBadge.title='Роль задаётся на компьютере с сервером: .local-data/access.json → {"statusAdmin":"admin|analyst|viewer"}';
   const exp=el('details','sa-menu'),sum=el('summary','sa-btn','Экспорт ▾'),menu=el('div','sa-menu-list');exp.append(sum,menu);
-  menu.append(button('JSON — вся конфигурация',async()=>{exp.open=false;const d=await guarded(()=>api('GET','/api/status-config/export?format=json'));download('status-directory-'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify(d,null,1),'application/json');},'sa-menu-item'),
-   button('CSV — коды для Excel',async()=>{exp.open=false;const d=await guarded(()=>api('GET','/api/status-config/export?format=csv'));download('status-directory-'+new Date().toISOString().slice(0,10)+'.csv',d,'text/csv');},'sa-menu-item'));
+  menu.append(button('JSON: вся конфигурация',async()=>{exp.open=false;const d=await guarded(()=>api('GET','/api/status-config/export?format=json'));download('status-directory-'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify(d,null,1),'application/json');},'sa-menu-item'),
+   button('CSV: коды для Excel',async()=>{exp.open=false;const d=await guarded(()=>api('GET','/api/status-config/export?format=csv'));download('status-directory-'+new Date().toISOString().slice(0,10)+'.csv',d,'text/csv');},'sa-menu-item'));
   tools.append(exp);
   if(canWrite())tools.append(button('Импорт…',()=>importDialog()),button('Отображение в дашбордах',()=>settingsDialog()));
   if(state.error){groupsCol.replaceChildren();codesCol.replaceChildren(el('div','sa-error','Не удалось открыть справочник: '+state.error.message),button('Повторить',()=>load()));side.replaceChildren();return;}
@@ -86,7 +86,7 @@ function create(host){
   });
   groupsCol.append(list);
   if(canWrite())groupsCol.append(button('＋ Добавить группу',()=>groupDialog(),'sa-btn accent wide'));
-  groupsCol.append(el('p','sa-muted small',canWrite()?'Перетащите группы, чтобы задать порядок легенды. Код можно перетащить из таблицы на группу — он перенесётся.':'Только просмотр: изменять справочник может роль admin.'));
+  groupsCol.append(el('p','sa-muted small',canWrite()?'Перетащите группу, чтобы изменить порядок, или код из таблицы на группу, чтобы перенести его.':'Только просмотр: изменять справочник может роль admin.'));
  }
  function moveGroup(i,d){const ids=state.groups.map(g=>g.id),j=i+d;if(j<0||j>=ids.length)return;[ids[i],ids[j]]=[ids[j],ids[i]];reorderGroups(ids);}
  async function reorderGroups(ids){const previous=state.groups;state.groups=ids.map(id=>previous.find(g=>g.id===id));renderGroups();renderPreview();try{await guarded(()=>api('PATCH','/api/status-groups/reorder',{ids}),'Порядок групп сохранён.');await load();}catch{state.groups=previous;renderGroups();}}
@@ -99,7 +99,7 @@ function create(host){
   const bar=el('div','sa-col-head');
   if(state.q)bar.append(el('h3','','Поиск: «'+state.q+'»'),el('span','sa-muted','найдено '+state.total));
   else if(group){const name=el('h3');const dot=el('span','sa-dot');dot.style.background=group.color;name.append(dot,document.createTextNode(group.name));bar.append(name,el('span','sa-muted',group.codes_count+' код(ов) · '+({delivered:'успешная отправка',loss:'отсечение в воронке',neutral:'вне воронки'})[group.funnel_role]+' · '+({sum:'сумма',share:'доля от событий',avg:'среднее в день'})[group.aggregation]));
-   if(canWrite()){const edit=button('Изменить группу',()=>groupDialog(group),'sa-btn'),del=button('Удалить',()=>deleteGroup(group),'sa-btn danger');if(group.is_system){del.disabled=true;del.title='Системную группу удалить нельзя — её можно скрыть переключателем.';}bar.append(edit,del);}}
+   if(canWrite()){const edit=button('Изменить группу',()=>groupDialog(group),'sa-btn'),del=button('Удалить',()=>deleteGroup(group),'sa-btn danger');if(group.is_system){del.disabled=true;del.title='Системную группу удалить нельзя, её можно скрыть переключателем.';}bar.append(edit,del);}}
   codesCol.append(bar,search);
   if(group?.description&&!state.q)codesCol.append(el('p','sa-muted',group.description));
   if(!state.codes.length){const empty=el('div','sa-empty');empty.append(el('b','',state.q?'Ничего не найдено':'В группе пока нет кодов'),el('p','',state.q?'Проверьте номер кода или слово из описания.':'Добавьте код или перетащите его сюда из другой группы.'));if(canWrite()&&!state.q)empty.append(button('＋ Добавить код',()=>codeDialog(null,group?.id),'sa-btn accent'));codesCol.append(empty);return;}
@@ -110,9 +110,9 @@ function create(host){
    const grip=el('td','sa-grip',canWrite()&&!state.q?'⠿':'');
    const owner=state.groups.find(g=>g.id===c.group_id);
    const order=el('td','sa-order');if(canWrite()&&!state.q){const up=button('↑',()=>moveCodeOrder(i,-1),'sa-icon-btn'),down=button('↓',()=>moveCodeOrder(i,1),'sa-icon-btn');up.disabled=!i;down.disabled=i===state.codes.length-1;up.setAttribute('aria-label','Выше: код '+c.code);down.setAttribute('aria-label','Ниже: код '+c.code);order.append(up,down);}else order.textContent=String(c.sort_order);
-   const active=el('td'),sw=el('input');sw.type='checkbox';sw.className='sa-switch';sw.checked=c.is_active;sw.disabled=!canWrite();sw.setAttribute('aria-label','Активен код '+c.code);sw.onchange=()=>guarded(()=>api('PATCH','/api/status-codes/'+c.id,{is_active:sw.checked,expected_updated_at:c.updated_at}),'Код '+c.code+(sw.checked?' включён.':' выключен — в дашбордах он посчитается в «Без группы».')).then(()=>load()).catch(()=>{sw.checked=!sw.checked;});active.append(sw);
+   const active=el('td'),sw=el('input');sw.type='checkbox';sw.className='sa-switch';sw.checked=c.is_active;sw.disabled=!canWrite();sw.setAttribute('aria-label','Активен код '+c.code);sw.onchange=()=>guarded(()=>api('PATCH','/api/status-codes/'+c.id,{is_active:sw.checked,expected_updated_at:c.updated_at}),'Код '+c.code+(sw.checked?' включён.':' выключен и считается в «Без группы».')).then(()=>load()).catch(()=>{sw.checked=!sw.checked;});active.append(sw);
    const actions=el('td','sa-actions');
-   if(canWrite()){const edit=button('✎',()=>codeDialog(c),'sa-icon-btn'),move=button('⇄',()=>moveDialog(c),'sa-icon-btn'),del=button('🗑',()=>deleteCode(c),'sa-icon-btn danger');edit.setAttribute('aria-label','Изменить код '+c.code);move.setAttribute('aria-label','Перенести код '+c.code+' в другую группу');del.setAttribute('aria-label','Удалить код '+c.code);edit.title='Изменить';move.title='Перенести в другую группу';if(c.is_system){del.disabled=true;del.title='Системный код удалить нельзя — выключите или перенесите.';}else del.title='Удалить';actions.append(edit,move,del);}
+   if(canWrite()){const edit=button('✎',()=>codeDialog(c),'sa-icon-btn'),move=button('⇄',()=>moveDialog(c),'sa-icon-btn'),del=button('🗑',()=>deleteCode(c),'sa-icon-btn danger');edit.setAttribute('aria-label','Изменить код '+c.code);move.setAttribute('aria-label','Перенести код '+c.code+' в другую группу');del.setAttribute('aria-label','Удалить код '+c.code);edit.title='Изменить';move.title='Перенести в другую группу';if(c.is_system){del.disabled=true;del.title='Системный код удалить нельзя, его можно выключить или перенести.';}else del.title='Удалить';actions.append(edit,move,del);}
    const codeCell=el('td','sa-code');codeCell.append(el('code','',String(c.code)));if(c.is_system)codeCell.append(el('span','sa-lock','сист.'));
    tr.append(grip,codeCell,el('td','sa-desc',c.description),el('td','',c.alias||'—'),...(state.q?[el('td','',owner?.name||'—')]:[]),order,active,actions);
    if(canWrite()){tr.draggable=true;tr.addEventListener('dragstart',e=>{state.codeDrag=c;state.codeDragIndex=i;tr.classList.add('dragging');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain','code');});tr.addEventListener('dragend',()=>{tr.classList.remove('dragging');state.codeDrag=null;});
@@ -131,12 +131,12 @@ function create(host){
  /* --- превью и данные --- */
  function renderPreview(){
   side.querySelector('.sa-preview')?.remove();
-  const card=el('section','sa-card sa-preview');card.append(el('h3','','Превью легенды'),el('p','sa-muted small','Так группы выглядят в дашбордах: порядок, цвет, название. Нажмите на группу — раскроются её коды (drill-down).'));
+  const card=el('section','sa-card sa-preview');card.append(el('h3','','Превью легенды'));
   const legend=el('div','sa-legend');
   for(const g of state.groups.filter(g=>g.is_active&&!(g.slug==='ungrouped'&&state.settings?.unassigned_mode==='hide'))){const item=el('details','sa-legend-item');item.style.setProperty('--group-color',g.color);if(g.id===state.selected)item.open=true;const s=el('summary');s.append(el('i'),el('span','sa-group-icon',ICON[g.icon]||'●'),document.createTextNode(g.name),el('small','',' · '+g.codes_count));item.append(s);
    item.addEventListener('toggle',async()=>{if(!item.open||item.dataset.loaded)return;item.dataset.loaded='1';try{const r=await api('GET','/api/status-codes?group_id='+g.id+'&page_size=500');const ul=el('ul');for(const c of r.items.filter(c=>c.is_active))ul.append(el('li','',(c.alias||c.description)+' · '+c.code));if(!ul.childElementCount)ul.append(el('li','','Активных кодов нет'));item.append(ul);}catch(error){item.append(el('p','sa-error',error.message));}});
    if(item.open)item.dispatchEvent(new Event('toggle'));legend.append(item);}
-  if(!legend.childElementCount)legend.append(el('p','sa-muted','Все группы скрыты — легенда будет пустой.'));
+  if(!legend.childElementCount)legend.append(el('p','sa-muted','Все группы скрыты, легенда пустая.'));
   card.append(legend);side.prepend(card);
  }
  function renderInsights(){
@@ -168,7 +168,7 @@ function create(host){
   const description=field(form,'Описание',input('textarea',group?.description,{maxlength:'600',rows:'2'}));
   const colorRow=el('div','sa-colors'),color=input('color',group?.color||PRESETS[state.groups.length%PRESETS.length]);for(const c of PRESETS){const b=button('',()=>{color.value=c;},'sa-swatch');b.style.background=c;b.setAttribute('aria-label','Цвет '+c);colorRow.append(b);}colorRow.append(color);field(form,'Цвет',colorRow);color.errorBox=colorRow.parentElement.querySelector('.sa-field-error');
   const icon=field(form,'Иконка',input('select'));for(const k of opt.icons)icon.add(new Option((ICON[k]||'')+' '+k,k));icon.value=group?.icon||'circle';
-  const role=field(form,'Роль в воронке',input('select'),'«Отсечение» — отдельный шаг воронки между событиями и отправками.');for(const [k,v] of Object.entries(opt.funnel_role))role.add(new Option(v,k));role.value=group?.funnel_role||'loss';
+  const role=field(form,'Роль в воронке',input('select'),'«Отсечение» становится шагом воронки между событиями и отправками.');for(const [k,v] of Object.entries(opt.funnel_role))role.add(new Option(v,k));role.value=group?.funnel_role||'loss';
   const agg=field(form,'Агрегация на графиках',input('select'));for(const [k,v] of Object.entries(opt.aggregation))agg.add(new Option(v,k));agg.value=group?.aggregation||state.settings.default_aggregation||'sum';
   const activeLabel=el('label','sa-check'),active=input('checkbox');active.checked=group?group.is_active:true;activeLabel.append(active,document.createTextNode(' Показывать в дашбордах'));form.append(activeLabel);
   const map={name,slug,description,color,icon,funnel_role:role,aggregation:agg};
@@ -185,9 +185,9 @@ function create(host){
   const {d,form}=dialogShell(code?'Код '+code.code:'Новый код статуса');
   const value=field(form,'Код status_det *',input('text',code?.code??preset.code??'',{inputmode:'numeric',maxlength:'9',autocomplete:'off',placeholder:'например, 1025 или -1'}),code?.is_system?'Системный код из выгрузки: номер не меняется.':'Целое число, допускаются отрицательные (-1).');if(code?.is_system)value.disabled=true;
   const description=field(form,'Описание *',input('textarea',code?.description,{maxlength:'600',rows:'3'}));
-  const alias=field(form,'Алиас на графиках',input('text',code?.alias,{maxlength:'80',placeholder:'коротко, например «Стоп-лист»'}),'Если пусто — на графиках будет описание.');
+  const alias=field(form,'Алиас на графиках',input('text',code?.alias,{maxlength:'80',placeholder:'коротко, например «Стоп-лист»'}),'Без алиаса на графиках показывается описание.');
   const group=field(form,'Группа *',input('select'));for(const g of state.groups)group.add(new Option(g.name,String(g.id)));group.value=String(code?.group_id??groupId??state.groups[0]?.id);
-  const activeLabel=el('label','sa-check'),active=input('checkbox');active.checked=code?code.is_active:true;activeLabel.append(active,document.createTextNode(' Активен (участвует в легенде и фильтрах)'));form.append(activeLabel);
+  const activeLabel=el('label','sa-check'),active=input('checkbox');active.checked=code?code.is_active:true;activeLabel.append(active,document.createTextNode(' Активен'));form.append(activeLabel);
   const map={code:value,description,alias,group_id:group};
   const run=async line=>{
    const raw=value.value.trim().replace('−','-'),errors={};if(!/^-?\d{1,8}$/.test(raw))errors.code='Целое число, например 1002 или -1';if(!description.value.trim())errors.description='Обязательное поле';
@@ -201,7 +201,7 @@ function create(host){
  function moveDialog(code){
   const {d,form}=dialogShell('Перенести код '+code.code);form.append(el('p','sa-muted',code.description));
   const target=field(form,'В группу',input('select'));for(const g of state.groups)if(g.id!==code.group_id)target.add(new Option(g.name,String(g.id)));
-  const note=el('p','sa-muted small');const describe=()=>{const g=state.groups.find(x=>x.id===Number(target.value));note.textContent=g?'В дашбордах и воронке код будет считаться в «'+g.name+'»'+(g.is_active?'':' (группа скрыта — код уйдёт в «Без группы»)')+'.':'';};target.onchange=describe;describe();form.append(note);
+  const note=el('p','sa-muted small');const describe=()=>{const g=state.groups.find(x=>x.id===Number(target.value));note.textContent=g?'В дашбордах и воронке код будет считаться в «'+g.name+'»'+(g.is_active?'':' (группа скрыта, код уйдёт в «Без группы»)')+'.':'';};target.onchange=describe;describe();form.append(note);
   actions(form,'Перенести',async()=>{await api('PATCH','/api/status-codes/'+code.id+'/move',{group_id:Number(target.value)});notify('Код '+code.code+' перенесён.');d.close();load();},d);d.showModal();target.focus();
  }
  function deleteGroup(group){
@@ -213,20 +213,20 @@ function create(host){
   const {d,form}=dialogShell('Отображение в дашбордах'),opt=state.settings.options;
   const mode=field(form,'Коды без группы',input('select'),'Выключенные коды и группы в расчётах тоже уходят в «Без группы», чтобы сумма сходилась с событиями.');for(const [k,v] of Object.entries(opt.unassigned_mode))mode.add(new Option(v,k));mode.value=state.settings.unassigned_mode;
   const agg=field(form,'Агрегация по умолчанию для новых групп',input('select'));for(const [k,v] of Object.entries(opt.aggregation))agg.add(new Option(v,k));agg.value=state.settings.default_aggregation;
-  const drillLabel=el('label','sa-check'),drill=input('checkbox');drill.checked=state.settings.drill_down;drillLabel.append(drill,document.createTextNode(' Drill-down: по клику на группу показывать её коды'));form.append(drillLabel);
+  const drillLabel=el('label','sa-check'),drill=input('checkbox');drill.checked=state.settings.drill_down;drillLabel.append(drill,document.createTextNode(' Показывать коды группы по клику'));form.append(drillLabel);
   actions(form,'Сохранить',async()=>{await api('PATCH','/api/status-settings',{unassigned_mode:mode.value,default_aggregation:agg.value,drill_down:drill.checked});notify('Настройки отображения сохранены.');d.close();load();},d);d.showModal();
  }
  function importDialog(){
   const {d,form}=dialogShell('Импорт справочника статусов');
-  form.append(el('p','sa-muted small','JSON — файл экспорта этой админки. CSV — столбцы code;description;group;alias;is_active (разделитель «;» или «,»). Сначала покажем план изменений; ничего не удаляется.'));
+  form.append(el('p','sa-muted small','JSON из экспорта этой админки или CSV со столбцами code;description;group;alias;is_active. Сначала покажем план, ничего не удаляется.'));
   const file=field(form,'Файл',input('file',undefined,{accept:'.json,.csv,application/json,text/csv'}));
   const mode=field(form,'Режим',input('select'),'«Заменить» дополнительно выключит коды, которых нет в файле.');mode.add(new Option('Добавить и обновить','merge'));mode.add(new Option('Заменить (выключить отсутствующие)','replace'));
   const plan=el('div','sa-plan');form.append(plan);let payload=null,checked=false;
   const ok=actions(form,'Проверить файл',async line=>{
    if(!payload){const f=file.files[0];if(!f){line.textContent='Выберите файл.';return;}const content=await f.text();payload={format:/\.json$/i.test(f.name)||content.trim().startsWith('{')?'json':'csv',content};}
    const r=await api('POST','/api/status-config/import',{...payload,mode:mode.value,dry_run:!checked});
-   const p=r.plan;plan.replaceChildren(el('b','',checked?'Импорт выполнен':'План изменений'));const ul=el('ul');for(const [k,label] of [['groups_create','Новых групп'],['groups_update','Обновить групп'],['codes_create','Новых кодов'],['codes_update','Изменить кодов'],['codes_move','Перенести кодов'],['codes_disable','Выключить кодов']])if(p[k].length)ul.append(el('li','',label+': '+p[k].length+(k.startsWith('codes')?' ('+p[k].slice(0,12).join(', ')+(p[k].length>12?'…':'')+')':' ('+p[k].slice(0,5).join(', ')+')')));if(!ul.childElementCount)ul.append(el('li','','Изменений нет — справочник уже совпадает с файлом.'));plan.append(ul);
-   if(p.errors.length){const e=el('ul','sa-error');for(const x of p.errors.slice(0,10))e.append(el('li','',x));plan.append(el('b','','Ошибки — исправьте файл:'),e);return;}
+   const p=r.plan;plan.replaceChildren(el('b','',checked?'Импорт выполнен':'План изменений'));const ul=el('ul');for(const [k,label] of [['groups_create','Новых групп'],['groups_update','Обновить групп'],['codes_create','Новых кодов'],['codes_update','Изменить кодов'],['codes_move','Перенести кодов'],['codes_disable','Выключить кодов']])if(p[k].length)ul.append(el('li','',label+': '+p[k].length+(k.startsWith('codes')?' ('+p[k].slice(0,12).join(', ')+(p[k].length>12?'…':'')+')':' ('+p[k].slice(0,5).join(', ')+')')));if(!ul.childElementCount)ul.append(el('li','','Изменений нет, справочник совпадает с файлом.'));plan.append(ul);
+   if(p.errors.length){const e=el('ul','sa-error');for(const x of p.errors.slice(0,10))e.append(el('li','',x));plan.append(el('b','','Исправьте ошибки в файле:'),e);return;}
    if(checked){notify('Импорт выполнен: изменений '+r.changes+'.');d.close();load();loadBreakdown();return;}
    if(r.changes){checked=true;form.querySelector('.sa-dialog-actions .accent').textContent='Применить импорт';}
   },d);
