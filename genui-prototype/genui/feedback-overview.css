@@ -1,4 +1,4 @@
-.feedback-overview .feedback-header{display:flex;align-items:center;flex-wrap:wrap;gap:12px 18px}
+.feedback-overview .feedback-header{display:flex;align-items:center;flex-wrap:wrap;gap:12px 16px}
 .feedback-overview .feedback-header h1{flex:1 1 260px;margin:0}
 .feedback-overview .feedback-period{margin-block:6px 20px;font-variant-numeric:tabular-nums}
 .feedback-overview .feedback-kpis,.feedback-overview .feedback-channels{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr));gap:12px}
