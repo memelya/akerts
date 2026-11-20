@@ -1577,6 +1577,119 @@ class Pulse:
         return value
 
 
+    # -- проверки опроса: прозрачные правила по отправкам, ответам, конверсии и CSI ------------
+    CHECK_RULES = {
+        'drop_problem': -50, 'drop_attention': -20,        # % к прошлой неделе для отправок и ответов
+        'conversion_problem': -30, 'conversion_attention': -15,   # относительное изменение конверсии, %
+        'csi_problem': -0.10, 'csi_attention': -0.05, 'csi_min_sample': 30,
+        'expected_answers_min': 3,                          # ниже — ноль ответов за день может быть случайным
+    }
+
+    def survey_check(self, request):
+        """Проверки одного опроса за последние две недели (неделя = 7 дней по последнюю дату выгрузки).
+        Каждая проверка возвращает правило, факт и итог: ok / attention / problem / na."""
+        state, revision = self.snapshot()
+        channel = request.get('channel') or 'communication'
+        ident = request.get('id')
+        if channel not in CHANNELS or type(ident) is not int:
+            raise ValueError('Укажите канал и номер опроса.')
+        selected = self.surveys(state, channel, ident)
+        if not selected:
+            raise ValueError('Опрос #' + str(ident) + ' не найден в канале «' + CHANNEL_LABELS[channel] + '».')
+        keys = [(channel, ident)]
+        latest = self.last_day(revision, keys)
+        if not latest:
+            raise ValueError('Для опроса #' + str(ident) + ' нет дневных строк в выгрузке.')
+        end = dt.date.fromisoformat(latest)
+        start = end - dt.timedelta(days=27)
+        rows = self.daily(revision, keys, start.isoformat(), latest)
+        by_date = defaultdict(list)
+        for row in rows:
+            by_date[row['date']].append(row)
+        days = []
+        for offset in range(28):
+            date = (start + dt.timedelta(days=offset)).isoformat()
+            items = by_date.get(date, [])
+            csi, sample = weighted_csi(items)
+            days.append({'date': date, 'weekday': (start + dt.timedelta(days=offset)).weekday(), 'hasRows': bool(items),
+                         'sends': sum(r.get('sends') or 0 for r in items), 'answers': sum(r.get('answers') or 0 for r in items),
+                         'csi': csi, 'csiSample': sample, 'csiWeight': sum(r.get('csiWeight') or 0 for r in items)})
+        week, previous, history = days[-7:], days[-14:-7], days[:-7]
+        def summary(part):
+            sends, answers = sum(d['sends'] for d in part), sum(d['answers'] for d in part)
+            sample = sum(d['csiSample'] for d in part)
+            return {'from': part[0]['date'], 'to': part[-1]['date'], 'sends': sends, 'answers': answers,
+                    'conversion': answers / sends * 100 if sends else None,
+                    'csi': sum(d['csiWeight'] for d in part) / sample if sample else None, 'csiSample': sample,
+                    'daysWithRows': sum(1 for d in part if d['hasRows'])}
+        now_, before = summary(week), summary(previous)
+        change = lambda a, b: (a - b) / b * 100 if b else None
+        rules, checks = self.CHECK_RULES, []
+        def add(key, title, rule, fact, status, dates=None):
+            checks.append({'key': key, 'title': title, 'rule': rule, 'fact': fact, 'status': status, 'dates': dates or []})
+        fmt = lambda v: '{:,.0f}'.format(v).replace(',', '\u00a0') if v is not None else '—'
+        pct = lambda v: ('+' if v > 0 else '') + ('{:.1f}'.format(v).replace('.', ',')) + '%' if v is not None else '—'
+        # 1. Будни без отправок (только пуш+СМС)
+        if channel == 'communication':
+            missed = [d for d in days[-14:] if d['weekday'] < 5 and d['sends'] == 0]
+            recent = [d for d in missed if d['date'] >= week[0]['date']]
+            labels = [d['date'] + ('' if d['hasRows'] else ' (нет строк в выгрузке)') for d in missed]
+            add('weekday_sends', 'Отправки в будни', 'В каждый будний день пуш+СМС должны быть отправки. Будний день без отправок — проблема.',
+                ('Будних дней без отправок: ' + str(len(recent)) + ' на этой неделе, ' + str(len(missed) - len(recent)) + ' на прошлой.') if missed
+                else 'Во все будние дни двух недель были отправки.',
+                'problem' if recent else 'attention' if missed else 'ok', labels)
+        else:
+            add('weekday_sends', 'Отправки в будни', 'Правило для пуш+СМС.', 'Экраны успеха показываются по событиям клиента, правило не применяется.', 'na')
+        # 2. Отправки есть, ответов нет
+        base_sends = sum(d['sends'] for d in history + previous)
+        base_conv = sum(d['answers'] for d in history + previous) / base_sends if base_sends else None
+        silent = [d for d in days[-14:] if d['sends'] > 0 and d['answers'] == 0]
+        heavy = [d for d in silent if base_conv and d['sends'] * base_conv >= rules['expected_answers_min']]
+        week_silent = now_['sends'] > 0 and now_['answers'] == 0
+        add('sends_no_answers', 'Ответы при отправках', 'Если отправки были, а ответов нет — проблема. День считается проблемным, когда при обычной конверсии ожидалось '
+            + str(rules['expected_answers_min']) + ' и больше ответов.',
+            ('За неделю ' + fmt(now_['sends']) + ' отправок и ни одного ответа.') if week_silent else
+            ('Дней с отправками без ответов: ' + str(len(silent)) + (', из них при ожидаемых ответах: ' + str(len(heavy)) if silent else '') + '.') if silent
+            else 'В каждый день с отправками были ответы.',
+            'problem' if week_silent or heavy else 'attention' if silent else 'ok',
+            [d['date'] + ': ' + fmt(d['sends']) + ' отправок, ожидалось ~' + fmt(d['sends'] * base_conv if base_conv else None) + ' ответов' for d in silent])
+        # 3–4. Неделя к неделе: отправки и ответы
+        for key, title, metric in (('sends_drop', 'Отправки неделя к неделе', 'sends'), ('answers_drop', 'Ответы неделя к неделе', 'answers')):
+            delta = change(now_[metric], before[metric])
+            last_active = next((d['date'] for d in reversed(history) if d[metric] > 0), None)
+            if before[metric] == 0 and now_[metric] == 0 and last_active:
+                add(key, title, 'Падение к прошлой неделе на ' + str(-rules['drop_problem']) + '% и больше — проблема. Если показатель обнулился раньше, '
+                    'проверка смотрит на 4 недели.', 'Обе недели 0, последний ненулевой день ' + last_active + '.', 'problem')
+                continue
+            status = 'na' if before[metric] == 0 and now_[metric] == 0 else 'problem' if (delta is not None and delta <= rules['drop_problem']) or (before[metric] > 0 and now_[metric] == 0) \
+                else 'attention' if delta is not None and delta <= rules['drop_attention'] else 'ok'
+            if metric == 'answers' and now_['sends'] == 0:
+                status = 'na' if status != 'problem' else status
+            add(key, title, 'Падение к прошлой неделе на ' + str(-rules['drop_problem']) + '% и больше — проблема, на ' + str(-rules['drop_attention']) + '–'
+                + str(-rules['drop_problem']) + '% — внимание.',
+                ('Не было ни на этой, ни на прошлой неделе.' if before[metric] == 0 and now_[metric] == 0 else fmt(before[metric]) + ' → ' + fmt(now_[metric]) + ' (' + pct(delta) + ')'), status)
+        # 5. Конверсия
+        conv_delta = change(now_['conversion'], before['conversion']) if now_['conversion'] is not None and before['conversion'] else None
+        add('conversion', 'Конверсия (ответы / отправки)', 'Снижение конверсии на ' + str(-rules['conversion_problem']) + '% и больше — проблема, на '
+            + str(-rules['conversion_attention']) + '–' + str(-rules['conversion_problem']) + '% — внимание.',
+            (('{:.2f}'.format(before['conversion']).replace('.', ',') + '% → ' + '{:.2f}'.format(now_['conversion']).replace('.', ',') + '% (' + pct(conv_delta) + ')')
+             if now_['conversion'] is not None and before['conversion'] is not None else 'Нет отправок в одной из недель — конверсию не сравнить.'),
+            'na' if conv_delta is None else 'problem' if conv_delta <= rules['conversion_problem'] else 'attention' if conv_delta <= rules['conversion_attention'] else 'ok')
+        # 6. CSI
+        enough = now_['csiSample'] >= rules['csi_min_sample'] and before['csiSample'] >= rules['csi_min_sample']
+        csi_delta = now_['csi'] - before['csi'] if now_['csi'] is not None and before['csi'] is not None else None
+        add('csi', 'CSI', 'Снижение на ' + str(-rules['csi_problem']).replace('.', ',') + ' балла и больше — проблема, на '
+            + str(-rules['csi_attention']).replace('.', ',') + ' — внимание. Нужно не меньше ' + str(rules['csi_min_sample']) + ' оценок в каждой неделе.',
+            (('{:.2f}'.format(before['csi']).replace('.', ',') + ' → ' + '{:.2f}'.format(now_['csi']).replace('.', ',') + ' (оценок: ' + fmt(before['csiSample']) + ' → '
+              + fmt(now_['csiSample']) + ')') if csi_delta is not None else 'Нет оценок в одной из недель.'),
+            'na' if csi_delta is None or not enough else 'problem' if csi_delta <= rules['csi_problem'] else 'attention' if csi_delta <= rules['csi_attention'] else 'ok')
+        counts = {k: sum(1 for c in checks if c['status'] == k) for k in ('problem', 'attention', 'ok', 'na')}
+        return {'channel': channel, 'channelLabel': CHANNEL_LABELS[channel], 'id': ident, 'name': selected[0]['meta']['name'],
+                'through': latest, 'week': now_, 'previous': before, 'days': days, 'checks': checks, 'counts': counts,
+                'verdict': 'problem' if counts['problem'] else 'attention' if counts['attention'] else 'ok', 'rules': rules,
+                'method': 'Неделя — 7 дней по ' + latest + ', прошлая — 7 дней перед ней. Отправки и ответы — суммы за неделю; конверсия — ответы / отправки; '
+                          'CSI — средневзвешенный по оценкам 1–5. День без строк в выгрузке для правила «Отправки в будни» считается днём без отправок и помечен.'}
+
     # -- воронка: события → политика контактов → стоп-листы → отправки → ответы → отклик ----
     def funnel(self, request):
         state, revision = self.snapshot()
@@ -2268,6 +2381,8 @@ class Pulse:
             return self.screen_get(request)
         if action == 'screen-save':
             return self.screen_save(request)
+        if action == 'survey-check':
+            return self.survey_check(request)
         if action == 'funnel':
             return self.funnel(request)
         if action == 'canvas-list':

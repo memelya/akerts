@@ -29,7 +29,7 @@ function field(host,label,type='text',attrs={}){const wrap=el('label','pulse-fie
 /* ---------- графики ---------- */
 let chartHostWidth=null;
 const periodLabel=(value,grain)=>grain==='month'?new Intl.DateTimeFormat('ru-RU',{month:'short',year:'2-digit',timeZone:'UTC'}).format(new Date(value.slice(0,7)+'-01T12:00:00Z')):grain==='week'?'нед. '+dateLabel(value):dateLabel(value);
-function lineChart({series,marker,events=[],width=Math.max(320,Math.min(1100,(chartHostWidth||document.querySelector('.pulse-page')?.clientWidth||960)-48)),height=180,format=v=>nf.format(v),label='График',onPoint,onEvent,grain='day',labels='none'}){
+function lineChart({series,marker,events=[],width=Math.max(320,Math.min(1100,(chartHostWidth||document.querySelector('.pulse-page')?.clientWidth||960)-48)),height=180,format=v=>nf.format(v),label='График',onPoint,onEvent,grain='day',labels='none',bands=[],marks=[]}){
  const dateLabel=value=>periodLabel(value,grain);
  const all=series.flatMap(s=>s.points);const host=el('div','pulse-chart');
  if(!all.length){host.append(el('p','pulse-muted','Нет наблюдений для графика.'));return host;}
@@ -39,6 +39,9 @@ function lineChart({series,marker,events=[],width=Math.max(320,Math.min(1100,(ch
  const X=d=>pad.l+(x1===x0?w/2:(Date.parse(d)-x0)/(x1-x0)*w),Y=v=>pad.t+h-(v-lo)/(hi-lo)*h;
  const root=svg('svg',{viewBox:`0 0 ${width} ${height}`,role:'img','aria-label':label,preserveAspectRatio:'none'});
  root.append(svg('rect',{x:pad.l,y:pad.t,width:w,height:h,class:'plot-bg'}));
+ /* выделенные периоды (например, «прошлая неделя» и «эта неделя») и отметки дней на оси */
+ for(const band of bands){const a=Math.max(pad.l,X(band.from)-(x1===x0?0:w/Math.max(1,dates.length-1)/2)),b=Math.min(width-pad.r,X(band.to)+(x1===x0?0:w/Math.max(1,dates.length-1)/2));root.append(svg('rect',{x:a,y:pad.t,width:Math.max(1,b-a),height:h,class:'band '+(band.cls||'')}));const t=svg('text',{x:a+4,y:pad.t+11,class:'axis band-label'});t.textContent=band.label;root.append(t);}
+ for(const mark of marks){if(mark.date<dates[0]||mark.date>dates.at(-1))continue;const c=svg('circle',{cx:X(mark.date),cy:pad.t+h,r:4,class:'day-mark'});const tip=svg('title');tip.textContent=mark.label;c.append(tip);root.append(c);}
  for(let i=0;i<=3;i++){const v=lo+(hi-lo)*i/3,y=Y(v);root.append(svg('line',{x1:pad.l,x2:width-pad.r,y1:y,y2:y,class:'grid'}));const t=svg('text',{x:pad.l-6,y:y+4,'text-anchor':'end',class:'axis'});t.textContent=format(v);root.append(t);}
  for(const d of [dates[0],dates[Math.floor(dates.length/2)],dates.at(-1)]){const t=svg('text',{x:X(d),y:height-6,'text-anchor':'middle',class:'axis'});t.textContent=dateLabel(d);root.append(t);}
  for(const ev of events){if(ev.date<dates[0]||ev.date>dates.at(-1))continue;const ex=X(ev.date);const line=svg('line',{x1:ex,x2:ex,y1:pad.t,y2:pad.t+h,class:'event'});const flag=svg('path',{d:`M${ex} ${pad.t}l8 4l-8 4z`,class:'event-flag'});const tip=svg('title');tip.textContent=dateLabel(ev.date)+' · '+ev.title+(onEvent?'. Нажмите, чтобы увидеть, что сдвинулось после':'');flag.append(tip);root.append(line,flag);if(onEvent){const hit=svg('rect',{x:ex-7,y:pad.t-2,width:16,height:h+4,class:'event-hit',tabindex:'0',role:'button','aria-label':'Событие '+dateLabel(ev.date)+': '+ev.title});const t2=svg('title');t2.textContent=tip.textContent;hit.append(t2);const fire=()=>onEvent(ev);hit.addEventListener('click',fire);hit.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();fire();}});root.append(hit);}}
@@ -926,6 +929,33 @@ function create(main){
   slide.addTable([head,...body],{x:.5,y:1.6,w:12.3,colW:[3.0,1.8,2.0,5.5],fontSize:13,fontFace:'Arial',color:'1C1B19',border:{type:'solid',pt:.5,color:'DCD9D1'},valign:'middle',rowH:.75});
   return pptx.writeFile({fileName:'pulse-effect-'+new Date().toISOString().slice(0,10)+'.pptx'});
  }
+ /* --- проверки опроса: правило, факт и итог по отправкам, ответам, конверсии и CSI --- */
+ const CHECK_STATUS={problem:['Проблема','bad'],attention:['Внимание','warn'],ok:['Норма','good'],na:['Неприменимо','']};
+ async function surveyCheck(host,channel,id){
+  const box=el('section','pulse-check-card');box.append(el('p','pulse-muted','Проверяем опрос…'));host.append(box);
+  let d;try{d=await post({action:'survey-check',channel,id});}catch(error){box.replaceChildren(el('p','pulse-status is-error',error.message));return;}
+  box.replaceChildren();
+  const head=el('div','pulse-check-head'),verdict=CHECK_STATUS[d.verdict];head.append(el('h3','','Проверки опроса #'+d.id+' · '+d.channelLabel),el('span','pulse-tag '+verdict[1],d.verdict==='ok'?'Проблем нет':(d.counts.problem?'Проблем: '+d.counts.problem:'')+(d.counts.problem&&d.counts.attention?' · ':'')+(d.counts.attention?'Внимание: '+d.counts.attention:'')));box.append(head);
+  const w=d.week,b=d.previous,period=dateLabel(w.from)+'–'+dateLabel(w.to)+' к '+dateLabel(b.from)+'–'+dateLabel(b.to);
+  const kpis=el('div','pulse-kpis');
+  for(const [name,now,before,kind] of [['Отправки',w.sends,b.sends,'count'],['Ответы',w.answers,b.answers,'count'],['Конверсия',w.conversion,b.conversion,'rate'],['CSI',w.csi,b.csi,'csi']]){
+   const k=el('div','pulse-kpi'),val=kind==='rate'?(now==null?'—':cf.format(now)+'%'):kind==='csi'?(now==null?'—':cf.format(now)):nf.format(now);
+   const diff=v=>(v>0.005?'+':v<-0.005?'−':'')+cf.format(Math.abs(v)),delta=now==null||before==null?'':kind==='count'?(before?' ('+signed((now-before)/before*100)+')':''):kind==='rate'?' ('+diff(now-before)+' п.п.)':' ('+diff(now-before)+')';
+   k.append(el('span','',name+' за неделю'),el('b','',val),el('small','','прошлая: '+(before==null?'—':kind==='count'?nf.format(before):kind==='rate'?cf.format(before)+'%':cf.format(before))+delta));kpis.append(k);}
+  box.append(el('p','pulse-muted',period),kpis);
+  const table=el('table','pulse-table pulse-check-table'),tr=el('tr');for(const h of ['Проверка','Правило','Факт','Итог'])tr.append(el('th','',h));table.append(tr);
+  for(const c of d.checks){const row=el('tr','check-'+c.status),fact=el('td');fact.append(document.createTextNode(c.fact));if(c.dates.length){const det=el('details');det.append(el('summary','','дни: '+c.dates.length));const ul=el('ul','pulse-tile-list');for(const x of c.dates)ul.append(el('li','',x));det.append(ul);fact.append(det);}
+   const st=CHECK_STATUS[c.status];row.append(el('th','',c.title),el('td','pulse-muted',c.rule),fact);const res=el('td');res.append(el('span','pulse-tag '+st[1],st[0]));row.append(res);table.append(row);}
+  const wrap=el('div','pulse-table-wrap');wrap.append(table);box.append(wrap);
+  const bands=[{from:b.from,to:b.to,label:'прошлая неделя',cls:'prev'},{from:w.from,to:w.to,label:'эта неделя',cls:'now'}];
+  const zero=d.channel==='communication'?d.days.filter(x=>x.weekday<5&&x.sends===0&&x.date>=b.from).map(x=>({date:x.date,label:dateLabel(x.date)+': будний день без отправок'})):[];
+  const silent=d.days.filter(x=>x.sends>0&&x.answers===0&&x.date>=b.from).map(x=>({date:x.date,label:dateLabel(x.date)+': '+nf.format(x.sends)+' отправок, 0 ответов'}));
+  const grid=el('div','pulse-check-charts');
+  for(const [title,key,marks] of [['Отправки по дням','sends',zero],['Ответы по дням','answers',silent]]){const cell=el('div');cell.append(el('h4','',title));chartHostWidth=Math.max(320,(host.clientWidth||900)/2)+24;cell.append(lineChart({series:[{points:d.days.map(x=>[x.date,x[key]]),cls:'primary'}],height:150,bands,marks,label:title+' за 4 недели'}));chartHostWidth=null;grid.append(cell);}
+  box.append(grid,el('p','pulse-muted',d.method));
+ }
+ const checkDialog=el('dialog','pulse-dialog pulse-check-dialog');document.body.append(checkDialog);
+ function openSurveyCheck(channel,id){checkDialog.replaceChildren();const close=button('Закрыть',()=>checkDialog.close(),'pulse-btn ghost');const body=el('div');checkDialog.append(body,close);checkDialog.showModal();surveyCheck(body,channel,id);}
  /* --- брифинг руководителя: мой фокус → группы → банк --- */
  function star(channel,id,on){
   const b=button(on?'★':'☆',e=>{e.stopPropagation();busy(b,status,async()=>{const r=await post({action:'focus-toggle',channel,id});b.textContent=r.favorite?'★':'☆';b.setAttribute('aria-pressed',String(r.favorite));status.textContent=r.favorite?'Опрос #'+id+' добавлен в избранное и в ваш фокус.':'Опрос #'+id+' убран из избранного.';brief=await post({action:'brief'});renderBrief();if(tab==='portfolio')renderPortfolio();});},'pulse-star');
@@ -956,7 +986,7 @@ function create(main){
   if(note)card.append(el('p','pulse-problem-note',note));
   const more=el('div','pulse-problem-more');more.hidden=true;
   const actions=el('div','pulse-row');
-  actions.append(button('Подробнее',e=>{more.hidden=!more.hidden;e.target.textContent=more.hidden?'Подробнее':'Свернуть';if(!more.hidden&&!more.childElementCount){const list=(brief.candidates||brief.shifts||[]).filter(s=>p.shiftKeys.includes(s.key));for(const s of list)more.append(shiftCard(s));for(const g of (brief.signals||[]).filter(g=>g.channel===p.channel&&g.id===p.id))more.append(el('p','pulse-muted','Сигнал недели: '+g.reasons.join(' · ')));if(!more.childElementCount)more.append(el('p','pulse-muted','Подробностей нет.'));}},'pulse-btn'),
+  actions.append(button('Подробнее',e=>{more.hidden=!more.hidden;e.target.textContent=more.hidden?'Подробнее':'Свернуть';if(!more.hidden&&!more.childElementCount){surveyCheck(more,p.channel,p.id);const list=(brief.candidates||brief.shifts||[]).filter(s=>p.shiftKeys.includes(s.key));for(const s of list)more.append(shiftCard(s));for(const g of (brief.signals||[]).filter(g=>g.channel===p.channel&&g.id===p.id)){const extra=g.reasons.filter(r=>!p.line.includes(r));if(extra.length)more.append(el('p','pulse-muted','Сигнал недели: '+extra.join(' · ')));}if(!more.childElementCount)more.append(el('p','pulse-muted','Подробностей нет.'));}},'pulse-btn'),
    button('Записать вывод',()=>openNote({surveyId:p.id,channel:p.channel,metric:p.metrics[0]||'other',direction:'down',date:p.since,products:p.products,title:p.title}),'pulse-btn ghost'),
    button('Что если…',()=>{select('whatif');whatifPrefill({id:p.id,channel:p.channel});},'pulse-btn ghost'));
   card.append(actions,more);return card;
@@ -1022,14 +1052,14 @@ function create(main){
    tr.onclick=toggle;tr.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle();}};table.append(tr);
    if(open){for(const m of g.members){const r=el('tr','pulse-heat-member'),name=el('td','pulse-heat-name');const link=button('#'+m.id+' · '+m.name,()=>askDialog('Покажи отправки, ответы и CSI по опросу '+m.id+' за последние 60 дней по дням'),'pulse-linkbtn');name.append(link);if(m.top)name.append(el('span','pulse-tag','топ'));
      const change=m.answersPrevious?(m.answers-m.answersPrevious)/m.answersPrevious*100:null,csiD=m.csi!=null&&m.csiPrevious!=null?m.csi-m.csiPrevious:null,pace=m.plan?m.mtdAnswers/(m.plan*(new Date(data.through).getUTCDate()/new Date(Date.UTC(+data.through.slice(0,4),+data.through.slice(5,7),0)).getUTCDate()))*100:null;
-     const st=el('td');if(!m.top)st.append(star(data.channel,m.id,m.favorite));
+     const st=el('td');if(!m.top)st.append(star(data.channel,m.id,m.favorite));{const ck=button('Проверить',e=>{e.stopPropagation();openSurveyCheck(data.channel,m.id);},'pulse-linkbtn');ck.setAttribute('aria-label','Проверить опрос #'+m.id);name.append(' ',ck);}
      r.append(st,name,el('td','',m.observed?'':'нет данных'),el('td','',compactNum(m.answers)),pctCell(change,-5,-15),el('td','',m.sends?df.format(m.answers/m.sends*100)+'%':'—'),el('td','',m.csi==null?'—':cf.format(m.csi)),csiCell(csiD),paceCell(pace),el('td',m.shifts||m.signal?'heat-warn':'',(m.shifts?'сдвиг':'')+(m.signal?(m.shifts?' · ':'')+'сигнал':'')||'—'));table.append(r);}}
   }
   const wrap=el('div','pulse-table-wrap');wrap.append(table);host.append(wrap,el('p','pulse-muted',data.method));
  }
  function compactNum(v){if(v==null)return '—';const a=Math.abs(v);if(a>=1e6)return df.format(v/1e6)+' млн';if(a>=1e4)return nf.format(v/1e3)+' тыс.';return nf.format(v);}
  function plural(n,one,few,many){n=Math.abs(n)%100;if(n>=11&&n<=14)return many;n%=10;return n===1?one:n>=2&&n<=4?few:many;}
- ui={page,show,openUpload:()=>{location.hash='#pulse';},whatif:query=>{location.hash='#pulse';select('whatif');setTimeout(()=>{const input=panels.whatif.querySelector('.pulse-ask input');if(input&&query){input.value=query;input.form.requestSubmit();}},300);},meeting:()=>{location.hash='#pulse';select('meeting');},compare:()=>{location.hash='#pulse';select('compare');},showMode:()=>{location.hash='#pulse';setTimeout(showMode,400);},open:key=>{location.hash='#pulse';setTimeout(()=>select(key),50);},saveSkill:query=>saveSkill({query}),openCanvas:id=>{location.hash='#pulse';setTimeout(async()=>{select('canvas');await openCanvas(id);},50);},runSkill:skill=>runSkill(skill),skills:async()=>{try{if(!skillsCache)skillsCache=(await post({action:'skills'})).skills;}catch{skillsCache=[];}return skillsCache;}};
+ ui={page,show,checkSurvey:(channel,id)=>{location.hash='#pulse';setTimeout(()=>openSurveyCheck(channel,id),80);},openUpload:()=>{location.hash='#pulse';},whatif:query=>{location.hash='#pulse';select('whatif');setTimeout(()=>{const input=panels.whatif.querySelector('.pulse-ask input');if(input&&query){input.value=query;input.form.requestSubmit();}},300);},meeting:()=>{location.hash='#pulse';select('meeting');},compare:()=>{location.hash='#pulse';select('compare');},showMode:()=>{location.hash='#pulse';setTimeout(showMode,400);},open:key=>{location.hash='#pulse';setTimeout(()=>select(key),50);},saveSkill:query=>saveSkill({query}),openCanvas:id=>{location.hash='#pulse';setTimeout(async()=>{select('canvas');await openCanvas(id);},50);},runSkill:skill=>runSkill(skill),skills:async()=>{try{if(!skillsCache)skillsCache=(await post({action:'skills'})).skills;}catch{skillsCache=[];}return skillsCache;}};
  return ui;
 }
 
@@ -1105,7 +1135,7 @@ function palette(api){
   if(catalog){
    const idMatch=q.match(/\d{1,7}/);
    for(const sv of catalog.surveys){let s=0;if(idMatch&&String(sv.id).startsWith(idMatch[0]))s=String(sv.id)===idMatch[0]?9:4;else s=score(sv.name+' '+sv.products.join(' '));if(!s||!tokens.length)continue;
-    out.push({kind:sv.channel==='success_screen'?'Опрос · ЭУ':'Опрос · пуш+СМС',label:'#'+sv.id+' · '+sv.name,s,run:()=>ask('Покажи отправки, ответы и CSI по опросу '+sv.id+' за последние 3 месяца по дням')});}
+    out.push({kind:sv.channel==='success_screen'?'Опрос · ЭУ':'Опрос · пуш+СМС',label:'#'+sv.id+' · '+sv.name,s,run:()=>ask('Покажи отправки, ответы и CSI по опросу '+sv.id+' за последние 3 месяца по дням')});out.push({kind:'Проверка',label:'Проверить опрос #'+sv.id+' · '+sv.name,s:s-0.5,run:()=>api.checkSurvey(sv.channel,sv.id)});}
    for(const p of catalog.products){const s=score(p);if(!s||!tokens.length)continue;out.push({kind:'Продукт',label:p,s,run:()=>ask('Покажи отправки и ответы по продукту '+p+' за последние 30 дней')});}
   }
   out.sort((a,b)=>b.s-a.s);const top=out.slice(0,12);

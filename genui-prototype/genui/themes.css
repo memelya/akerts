@@ -457,3 +457,25 @@ input.sa-switch:focus-visible{outline:2px solid var(--accent);outline-offset:2px
 .canvas-groups li.is-link{cursor:pointer;border-radius:6px}.canvas-groups li.is-link:hover,.canvas-groups li.is-link:focus-visible{background:var(--raised);outline:none}
 .pulse-page .canvas-params select{width:auto;flex:0 0 auto;padding:6px 8px}
 .v2-chart-help:empty,.funnel-hint:empty{display:none}
+
+/* --- проверки опроса --- */
+.pulse-check-card{display:flex;flex-direction:column;gap:12px;border:1px solid var(--line);border-radius:12px;padding:16px;background:var(--raised)}
+.pulse-check-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}.pulse-check-head h3{margin:0;font-size:16px}
+.pulse-check-table td,.pulse-check-table th{vertical-align:top}
+.pulse-check-table tr>th:first-child{white-space:nowrap}
+.pulse-check-table td.pulse-muted{max-width:360px;font-size:12px}
+.pulse-check-table tr.check-problem>th:first-child{box-shadow:inset 3px 0 var(--negative)}
+.pulse-check-table tr.check-attention>th:first-child{box-shadow:inset 3px 0 #d5a53f}
+.pulse-check-table tr.check-ok>th:first-child{box-shadow:inset 3px 0 var(--positive)}
+.pulse-check-table details summary{cursor:pointer;font-size:12px;color:var(--text-secondary)}
+.pulse-check-charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.pulse-check-charts h4{margin:0 0 4px;font-size:13px}
+.pulse-chart .band{fill:var(--text,#ededed);opacity:.04}.pulse-chart .band.now{opacity:.08}
+.pulse-chart .band-label{font-size:10px}
+.pulse-chart .day-mark{fill:var(--negative,#e2675b);stroke:var(--surface,#181818);stroke-width:2}
+.pulse-tag.good{color:var(--positive);border-color:color-mix(in srgb,var(--positive) 40%,transparent)}
+.pulse-check-dialog{width:min(1100px,calc(100vw - 32px))}
+.pulse-check-table td,.pulse-check-table th{white-space:normal}
+.pulse-check-table td.pulse-muted{min-width:220px}
+.pulse-check-table td:nth-child(3){min-width:200px}
+.pulse-check-table td:last-child{white-space:nowrap}
