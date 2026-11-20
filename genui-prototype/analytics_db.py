@@ -10,7 +10,9 @@ from pathlib import Path
 from csv_data import DataError,record_key
 
 SCHEMA=1
-def encoded(value):return json.dumps(value,ensure_ascii=False,allow_nan=False,separators=(',',':'))
+def grouped(n):return format(n,',').replace(',','\u00a0')
+_ENCODER=json.JSONEncoder(ensure_ascii=False,allow_nan=False,separators=(',',':'))
+def encoded(value):return _ENCODER.encode(value)
 
 class AnalyticsStore:
     def __init__(self,directory):
@@ -64,21 +66,41 @@ class AnalyticsStore:
             except (ValueError,KeyError,TypeError,sqlite3.Error) as error:
                 db.rollback();raise DataError('Миграция JSON в SQLite отменена: '+str(error)+'. Исходные JSON и CSV сохранены.') from None
 
-    def _write(self,db,rows,document):
+    def _write(self,db,rows,document,progress=None):
         doc={k:v for k,v in document.items() if k not in ('records','history')}
         seq=db.execute('INSERT INTO revisions(revision,document) VALUES(?,?)',(doc['revision'],encoded(doc))).lastrowid
-        db.execute('CREATE TEMP TABLE IF NOT EXISTS incoming_keys(key TEXT PRIMARY KEY)');db.execute('DELETE FROM incoming_keys')
-        old={r['key']:r for r in db.execute('SELECT * FROM records WHERE valid_to IS NULL')}
+        db.execute('PRAGMA cache_size=-131072');db.execute('PRAGMA temp_store=MEMORY')
+        fields=('channel','grain','date','survey_id','status','rating','events','sends','answers','csi','name')
+        # Текущие строки читаем кортежами: на первом импорте база пуста и этот шаг мгновенный.
+        old={r[0]:tuple(r[1:]) for r in db.execute('SELECT key,'+','.join(fields)+' FROM records WHERE valid_to IS NULL')}
         added=changed=unchanged=0
-        for row in rows:
-            key=encoded(record_key(row));db.execute('INSERT OR IGNORE INTO incoming_keys VALUES(?)',(key,))
+        # Пакетная запись: миллион строк одним executemany вместо миллиона отдельных вызовов.
+        seen=set();updates,inserts=[],[]
+        total=len(rows) or 1
+        for index,row in enumerate(rows):
+            if progress and not index%100000:progress(.3*index/total,'сверяем строки с базой: %s из %s'%(grouped(index),grouped(len(rows))))
+            key=encoded(record_key(row));seen.add(key)
             values=(row['channel'],row['grain'],row['date'],row['id'],str(row['status']),-1 if row.get('rating') is None else row['rating'],row['events'],row['sends'],row['answers'],row.get('csi'),row.get('name'))
             prior=old.get(key)
-            if prior and values==tuple(prior[k] for k in ('channel','grain','date','survey_id','status','rating','events','sends','answers','csi','name')):unchanged+=1;continue
-            if prior:db.execute('UPDATE records SET valid_to=? WHERE key=? AND valid_to IS NULL',(seq,key));changed+=1
+            if prior is not None and values==prior:unchanged+=1;continue
+            if prior is not None:updates.append((seq,key));changed+=1
             else:added+=1
-            db.execute('INSERT INTO records VALUES(?,?,NULL,?,?,?,?,?,?,?,?,?,?,?)',(key,seq,*values))
-        removed=db.execute('UPDATE records SET valid_to=? WHERE valid_to IS NULL AND NOT EXISTS(SELECT 1 FROM incoming_keys i WHERE i.key=records.key)',(seq,)).rowcount
+            inserts.append((key,seq,*values))
+        gone=[(seq,key) for key in old if key not in seen]
+        db.executemany('UPDATE records SET valid_to=? WHERE key=? AND valid_to IS NULL',updates+gone)
+        bulk=len(inserts)>50000 and not db.execute('SELECT 1 FROM records LIMIT 1').fetchone()
+        # Первый большой импорт: индексы строим один раз после вставки, а не на каждой строке.
+        if bulk:
+            indexes=[r[0] for r in db.execute("SELECT sql FROM sqlite_master WHERE type='index' AND tbl_name='records' AND sql IS NOT NULL")]
+            for name in [r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='records' AND sql IS NOT NULL")]:db.execute('DROP INDEX '+name)
+        step=100000
+        for start in range(0,len(inserts),step):
+            db.executemany('INSERT INTO records VALUES(?,?,NULL,?,?,?,?,?,?,?,?,?,?,?)',inserts[start:start+step])
+            if progress:progress(min(.85,.3+.55*(start+step)/len(inserts)),'записано строк: %s из %s'%(grouped(min(start+step,len(inserts))),grouped(len(inserts))))
+        if progress and bulk:progress(.88,'строим индексы')
+        if bulk:
+            for sql in indexes:db.execute(sql)
+        removed=len(gone)
         doc['storageChanges']={'inserted':added,'updated':changed,'unchanged':unchanged,'removed':removed}
         db.execute('UPDATE revisions SET document=? WHERE seq=?',(encoded(doc),seq));db.execute('INSERT OR REPLACE INTO metadata VALUES(?,?)',('active',str(seq)))
         keep=[r[0] for r in db.execute('SELECT seq FROM revisions ORDER BY seq DESC LIMIT 10')]
@@ -232,9 +254,9 @@ class AnalyticsStore:
             where,args=self._selection(db,revision,keys,end=end)
             return db.execute("SELECT MAX(date) FROM records WHERE grain='day' AND "+where,args).fetchone()[0]
 
-    def commit(self,records,products,reference,files,mode,fingerprint,report,reason='import',restored_from=None,hold=False):
+    def commit(self,records,products,reference,files,mode,fingerprint,report,reason='import',restored_from=None,hold=False,progress=None):
         doc={'version':1,'products':products,'reference':reference,'revision':uuid.uuid4().hex[:24],'created':dt.datetime.now(dt.timezone.utc).isoformat(),'mode':mode,'fingerprint':fingerprint,'heldFingerprint':fingerprint if hold else None,'files':files,'report':report,'reason':reason,'restoredFrom':restored_from,'referenceHash':hashlib.sha256(encoded(reference).encode()).hexdigest()}
-        with self.connect() as db:self._write(db,records,doc)
+        with self.connect() as db:self._write(db,records,doc,progress)
         return self.load(False)
 
     def error(self,message,files):

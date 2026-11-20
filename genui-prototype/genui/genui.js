@@ -401,6 +401,7 @@ async function refreshStatus(){
  }
 }
 $('refreshData').onclick=refreshStatus;
+window.addEventListener('genui:data-ready',()=>{if(dataStatus&&!dataStatus.ready)refreshStatus();});
 provider.onchange();
 window.ExportGenuiChartPng=exportPng;
 async function showBuild(){

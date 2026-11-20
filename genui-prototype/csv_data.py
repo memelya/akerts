@@ -33,7 +33,25 @@ def decode_csv(raw):
         return raw.decode('cp1251')
 
 
+COUNT_RE = re.compile(r'\d+(?:[.,]0+)?')
+SPLIT_RE = re.compile('[.,]')
+STATUS_RE = re.compile(r'-?\d+')
+MP_STATUS_RE = re.compile(r'[A-Za-z_]+')
+_DATE_CACHE = {}
+
+
 def date_value(text):
+    """Дат в выгрузке сотни, строк — миллионы: разобранная дата запоминается."""
+    cached = _DATE_CACHE.get(text)
+    if cached is not None:
+        return cached
+    value = _date_value(text)
+    if len(_DATE_CACHE) < 100000:
+        _DATE_CACHE[text] = value
+    return value
+
+
+def _date_value(text):
     text = text.strip()
     for fmt in ('%d.%m.%Y', '%Y-%m-%d', '%Y-%m-%d %H:%M:%S', '%d.%m.%Y %H:%M:%S'):
         try:
@@ -54,18 +72,27 @@ def month_value(text):
 
 
 def count_value(text, field, optional=False):
+    if text.isascii() and text.isdigit():  # быстрый путь для обычной ячейки «12345»
+        value = int(text)
+        if value > MAX_INT:
+            raise DataError('Слишком большое число в ' + field)
+        return value
     text = text.strip().replace('\u00a0', '').replace('\u202f', '').replace(' ', '')
     if optional and not text:
         return None
-    if not re.fullmatch(r'\d+(?:[.,]0+)?', text):
+    if not COUNT_RE.fullmatch(text):
         raise DataError('Поле ' + field + ': требуется целое неотрицательное число')
-    value = int(re.split('[.,]', text)[0])
+    value = int(SPLIT_RE.split(text)[0])
     if value > MAX_INT:
         raise DataError('Слишком большое число в ' + field)
     return value
 
 
 def score_value(text, field, rating=False):
+    if not text:
+        return None
+    if rating and len(text) == 1 and text in '012345':  # быстрый путь для оценки «0»…«5»
+        return int(text) if text != '0' else 0
     if not text.strip():
         return None
     try:
@@ -79,13 +106,15 @@ def score_value(text, field, rating=False):
     return int(value) if rating else value
 
 
-def parse_csv(raw, channel, filename):
+def parse_csv(raw, channel, filename, progress=None):
     text = decode_csv(raw).lstrip('\ufeff').strip()
     if not text:
         return [], {'file': filename, 'rows': 0, 'duplicates': 0, 'format': 'пустой файл'}
-    if text.splitlines()[0].lower().startswith('sep='):
-        text = '\n'.join(text.splitlines()[1:])
-    header_line = text.splitlines()[0]
+    first_line = text.split('\n', 1)[0].rstrip('\r')
+    if first_line.lower().startswith('sep='):
+        text = text.split('\n', 1)[1] if '\n' in text else ''
+        first_line = text.split('\n', 1)[0].rstrip('\r')
+    header_line = first_line
     delimiter = max((';', ',', '\t'), key=header_line.count)
     try:
         reader = csv.reader(io.StringIO(text), delimiter=delimiter, strict=True)
@@ -111,7 +140,10 @@ def parse_csv(raw, channel, filename):
         if missing:
             raise DataError('Нет колонок: ' + ', '.join(missing))
         records, keys, duplicates = [], set(), 0
+        total_lines = text.count('\n') + 1 if progress else 0
         for line_number, cells in enumerate(reader, 2):
+            if progress and not line_number % 25000:
+                progress(min(1.0, line_number / total_lines), line_number)
             if not any(cell.strip() for cell in cells):
                 continue
             try:
@@ -124,10 +156,10 @@ def parse_csv(raw, channel, filename):
                 date = date_value(get('day_part')) if grain == 'day' else month_value(get('month'))
                 status = get('mp_status' if channel == 'success_screen' else 'status_det')
                 if channel == 'communication':
-                    if not re.fullmatch(r'-?\d+', status):
+                    if not STATUS_RE.fullmatch(status):
                         raise DataError('Некорректный status_det')
                     status = int(status)
-                elif not re.fullmatch(r'[A-Za-z_]+', status):
+                elif not MP_STATUS_RE.fullmatch(status):
                     raise DataError('Некорректный mp_status')
                 count_field = 'sends' if screen_count else 'events'
                 events = count_value(get(count_field), count_field)

@@ -13,6 +13,51 @@ from genui_extended import execute_query
 
 FILES=(('push-sms.csv','communication'),('success-screen.csv','success_screen'))
 
+class ImportProgress:
+    """Прогресс первого (тяжёлого) импорта CSV для экрана загрузки. Читается без блокировки движка."""
+    PHASES=(('read','Читаем CSV с диска'),('parse','Проверяем строки'),('merge','Объединяем с историей'),('quality','Сверяем качество данных'),('write','Записываем в локальную базу'),('build','Готовим показатели'))
+    WEIGHTS={'read':4,'parse':30,'merge':6,'quality':7,'write':43,'build':10}
+    DEFAULT_RATE=.6  # секунд на мегабайт CSV, пока нет собственного замера
+
+    def __init__(self,directory):
+        self.path=Path(directory)/'import-speed.json';self.guard=threading.Lock();self.state={'active':False}
+
+    def rate(self):
+        try:return max(.05,min(10.0,float(json.loads(self.path.read_text(encoding='utf-8'))['secondsPerMB'])))
+        except (OSError,ValueError,KeyError,TypeError):return self.DEFAULT_RATE
+
+    def begin(self,files,first_run):
+        size=sum(f['size'] for f in files)
+        with self.guard:self.state={'active':True,'started':time.time(),'phase':'read','fraction':0.0,'detail':'','files':files,'firstRun':first_run,'bytes':size,'estimate':round(size/1048576*self.rate(),1)}
+
+    def phase(self,key,fraction=0.0,detail=''):
+        with self.guard:
+            if self.state.get('active'):self.state.update(phase=key,fraction=max(0.0,min(1.0,fraction)),detail=detail)
+
+    def file(self,name,**values):
+        with self.guard:
+            for item in self.state.get('files',[]):
+                if item['name']==name:item.update(values)
+
+    def finish(self,error=None):
+        with self.guard:
+            state=self.state
+            if not state.get('active'):return
+            seconds=time.time()-state['started']
+            self.state={'active':False,'finishedAt':time.time(),'seconds':round(seconds,1),'error':error,'files':state.get('files',[])}
+        if not error and state.get('bytes',0)>2*1048576:
+            try:self.path.write_text(json.dumps({'secondsPerMB':round(seconds/(state['bytes']/1048576),3)}),encoding='utf-8')
+            except OSError:pass
+
+    def snapshot(self):
+        with self.guard:state=copy.deepcopy(self.state)
+        if not state.get('active'):return state
+        keys=[k for k,_ in self.PHASES];index=keys.index(state['phase']);total=sum(self.WEIGHTS.values())
+        done=sum(self.WEIGHTS[k] for k in keys[:index])+self.WEIGHTS[state['phase']]*state['fraction']
+        state.update(elapsed=round(time.time()-state['started'],1),percent=round(100*done/total,1),step=index+1,steps=len(keys),
+                     label=dict(self.PHASES)[state['phase']],phases=[{'key':k,'label':l,'state':'done' if i<index else 'active' if i==index else 'wait'} for i,(k,l) in enumerate(self.PHASES)])
+        return state
+
 class Engine:
     def __init__(self,root):
         self.root=Path(root);self.directory=self.root/'.local-data';self.directory.mkdir(parents=True,exist_ok=True)
@@ -23,7 +68,7 @@ class Engine:
             reference=json.loads(reference_file.read_text(encoding='utf-8-sig'))
             if reference.get('version')!=1:raise DataError('Неизвестный формат справочника reference.json')
             self.baseline.update({key:reference.get(key,{}) for key in REFERENCE_KEYS})
-        self.store=AnalyticsStore(self.directory);self.cache=self.store.cache;self.lock=threading.RLock();self.plans={};self.previews={};self.analyses={};self.cache_error=None
+        self.store=AnalyticsStore(self.directory);self.cache=self.store.cache;self.lock=threading.RLock();self.progress=ImportProgress(self.directory);self.plans={};self.previews={};self.analyses={};self.cache_error=None
         try:self.document=self.store.load(False)
         except (ValueError,OSError,TypeError) as error:
             self.document={'version':1,'records':[],'products':{}};self.cache_error='Не удалось прочитать .local-data/updates.json: '+str(error)+'. Сохранённый файл не перезаписан.'
@@ -66,28 +111,50 @@ class Engine:
             documents.append((name,channel,raw));files.append({'file':'date/'+name,'rows':0,'modified':dt.datetime.fromtimestamp(stat.st_mtime).strftime('%d.%m.%Y %H:%M:%S') if stat else 'файл не найден'})
         return documents,files,digest.hexdigest()
 
-    def _candidate(self,mode):
+    def _candidate(self,mode,progress=None):
         if mode not in ('merge','replace'):raise DataError('Режим загрузки: merge или replace.')
         if self.cache_error:raise DataError(self.cache_error)
+        track=progress.phase if progress else (lambda *a,**k:None);note=progress.file if progress else (lambda *a,**k:None)
         signature=self._signature();documents,files,fingerprint=self._read();incoming=[];products={}
+        sizes={name:max(1,len(raw)) for name,channel,raw in documents if channel!='reference'};total=sum(sizes.values());passed=0
+        track('parse',0.0)
         for index,(name,channel,raw) in enumerate(documents):
             if channel=='reference':
-                products,count=parse_products(raw);files[index]['rows']=count
+                products,count=parse_products(raw);files[index]['rows']=count;note(name,rows=count,done=True)
             else:
-                rows,stats=parse_csv(raw,channel,'date/'+name);incoming.extend(rows);files[index].update(stats)
+                share=sizes[name]/total;base=passed/total
+                def report(fraction,rows,name=name,base=base,share=share):
+                    note(name,rows=rows,fraction=fraction);track('parse',base+share*fraction,name)
+                note(name,active=True)
+                rows,stats=parse_csv(raw,channel,'date/'+name,report if progress else None);incoming.extend(rows);files[index].update(stats)
+                passed+=sizes[name];note(name,rows=len(rows),fraction=1,done=True,active=False)
+        track('merge',0.0,'строк: '+format(len(incoming),',').replace(',','\u00a0'))
         previous=self.updates
         records=merge_records(previous if mode=='merge' else [],incoming)
+        track('quality',0.0)
         reference={key:self.baseline.get(key,{}) for key in REFERENCE_KEYS}
         report=quality_report(previous,records,self.document.get('products',{}),products,files,reference,incoming)
         if signature!=self._signature():raise DataError('CSV изменился во время чтения. Сохраните файл и повторите загрузку.')
         return {'records':records,'products':products,'reference':reference,'files':files,'fingerprint':fingerprint,'report':report,'mode':mode,'signature':signature}
 
-    def _commit(self,candidate,reason='import',restored_from=None,hold=False):
-        document=self.store.commit(**{k:candidate[k] for k in ('records','products','reference','files','mode','fingerprint','report')},reason=reason,restored_from=restored_from,hold=hold)
+    def _commit(self,candidate,reason='import',restored_from=None,hold=False,progress=None):
+        write=(lambda fraction,detail='':progress.phase('write',fraction,detail)) if progress else None
+        if progress:progress.phase('write',0.0,'строк: '+format(len(candidate['records']),',').replace(',','\u00a0'))
+        document=self.store.commit(**{k:candidate[k] for k in ('records','products','reference','files','mode','fingerprint','report')},reason=reason,restored_from=restored_from,hold=hold,progress=write)
+        if progress:progress.phase('build',0.0)
         self.document=document;self.state=self._build(self.store.summary(),candidate['products'],candidate['reference']);self.fingerprint=candidate['fingerprint'];self.signature=candidate.get('signature');self.cache_error=None
         self.status={'files':candidate['files'],'error':None}
+        if progress:progress.phase('build',.5,'пересчитываем мониторинг')
         self.workflows.recalculate_all()
         return document
+
+    def needs_import(self):
+        """Быстрая проверка без чтения CSV: изменились ли размеры или даты файлов с последней сверки."""
+        try:return self.signature!=self._signature()
+        except OSError:return True
+
+    def importing(self):
+        return bool(self.progress.state.get('active'))
 
     def refresh(self):
         with self.lock:
@@ -96,12 +163,16 @@ class Engine:
                 if self.signature==signature:return self.state,self.status
                 _,files,fingerprint=self._read()
                 if self.fingerprint==fingerprint:self.signature=signature;return self.state,self.status
-                candidate=self._candidate(self.document.get('mode','merge'))
+                progress=self.progress
+                progress.begin([{'name':f['file'].split('/')[-1],'size':(self.root/f['file']).stat().st_size if (self.root/f['file']).exists() else 0,'rows':0,'done':False} for f in files],not self.document.get('revision'))
+                candidate=self._candidate(self.document.get('mode','merge'),progress)
                 if candidate['mode']=='replace' and self.document.get('report',{}).get('recordCount') and not candidate['records']:raise DataError('Пустая полная замена требует просмотра в центре качества данных. Текущая версия сохранена.')
-                if candidate['records'] or candidate['products'] or self.document.get('revision'):self._commit(candidate)
+                if candidate['records'] or candidate['products'] or self.document.get('revision'):self._commit(candidate,progress=progress)
                 else:
                     self.state=self._build([],candidate['products'],candidate['reference']);self.fingerprint=fingerprint;self.signature=signature;self.status={'files':candidate['files'],'error':None}
+                progress.finish()
             except (ValueError,OSError,KeyError,TypeError) as error:
+                self.progress.finish(str(error))
                 self.status={'files':locals().get('files',[]),'error':str(error)}
                 try:self.store.error(str(error),self.status['files'])
                 except OSError:pass

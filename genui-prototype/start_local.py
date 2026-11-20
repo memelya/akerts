@@ -199,6 +199,11 @@ def make_handler(engine):
                         _,status=engine.refresh();result=engine.workflows.list();result['dataError']=status.get('error')
                 except (ValueError,OSError) as error:result={'error':str(error)}
                 self.send_bytes(json.dumps(result,ensure_ascii=False).encode('utf-8'),'application/json; charset=utf-8',head);return
+            if route=='/api/loading':
+                # Без блокировок: экран загрузки опрашивает этот адрес, пока импорт CSV и брифинг готовятся в фоне.
+                pulse=getattr(engine,'pulse',None)
+                result=pulse.pending()['loading'] if pulse and pulse.busy() else {'active':False}
+                self.send_bytes(json.dumps(result,ensure_ascii=False).encode('utf-8'),'application/json; charset=utf-8',head);return
             if route=='/api/health':
                 self.send_bytes(json.dumps(dict(getattr(engine,'runtime',{}),**BUILD_METADATA)).encode('utf-8'),'application/json; charset=utf-8',head);return
             if route=='/api/diagnostics':

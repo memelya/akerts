@@ -14,15 +14,28 @@ def atomic_json(path,value):
     os.replace(temporary,path)
 
 def quality_report(previous,records,old_products,products,files,reference,incoming=None):
-    before={record_key(r):r for r in previous};after={record_key(r):r for r in records}
-    shared=set(before)&set(after)
-    changes={'added':len(set(after)-set(before)),'removed':len(set(before)-set(after)),
-             'updated':sum(before[k]!=after[k] for k in shared),'unchanged':sum(before[k]==after[k] for k in shared),
+    # Один проход по строкам: на миллионе строк каждый лишний проход стоит секунды.
+    if previous:
+        before={record_key(r):r for r in previous};after={record_key(r):r for r in records}
+        shared=before.keys()&after.keys();updated=sum(before[k]!=after[k] for k in shared)
+        added,removed,unchanged=len(after.keys()-before.keys()),len(before.keys()-after.keys()),len(shared)-updated
+    else:added,removed,updated,unchanged=len({record_key(r) for r in records}),0,0,0
+    changes={'added':added,'removed':removed,'updated':updated,'unchanged':unchanged,
              'productLinksChanged':sum(old_products.get(k)!=products.get(k) for k in set(old_products)|set(products))}
-    days=defaultdict(set);channels=defaultdict(set)
+    days=defaultdict(set);channels=defaultdict(set);catalog=reference.get('surveyCatalog',{})
+    ids=set();no_product=set();mismatched=set();zero=daily=monthly=0;first_date=last_date=None
     for row in records:
-        channels[row['channel']].add(row['id'])
-        if row['grain']=='day':days[(row['channel'],row['id'])].add(row['date'])
+        ident=row['id'];channel=row['channel'];date=row['date']
+        if ident not in ids:
+            ids.add(ident);linked=products.get(str(ident))
+            if not linked or linked==['без продукта']:no_product.add(ident)
+        channels[channel].add(ident)
+        if catalog.get(str(ident),{}).get('channel',channel)!=channel:mismatched.add(ident)
+        if row['grain']=='day':daily+=1;days[(channel,ident)].add(date)
+        elif row['grain']=='month':monthly+=1
+        if row.get('csi')==0:zero+=1
+        if first_date is None or date<first_date:first_date=date
+        if last_date is None or date>last_date:last_date=date
     gaps=[]
     for (channel,ident),dates in days.items():
         first,last=min(dates),max(dates);count=(dt.date.fromisoformat(last)-dt.date.fromisoformat(first)).days+1-len(dates)
@@ -30,8 +43,7 @@ def quality_report(previous,records,old_products,products,files,reference,incomi
     duplicates=sum(f.get('duplicates',0) for f in files)
     product_rows=next((f.get('rows',0) for f in files if f['file'].endswith('products.csv')),0)
     product_duplicates=max(0,product_rows-sum(len(v) for v in products.values()))
-    no_product={r['id'] for r in records if not products.get(str(r['id'])) or products.get(str(r['id']))==['без продукта']}
-    mismatches=sorted({r['id'] for r in records if reference.get('surveyCatalog',{}).get(str(r['id']),{}).get('channel',r['channel'])!=r['channel']})
+    mismatches=sorted(mismatched)
     cross=sorted(channels['communication']&channels['success_screen'])
     issues=[]
     if duplicates:issues.append('Повторяющихся ключей строк: %s. Для одинакового ключа принята последняя строка.'%duplicates)
@@ -39,13 +51,11 @@ def quality_report(previous,records,old_products,products,files,reference,incomi
     if gaps:issues.append('У %s опросов есть дни без строк внутри наблюдаемого интервала. Это не доказывает ошибку выгрузки; выходные также включены.'%len(gaps))
     if mismatches:issues.append('Канал CSV отличается от справочника у %s ID. Используется канал файла; данные каналов разделены.'%len(mismatches))
     if cross:issues.append('%s ID встречаются в обоих каналах. Для запроса конкретного ID потребуется выбрать канал.'%len(cross))
-    zero=sum(r.get('csi')==0 for r in records)
     if zero:issues.append('Строк с оценкой 0: %s. Ответы сохранены; строки исключены из CSI.'%zero)
     from_history=bool(records and incoming is not None and not incoming)
     if from_history:issues.insert(0,'Текущие CSV не содержат строк событий. Используется сохранённая локальная история.')
-    return {'changes':changes,'recordCount':len(records),'surveyIds':len({r['id'] for r in records}),
-            'dailyRows':sum(r['grain']=='day' for r in records),'monthlyRows':sum(r['grain']=='month' for r in records),
-            'from':min((r['date'] for r in records),default=None),'to':max((r['date'] for r in records),default=None),
+    return {'changes':changes,'recordCount':len(records),'surveyIds':len(ids),
+            'dailyRows':daily,'monthlyRows':monthly,'from':first_date,'to':last_date,
             'duplicates':duplicates,'productDuplicates':product_duplicates,'withoutProduct':len(no_product),
             'zeroRatingRows':zero,'gapCount':len(gaps),'gaps':sorted(gaps,key=lambda g:g['unobservedDays'],reverse=True)[:30],
             'channelMismatches':mismatches[:30],'crossChannelIds':cross[:30],'fromHistory':from_history,'issues':issues}

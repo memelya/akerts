@@ -179,6 +179,9 @@ class Pulse:
         self.computing = False
         self.error = None
         self.stop_event = threading.Event()
+        self.wake = threading.Event()
+        self.preparing = False
+        self.brief_started = None
         self.thread = None
         self.local = threading.local()
         self.jobs = {}
@@ -471,6 +474,7 @@ class Pulse:
             brief = None if force else self.cached_brief(revision)
             if brief is None:
                 self.computing = True
+                self.brief_started = time.time()
                 try:
                     brief = self.compute_brief()
                     if force:
@@ -483,8 +487,43 @@ class Pulse:
                     self.computing = False
             return brief
 
+    def loading(self):
+        """Состояние подготовки данных для экрана загрузки: импорт CSV, затем расчёт брифинга."""
+        engine = self.engine
+        state = engine.progress.snapshot()
+        if state.get('active'):
+            state['percent'] = round(state['percent'] * .9, 1)
+            state['phases'] = state['phases'] + [{'key': 'brief', 'label': 'Собираем брифинг', 'state': 'wait'}]
+            state['steps'] += 1
+            return state
+        phases = [{'key': k, 'label': l, 'state': 'done'} for k, l in engine.progress.PHASES]
+        started = self.brief_started if self.computing and self.brief_started else time.time()
+        elapsed = time.time() - started
+        # Брифинг считается секунды; доводим полосу от 90 до 99% плавно, без ложной точности.
+        percent = 90 + 9 * (1 - math.exp(-elapsed / 3))
+        return {'active': True, 'phase': 'brief', 'label': 'Собираем брифинг', 'detail': 'сдвиги, сигналы и проверки опросов',
+                'percent': round(percent, 1), 'step': len(phases) + 1, 'steps': len(phases) + 1, 'elapsed': round(elapsed, 1),
+                'files': state.get('files', []), 'importSeconds': state.get('seconds'), 'firstRun': False,
+                'phases': phases + [{'key': 'brief', 'label': 'Собираем брифинг', 'state': 'active'}]}
+
+    def busy(self):
+        return self.preparing or self.computing or self.engine.importing() or self.engine.needs_import()
+
+    def pending(self):
+        self.wake.set()
+        return {'pending': True, 'loading': self.loading()}
+
     def brief_response(self, force=False):
-        brief = self.ensure_brief(force)
+        # Страница не ждёт импорт: пока данные готовятся в фоне, отвечаем состоянием загрузки.
+        if self.busy() and (not force or self.engine.importing() or self.engine.needs_import()):
+            return self.pending()
+        if not force and not self.lock.acquire(blocking=False):
+            return self.pending()
+        try:
+            brief = self.ensure_brief(force)
+        finally:
+            if not force:
+                self.lock.release()
         demo = self.demo()
         return dict(brief, settings=self.settings(), modelReady=self.model_ready(), demo=bool(demo), demoStories=(demo or {}).get('stories'))
 
@@ -500,7 +539,12 @@ class Pulse:
                 self.error = str(error)
             while not self.stop_event.is_set():
                 try:
-                    brief = self.ensure_brief()
+                    # Флаг держится весь путь «импорт → брифинг», чтобы экран загрузки не мигал между этапами.
+                    self.preparing = self.engine.needs_import()
+                    try:
+                        brief = self.ensure_brief()
+                    finally:
+                        self.preparing = False
                     if self.settings()['autoNarrate'] and not brief.get('empty') and not brief.get('narrative') and self.model_ready():
                         try:
                             self.narrate({})
@@ -508,13 +552,15 @@ class Pulse:
                             self.error = 'AI-резюме не подготовлено: ' + str(error)
                 except Exception as error:
                     self.error = str(error)
-                self.stop_event.wait(interval)
+                self.wake.wait(interval)
+                self.wake.clear()
 
         self.thread = threading.Thread(target=loop, name='pulse-brief', daemon=True)
         self.thread.start()
 
     def close(self):
         self.stop_event.set()
+        self.wake.set()
 
     # -- model helpers ----------------------------------------------------
     def call_model(self, stage, instructions, payload, query):

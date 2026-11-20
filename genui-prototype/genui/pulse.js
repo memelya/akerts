@@ -15,7 +15,10 @@ const pctChange=(a,b)=>a&&b!==null&&b!==undefined?signed((b-a)/a*100):'нет б
 async function post(body,path='/api/pulse'){
  const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
  let data;try{data=await response.json();}catch{throw new Error('Сервер вернул неожиданный ответ. Проверьте окно сервера.');}
- if(!response.ok||data.error)throw new Error(data.error||'Ошибка запроса');return data;
+ if(!response.ok||data.error)throw new Error(data.error||'Ошибка запроса');
+ // Пока сервер импортирует CSV или считает брифинг, он отвечает состоянием загрузки, а не ждёт. Показываем экран и повторяем запрос.
+ if(data.pending&&body.action==='brief'&&window.DataLoading){await window.DataLoading.wait(data.loading);return post(Object.assign({},body,{force:false}),path);}
+ return data;
 }
 function button(text,handler,cls='pulse-btn'){const b=el('button',cls,text);b.type='button';if(handler)b.onclick=handler;return b;}
 async function busy(control,status,task){
