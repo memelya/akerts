@@ -955,6 +955,7 @@ function create(main){
   box.append(grid,el('p','pulse-muted',d.method));
  }
  const checkDialog=el('dialog','pulse-dialog pulse-check-dialog');document.body.append(checkDialog);
+ window.PulseCheck=(channel,id)=>openSurveyCheck(channel,id);
  function openSurveyCheck(channel,id){checkDialog.replaceChildren();const close=button('Закрыть',()=>checkDialog.close(),'pulse-btn ghost');const body=el('div');checkDialog.append(body,close);checkDialog.showModal();surveyCheck(body,channel,id);}
  /* --- брифинг руководителя: мой фокус → группы → банк --- */
  function star(channel,id,on){

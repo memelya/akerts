@@ -32,6 +32,7 @@ const meetingUI=window.MeetingPage.create({main:$('main')});
 const presentationUI=window.PresentationPages.create({main:$('main')});
 const digestUI=window.DigestUI.create($('main'));
 const pulseUI=window.PulseUI.create($('main'));
+const segmentsUI=window.SegmentsUI.create($('main'));
 const clientBaseUI=window.ClientBase.create({main:$('main')});
 for(const [label,hash] of [['\u0420\u0430\u0431\u043e\u0447\u0438\u0435 \u0441\u0446\u0435\u043d\u0430\u0440\u0438\u0438','#scenarios'],['\u041a\u0430\u043b\u0435\u043d\u0434\u0430\u0440\u044c \u0437\u0430\u043f\u0443\u0441\u043a\u043e\u0432','#calendar']]){const link=node('a','nav-item',label);link.href=hash;document.querySelector('.rail').insertBefore(link,document.querySelector('.history'));const shortcut=node('a','',label);shortcut.href=hash;document.querySelector('.data-actions').append(shortcut);}
 for(const [label,hash] of [['Качество данных','#trust'],['Словарь показателей','#metrics']]){const link=node('a','nav-item',label);link.href=hash;document.querySelector('.rail').insertBefore(link,document.querySelector('.history'));const shortcut=node('a','',label);shortcut.href=hash;document.querySelector('.data-actions').append(shortcut);}
@@ -59,6 +60,7 @@ function showPage(){
  const category=hash.match(/^#surveys-(top|communication|success_screen)$/)?.[1];
  const pages={
   '#pulse':[pulseUI.page,pulseUI.show],
+  '#segments':[segmentsUI.page,segmentsUI.show],
   '#feedback':[feedbackUI.page,feedbackUI.show],
   '#favorites':[favoritesPage,showFavorites],
   '#scenarios':[workflowsUI.scenarios,workflowsUI.showScenarios],
@@ -74,7 +76,7 @@ function showPage(){
  const [page,show]=adminPanel?[adminPage,()=>showAdmin(adminKey)]:category?[overviewUI.page,()=>overviewUI.show(category)]:pages[hash]||[];
  dialogueActive=!page;
  document.body.classList.toggle('focus-browse',Boolean(page));
- document.body.classList.toggle('has-survey-overview',Boolean(category||['#pulse','#feedback','#morning-monitor','#client-base-2026','#presentation-pages','#meeting-20261105'].includes(hash)));
+ document.body.classList.toggle('has-survey-overview',Boolean(category||['#pulse','#segments','#feedback','#morning-monitor','#client-base-2026','#presentation-pages','#meeting-20261105'].includes(hash)));
  if(hash!=='#meeting-20261105')meetingUI.stop();
  if(!category)overviewUI.stop();
  for(const child of $('main').children)child.hidden=page?child!==page:child===focusUI.root?!document.body.classList.contains('focus-active'):Object.values(pages).some(([section])=>section===child)||child===adminPage||child===overviewUI.page;

@@ -479,3 +479,52 @@ input.sa-switch:focus-visible{outline:2px solid var(--accent);outline-offset:2px
 .pulse-check-table td.pulse-muted{min-width:220px}
 .pulse-check-table td:nth-child(3){min-width:200px}
 .pulse-check-table td:last-child{white-space:nowrap}
+
+/* --- обзор по разрезам --- */
+.segments-page{display:flex;flex-direction:column;gap:20px;max-width:1360px}
+.seg-head{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between}
+.seg-head h1{margin:0 0 6px}
+.seg-muted{color:var(--muted);font-size:13px;line-height:19px;margin:0}
+.seg-periods{display:flex;flex-wrap:wrap;gap:4px}
+.segments-page .seg-btn{border:1px solid var(--line);background:var(--raised);color:var(--text-secondary);border-radius:8px;padding:8px 14px;font:inherit;font-size:13px;cursor:pointer}
+.segments-page .seg-btn[aria-pressed=true]{color:var(--text);border-color:var(--line-strong,var(--line));background:var(--hover,var(--raised));font-weight:600}
+.seg-body{display:flex;flex-direction:column;gap:16px}
+.seg-columns{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:16px}
+.seg-card{background:var(--surface);border:1px solid var(--line);border-top:3px solid var(--line);border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.seg-card.seg-wide{border-top-width:1px}
+.seg-card h2{margin:0;font-size:18px;line-height:24px}
+.seg-card-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 12px;align-items:baseline}
+.seg-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.seg-tile{display:flex;flex-direction:column;gap:4px;border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--raised);min-width:0}
+.seg-tile b{font-size:22px;line-height:28px;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seg-tile-foot{display:flex;justify-content:space-between;align-items:flex-end;gap:8px}
+.seg-delta{font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.seg-delta.down{color:var(--negative)}.seg-delta.up{color:var(--positive)}.seg-delta.flat{color:var(--muted)}
+.seg-extra{margin:0;display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:12px;font-size:13px}
+.seg-extra>div{display:flex;justify-content:space-between;gap:12px}.seg-extra dt{color:var(--text-secondary)}.seg-extra dd{margin:0;color:var(--text);font-variant-numeric:tabular-nums;text-align:right}
+.seg-health{display:flex;flex-direction:column;gap:10px;min-width:0}
+.seg-health-title{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.seg-dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.seg-tag{font-size:12px;line-height:20px;padding:0 10px;border-radius:99px;border:1px solid var(--line);color:var(--text-secondary);white-space:nowrap;margin-left:6px}
+.seg-tag.bad{color:var(--negative);border-color:color-mix(in srgb,var(--negative) 40%,transparent)}.seg-tag.warn{color:#d5a53f;border-color:color-mix(in srgb,#d5a53f 40%,transparent)}.seg-tag.good{color:var(--positive);border-color:color-mix(in srgb,var(--positive) 40%,transparent)}
+.seg-chips{display:flex;flex-wrap:wrap;gap:6px}
+.seg-chip{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:13px;color:var(--text-secondary);background:var(--raised)}
+.seg-chip strong{font-variant-numeric:tabular-nums}.seg-chip strong.bad{color:var(--negative)}.seg-chip strong.warn{color:#d5a53f}
+.seg-worst{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:13px}
+.segments-page .seg-link{border:0;background:transparent;color:var(--text);font:inherit;font-size:13px;padding:0;cursor:pointer;text-align:left;text-decoration:underline;text-decoration-color:var(--line-strong,var(--line));text-underline-offset:3px}
+.segments-page .seg-link:hover{color:var(--accent)}
+.seg-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr));gap:16px}
+.seg-two svg text.seg-label{font-size:12px;font-weight:600}.seg-two svg text.seg-axis{font-size:11px;fill:var(--muted)}
+.seg-two svg .seg-grid{stroke:var(--line);stroke-width:1}
+.seg-bar{height:10px;border-radius:5px;background:var(--raised);overflow:hidden}.seg-bar i{display:block;height:10px}
+.seg-leaders{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;font-size:13px}
+.seg-leader{display:flex;justify-content:space-between;gap:8px;align-items:baseline;padding:2px 0}
+.seg-table-wrap{overflow-x:auto}
+.seg-table{border-collapse:collapse;width:100%;font-size:13px}
+.seg-table th{text-align:right;padding:8px 10px;border-bottom:1px solid var(--line);color:var(--muted);font-weight:600;white-space:nowrap}
+.seg-table td{text-align:right;padding:10px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--text)}
+.seg-table th:first-child,.seg-table td:first-child,.seg-table th:nth-child(2),.seg-table td:nth-child(2){text-align:left}
+.seg-table td.seg-muted-cell{color:var(--text-secondary)}
+.segments-page .seg-sort{border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;padding:0}
+.segments-page .seg-link,.segments-page .seg-sort{min-height:0;height:auto;line-height:20px;box-shadow:none}
+.seg-table td{padding:8px 10px}

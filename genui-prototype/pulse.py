@@ -1585,35 +1585,184 @@ class Pulse:
         'expected_answers_min': 3,                          # ниже — ноль ответов за день может быть случайным
     }
 
-    def survey_check(self, request):
-        """Проверки одного опроса за последние две недели (неделя = 7 дней по последнюю дату выгрузки).
-        Каждая проверка возвращает правило, факт и итог: ok / attention / problem / na."""
+    # -- обзор по разрезам: пуш + СМС, экраны успеха, топ опросы --------------------------------
+    SEGMENTS = (('communication', 'Пуш + СМС'), ('success_screen', 'Экраны успеха'), ('top', 'Топ опросы'))
+
+    def segments_overview(self, request):
+        """Три разреза за один период: суммы целыми числами (выдерживают миллиарды), конверсия и CSI —
+        отношения сумм, без средних по опросам. Результат кэшируется на версию данных и период."""
+        period = request.get('period') or 'week'
+        if period not in ('week', 'month', 'quarter'):
+            raise ValueError('Период: неделя, месяц или квартал.')
         state, revision = self.snapshot()
-        channel = request.get('channel') or 'communication'
-        ident = request.get('id')
-        if channel not in CHANNELS or type(ident) is not int:
-            raise ValueError('Укажите канал и номер опроса.')
-        selected = self.surveys(state, channel, ident)
-        if not selected:
-            raise ValueError('Опрос #' + str(ident) + ' не найден в канале «' + CHANNEL_LABELS[channel] + '».')
-        keys = [(channel, ident)]
+        cache = getattr(self, '_overview_cache', {})
+        if (revision, period) in cache:
+            return cache[(revision, period)]
+        surveys = [s for s in state['surveys'] if s['meta']['channel'] in CHANNELS]
+        keys = [(s['meta']['channel'], s['event']['id']) for s in surveys]
         latest = self.last_day(revision, keys)
         if not latest:
-            raise ValueError('Для опроса #' + str(ident) + ' нет дневных строк в выгрузке.')
+            raise ValueError('В выгрузке нет дневных строк.')
         end = dt.date.fromisoformat(latest)
-        start = end - dt.timedelta(days=27)
+        windows = period_windows(period, end)          # [(from, to, label, full)], последний — текущий
+        start = min(windows[0][0], end - dt.timedelta(days=27))
         rows = self.daily(revision, keys, start.isoformat(), latest)
-        by_date = defaultdict(list)
+        per = defaultdict(lambda: defaultdict(list))   # (channel, id) -> date -> rows
         for row in rows:
-            by_date[row['date']].append(row)
-        days = []
-        for offset in range(28):
-            date = (start + dt.timedelta(days=offset)).isoformat()
-            items = by_date.get(date, [])
-            csi, sample = weighted_csi(items)
-            days.append({'date': date, 'weekday': (start + dt.timedelta(days=offset)).weekday(), 'hasRows': bool(items),
-                         'sends': sum(r.get('sends') or 0 for r in items), 'answers': sum(r.get('answers') or 0 for r in items),
-                         'csi': csi, 'csiSample': sample, 'csiWeight': sum(r.get('csiWeight') or 0 for r in items)})
+            per[(row['channel'], row['survey_id'])][row['date']].append(row)
+        meta = {(s['meta']['channel'], s['event']['id']): s for s in surveys}
+
+        def window_sum(key, w):
+            out = {'sends': 0, 'answers': 0, 'events': 0, 'stop': 0, 'contactPolicy': 0, 'csiWeight': 0.0, 'csiSample': 0, 'days': 0}
+            day, last = w[0], w[1]
+            dates = per.get(key, {})
+            while day <= last:
+                for r in dates.get(day.isoformat(), ()):
+                    out['sends'] += r.get('sends') or 0
+                    out['answers'] += r.get('answers') or 0
+                    out['events'] += r.get('events') or 0
+                    out['stop'] += r.get('stop') or 0
+                    out['contactPolicy'] += r.get('contactPolicy') or 0
+                    out['csiWeight'] += r.get('csiWeight') or 0
+                    out['csiSample'] += r.get('csiSample') or 0
+                    out['days'] += 1
+                day += dt.timedelta(days=1)
+            return out
+
+        sums = {key: [window_sum(key, w) for w in windows] for key in meta}
+        # проверки здоровья: те же правила, что в «Проверках опроса», по последним 28 дням
+        health = {}
+        for key in meta:
+            dates = per.get(key)
+            if not dates:
+                continue
+            days = []
+            for offset in range(28):
+                d = end - dt.timedelta(days=27 - offset)
+                items = dates.get(d.isoformat(), [])
+                days.append({'date': d.isoformat(), 'weekday': d.weekday(), 'hasRows': bool(items),
+                             'sends': sum(r.get('sends') or 0 for r in items), 'answers': sum(r.get('answers') or 0 for r in items),
+                             'csiSample': sum(r.get('csiSample') or 0 for r in items), 'csiWeight': sum(r.get('csiWeight') or 0 for r in items)})
+            if not any(d['hasRows'] for d in days):
+                continue
+            checks, counts, _, _ = self.evaluate_checks(days, key[0])
+            health[key] = {c['key']: c['status'] for c in checks}
+
+        def members(segment):
+            return [k for k in meta if (meta[k]['event'].get('isTop') if segment == 'top' else k[0] == segment)]
+
+        def totals(keys_, index):
+            out = defaultdict(float)
+            for k in keys_:
+                for field, value in sums[k][index].items():
+                    out[field] += value
+            out = {f: (int(v) if f not in ('csiWeight',) else v) for f, v in out.items()}
+            out['conversion'] = out['answers'] / out['sends'] * 100 if out['sends'] else None
+            out['csi'] = out['csiWeight'] / out['csiSample'] if out['csiSample'] else None
+            out['active'] = sum(1 for k in keys_ if sums[k][index]['days'])
+            return out
+
+        rule_titles = {'weekday_sends': 'будни без отправок', 'sends_no_answers': 'отправки без ответов', 'sends_drop': 'отправки упали',
+                       'answers_drop': 'ответы упали', 'conversion': 'конверсия упала', 'csi': 'CSI снизился'}
+        bank_answers = sum(sums[k][-1]['answers'] for k in meta)
+        reference = (self.engine.document.get('reference') or getattr(self.engine, 'baseline', {}) or {}).get('surveyCatalog') or {}
+        catalog_count = {'communication': sum(1 for x in reference.values() if x.get('channel') == 'communication'),
+                         'success_screen': sum(1 for x in reference.values() if x.get('channel') == 'success_screen'),
+                         'top': sum(1 for x in reference.values() if x.get('isTop'))}
+        result_segments = []
+        for segment, label in self.SEGMENTS:
+            keys_ = members(segment)
+            series = [totals(keys_, i) for i in range(len(windows))]
+            now_, before = series[-1], series[-2]
+            extra = []
+            if segment == 'communication':
+                extra.append({'label': 'Стоп-листы, доля событий', 'value': now_['stop'] / now_['events'] * 100 if now_['events'] else None, 'unit': '%'})
+                extra.append({'label': 'Политика контактов, доля событий', 'value': now_['contactPolicy'] / now_['events'] * 100 if now_['events'] else None, 'unit': '%'})
+            if segment == 'success_screen':
+                rates = sorted(sums[k][-1]['answers'] / sums[k][-1]['sends'] * 100 for k in keys_ if sums[k][-1]['sends'])
+                extra.append({'label': 'Медиана конверсии опросов', 'value': rates[len(rates) // 2] if rates else None, 'unit': '%'})
+            if segment == 'top':
+                extra.append({'label': 'Доля ответов банка', 'value': now_['answers'] / bank_answers * 100 if bank_answers else None, 'unit': '%'})
+                planned = [k for k in keys_ if meta[k]['meta'].get('plan')]
+                month_start = end.replace(day=1)
+                elapsed = (end - month_start).days + 1
+                month_days = calendar.monthrange(end.year, end.month)[1]
+                mtd = sum(window_sum(k, (month_start, end))['answers'] for k in planned)
+                expected = sum(meta[k]['meta']['plan'] for k in planned) * elapsed / month_days
+                behind = sum(1 for k in planned if window_sum(k, (month_start, end))['answers'] < meta[k]['meta']['plan'] * elapsed / month_days * 0.9)
+                extra.append({'label': 'Темп плана месяца', 'value': mtd / expected * 100 if expected else None, 'unit': '%',
+                              'note': ('отстают ' + str(behind) + ' из ' + str(len(planned))) if planned else 'план не задан'})
+                for ch, ch_label in (('communication', 'пуш'), ('success_screen', 'экраны')):
+                    part = [k for k in keys_ if k[0] == ch]
+                    t = totals(part, len(windows) - 1)
+                    extra.append({'label': 'Конверсия · ' + ch_label, 'value': t['conversion'], 'unit': '%'})
+            # здоровье
+            rule_counts = {r: {'problem': 0, 'attention': 0} for r in rule_titles}
+            flagged = []
+            for k in keys_:
+                h = health.get(k)
+                if not h:
+                    continue
+                problems = [r for r, st in h.items() if st == 'problem']
+                for r, st in h.items():
+                    if st in ('problem', 'attention'):
+                        rule_counts[r][st] += 1
+                if problems:
+                    flagged.append({'channel': k[0], 'id': k[1], 'name': meta[k]['meta']['name'], 'problems': [rule_titles[r] for r in problems],
+                                    'answers': sums[k][-2]['answers']})
+            flagged.sort(key=lambda f: (-len(f['problems']), -f['answers']))
+            # концентрация и лидеры
+            current = sorted((sums[k][-1]['answers'] for k in keys_), reverse=True)
+            total_answers = sum(current)
+            acc, p80 = 0, 0
+            for v in current:
+                if total_answers and acc >= total_answers * 0.8:
+                    break
+                acc += v
+                p80 += 1
+            changes = []
+            for k in keys_:
+                a, b = sums[k][-1]['answers'], sums[k][-2]['answers']
+                if b >= 50:  # малые опросы дают ложных лидеров
+                    changes.append({'channel': k[0], 'id': k[1], 'name': meta[k]['meta']['name'], 'change': (a - b) / b * 100, 'answers': a})
+            changes.sort(key=lambda c: c['change'])
+            result_segments.append({
+                'key': segment, 'label': label, 'catalog': catalog_count[segment] or len(keys_), 'withData': len(keys_), 'active': now_['active'],
+                'current': now_, 'previous': before,
+                'series': [{'label': w[2], 'sends': s_['sends'], 'answers': s_['answers'], 'conversion': s_['conversion'], 'csi': s_['csi'],
+                            'csiSample': s_['csiSample'], 'full': w[3]} for w, s_ in zip(windows, series)],
+                'extra': extra,
+                'health': {'rules': [{'key': r, 'label': rule_titles[r], **rule_counts[r]} for r in rule_titles if not (r == 'weekday_sends' and segment == 'success_screen')],
+                           'flagged': len(flagged), 'checked': sum(1 for k in keys_ if k in health), 'worst': flagged[:5]},
+                'concentration': {'top10': sum(current[:10]) / total_answers * 100 if total_answers else None, 'p80': p80 if total_answers else None,
+                                  'surveys': sum(1 for v in current if v), 'up': [c for c in reversed(changes) if c['change'] > 0][:3],
+                                  'down': [c for c in changes if c['change'] < 0][:3]},
+            })
+        table = []
+        for k, s_ in meta.items():
+            now_, before = sums[k][-1], sums[k][-2]
+            if not now_['days'] and not before['days']:
+                continue
+            h = health.get(k, {})
+            table.append({'channel': k[0], 'id': k[1], 'name': s_['meta']['name'], 'top': bool(s_['event'].get('isTop')),
+                          'sends': now_['sends'], 'sendsPrev': before['sends'], 'answers': now_['answers'], 'answersPrev': before['answers'],
+                          'conversion': now_['answers'] / now_['sends'] * 100 if now_['sends'] else None,
+                          'csi': now_['csiWeight'] / now_['csiSample'] if now_['csiSample'] else None, 'csiSample': now_['csiSample'],
+                          'spark': [x['answers'] for x in sums[k]],
+                          'problems': sum(1 for v in h.values() if v == 'problem'), 'attention': sum(1 for v in h.values() if v == 'attention')})
+        table.sort(key=lambda r: -r['answers'])
+        result = {'period': period, 'through': latest, 'windows': [{'from': w[0].isoformat(), 'to': w[1].isoformat(), 'label': w[2], 'full': w[3]} for w in windows],
+                  'segments': result_segments, 'table': table,
+                  'method': 'Отправки, ответы и события — суммы по дневным строкам; конверсия — ответы / отправки разреза; CSI — средневзвешенный по оценкам 1–5. '
+                            'Отправки экранов успеха — показы со статусом SENDED, поэтому конверсии каналов не складываются. Топ входит в оба канала: '
+                            'итог банка — пуш + СМС и экраны успеха. Здоровье — правила «Проверок опроса» за последние 2 недели. Лидеры — опросы с 50+ ответами в прошлом периоде.'}
+        cache = {k: v for k, v in cache.items() if k[0] == revision}
+        cache[(revision, period)] = result
+        self._overview_cache = cache
+        return result
+
+    def evaluate_checks(self, days, channel):
+        """Правила проверки опроса по 28 дням (последние 7 — эта неделя). Общие для «Проверок опроса» и «Обзора по разрезам»."""
         week, previous, history = days[-7:], days[-14:-7], days[:-7]
         def summary(part):
             sends, answers = sum(d['sends'] for d in part), sum(d['answers'] for d in part)
@@ -1684,9 +1833,41 @@ class Pulse:
               + fmt(now_['csiSample']) + ')') if csi_delta is not None else 'Нет оценок в одной из недель.'),
             'na' if csi_delta is None or not enough else 'problem' if csi_delta <= rules['csi_problem'] else 'attention' if csi_delta <= rules['csi_attention'] else 'ok')
         counts = {k: sum(1 for c in checks if c['status'] == k) for k in ('problem', 'attention', 'ok', 'na')}
+        return checks, counts, now_, before
+
+    def survey_check(self, request):
+        """Проверки одного опроса за последние две недели (неделя = 7 дней по последнюю дату выгрузки).
+        Каждая проверка возвращает правило, факт и итог: ok / attention / problem / na."""
+        state, revision = self.snapshot()
+        channel = request.get('channel') or 'communication'
+        ident = request.get('id')
+        if channel not in CHANNELS or type(ident) is not int:
+            raise ValueError('Укажите канал и номер опроса.')
+        selected = self.surveys(state, channel, ident)
+        if not selected:
+            raise ValueError('Опрос #' + str(ident) + ' не найден в канале «' + CHANNEL_LABELS[channel] + '».')
+        keys = [(channel, ident)]
+        latest = self.last_day(revision, keys)
+        if not latest:
+            raise ValueError('Для опроса #' + str(ident) + ' нет дневных строк в выгрузке.')
+        end = dt.date.fromisoformat(latest)
+        start = end - dt.timedelta(days=27)
+        rows = self.daily(revision, keys, start.isoformat(), latest)
+        by_date = defaultdict(list)
+        for row in rows:
+            by_date[row['date']].append(row)
+        days = []
+        for offset in range(28):
+            date = (start + dt.timedelta(days=offset)).isoformat()
+            items = by_date.get(date, [])
+            csi, sample = weighted_csi(items)
+            days.append({'date': date, 'weekday': (start + dt.timedelta(days=offset)).weekday(), 'hasRows': bool(items),
+                         'sends': sum(r.get('sends') or 0 for r in items), 'answers': sum(r.get('answers') or 0 for r in items),
+                         'csi': csi, 'csiSample': sample, 'csiWeight': sum(r.get('csiWeight') or 0 for r in items)})
+        checks, counts, now_, before = self.evaluate_checks(days, channel)
         return {'channel': channel, 'channelLabel': CHANNEL_LABELS[channel], 'id': ident, 'name': selected[0]['meta']['name'],
                 'through': latest, 'week': now_, 'previous': before, 'days': days, 'checks': checks, 'counts': counts,
-                'verdict': 'problem' if counts['problem'] else 'attention' if counts['attention'] else 'ok', 'rules': rules,
+                'verdict': 'problem' if counts['problem'] else 'attention' if counts['attention'] else 'ok', 'rules': self.CHECK_RULES,
                 'method': 'Неделя — 7 дней по ' + latest + ', прошлая — 7 дней перед ней. Отправки и ответы — суммы за неделю; конверсия — ответы / отправки; '
                           'CSI — средневзвешенный по оценкам 1–5. День без строк в выгрузке для правила «Отправки в будни» считается днём без отправок и помечен.'}
 
@@ -2381,6 +2562,8 @@ class Pulse:
             return self.screen_get(request)
         if action == 'screen-save':
             return self.screen_save(request)
+        if action == 'segments':
+            return self.segments_overview(request)
         if action == 'survey-check':
             return self.survey_check(request)
         if action == 'funnel':
@@ -2670,6 +2853,45 @@ PLAN_INTENTS = (
     ('portfolio', r'портфел|по группам|по продуктам'),
     ('morning', r'утр|обзор|сводк|статус|ежедневн|мониторинг'),
 )
+
+
+def period_windows(period, end):
+    """Окна сравнения, последнее — текущее. Неделя: 7 дней по последнюю дату (8 окон). Месяц и квартал: календарные,
+    последний полный период и предыдущие (6 месяцев, 4 квартала); текущий неполный в сравнение не входит."""
+    months = 'янв фев мар апр май июн июл авг сен окт ноя дек'.split()
+    if period == 'week':
+        out = []
+        for i in range(7, -1, -1):
+            to = end - dt.timedelta(days=7 * i)
+            frm = to - dt.timedelta(days=6)
+            out.append((frm, to, frm.strftime('%d.%m') + '–' + to.strftime('%d.%m'), True))
+        return out
+    step = 1 if period == 'month' else 3
+    count = 6 if period == 'month' else 4
+    month_end = calendar.monthrange(end.year, end.month)[1]
+    first = dt.date(end.year, end.month, 1)
+    if end.day != month_end:          # текущий месяц неполный — берём предыдущий
+        first = (first - dt.timedelta(days=1)).replace(day=1)
+    if period == 'quarter':
+        first = dt.date(first.year, (first.month - 1) // 3 * 3 + 1, 1)
+        q_end_month = first.month + 2
+        if dt.date(first.year, q_end_month, calendar.monthrange(first.year, q_end_month)[1]) > end:
+            m = first.month - 3
+            first = dt.date(first.year - (1 if m < 1 else 0), m + 12 if m < 1 else m, 1)
+    out = []
+    for i in range(count - 1, -1, -1):
+        y, m = first.year, first.month - step * i
+        while m < 1:
+            m += 12
+            y -= 1
+        frm = dt.date(y, m, 1)
+        last_m = m + step - 1
+        ly = y + (last_m - 1) // 12
+        last_m = (last_m - 1) % 12 + 1
+        to = dt.date(ly, last_m, calendar.monthrange(ly, last_m)[1])
+        label = months[m - 1] + ' ' + str(y)[2:] if period == 'month' else 'Q' + str((m - 1) // 3 + 1) + ' ' + str(y)[2:]
+        out.append((frm, to, label, True))
+    return out
 
 
 def period_from(q):
