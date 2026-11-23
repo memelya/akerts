@@ -144,7 +144,7 @@ function create(main){
   meta.textContent=brief.empty?'Данных пока нет.':'Подготовлено '+generated.toLocaleString('ru-RU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+' · версия данных '+String(brief.revision).slice(0,8)+'';
   demoBadge.hidden=demoReset.hidden=!brief.demo;showButton.hidden=mailButton.hidden=Boolean(brief.empty);
   if(brief.empty){host.append(onboarding());return;}
-  clustersHost=shiftsHost=null;host.append(statusCard(),decisionsSection(),analystSection());
+  clustersHost=shiftsHost=null;host.append(statusCard(),decisionsSection(),watchSection(),analystSection());
  }
  const ai=()=>Boolean(brief?.modelReady||brief?.demo);
  function trustLine(trust){return el('p','pulse-trust','Проверено по фактам: '+trust.facts+', чисел вне фактов нет'+(trust.rejected?'. Отклонено ответов модели: '+trust.rejected:''));}
@@ -977,7 +977,9 @@ function create(main){
   const b=button(on?'★':'☆',e=>{e.stopPropagation();busy(b,status,async()=>{const r=await post({action:'focus-toggle',channel,id});b.textContent=r.favorite?'★':'☆';b.setAttribute('aria-pressed',String(r.favorite));status.textContent=r.favorite?'Опрос #'+id+' добавлен в избранное и в ваш фокус.':'Опрос #'+id+' убран из избранного.';brief=await post({action:'brief'});renderBrief();if(tab==='portfolio')renderPortfolio();});},'pulse-star');
   b.setAttribute('aria-label',(on?'Убрать из избранного':'Добавить в избранное')+' опрос #'+id);b.setAttribute('aria-pressed',String(on));b.title=on?'В избранном и в фокусе':'Добавить в избранное';return b;
  }
- const decisionProblems=()=>(brief.problems||[]).filter(p=>p.inFocus&&!p.lowVolume&&p.kind!=='growth');
+ const decisionProblems=()=>(brief.problems||[]).filter(p=>p.inFocus&&!p.lowVolume&&p.kind!=='growth'&&p.kind!=='weekly');
+ // Сигналы недели — ранние, неподтверждённые изменения: отдельный блок «На контроле», а не «Требует решения».
+ const watchProblems=()=>(brief.problems||[]).filter(p=>p.inFocus&&!p.lowVolume&&p.kind==='weekly');
  const shiftsOf=p=>{const all=[...(brief.candidates||[]),...(brief.shifts||[])];return p.shiftKeys.map(k=>all.find(x=>x.key===k)).filter(Boolean);};
  // Тип проблемы для сводки: считается по сдвигам платформы, без модели.
  function problemType(p){
@@ -994,6 +996,8 @@ function create(main){
   const sub=el('p','pp-summary-sub');
   if(groups.size)[...groups].sort((x,y)=>y[1].length-x[1].length).forEach(([t,list])=>{const g=el('span','pp-group');g.append(el('b','',String(list.length)),document.createTextNode(' '+t+' '),el('span','pp-ids',list.slice(0,3).map(p=>'#'+p.id).join(', ')+(list.length>3?'…':'')));sub.append(g);});
   else sub.textContent='Опросов в фокусе: '+focus.total+'. Сигналы по остальным — в блоке для аналитика.';
+  const watch=watchProblems();
+  if(watch.length){const g=el('a','pp-group pp-watch-link');g.href='#pulse-watch';g.onclick=e=>{e.preventDefault();document.getElementById('pulse-watch')?.scrollIntoView({behavior:'smooth',block:'start'});};g.append(el('b','',String(watch.length)),document.createTextNode(' на контроле: изменения недели'));sub.append(g);}
   text.append(sub);head.append(text,button('Фокус: '+focus.total,()=>openFocus(),'pulse-btn ghost pp-focus'));card.append(head);
   const bank=el('div','pp-bank');
   for(const b of brief.bank||[]){
@@ -1059,6 +1063,44 @@ function create(main){
   for(const p of items.slice(0,5))sec.append(problemCard(p));
   const rest=[...items.slice(5),...(brief.problems||[]).filter(p=>p.inFocus&&!p.lowVolume&&p.kind==='growth')];
   if(rest.length){const d=el('details','pulse-more');d.append(el('summary','','Ещё в фокусе · '+rest.length));for(const p of rest)d.append(problemCard(p));sec.append(d);}
+  return sec;
+ }
+ // Что сработало в сигнале недели: значения прошлой и этой недели по тем же дням недели.
+ function weeklyMetrics(g){
+  const out=[],r=g.reasons.join(' ');
+  if(/Доля отправок/.test(r)&&g.sendShare?.every(v=>v!=null))out.push({label:'Доля отправок',hint:'отправки / события',before:g.sendShare[0],after:g.sendShare[1],max:100,show:v=>df.format(v)+'%',delta:df.format(Math.abs(g.sendShare[1]-g.sendShare[0]))+' п.п.',sign:Math.sign(g.sendShare[1]-g.sendShare[0])});
+  if(/Ответов/.test(r)&&g.answers?.every(v=>v!=null))out.push({label:'Ответы за неделю',before:g.answers[0],after:g.answers[1],show:v=>nf.format(v),delta:g.answers[0]?df.format(Math.abs((g.answers[1]-g.answers[0])/g.answers[0]*100))+'%':'',sign:Math.sign(g.answers[1]-g.answers[0])});
+  if(/CSI/.test(r)&&g.csi?.every(v=>v!=null))out.push({label:'CSI',hint:'оценок: '+nf.format(g.csiSample?.[1]||0),before:g.csi[0],after:g.csi[1],min:1,max:5,show:v=>cf.format(v),delta:cf.format(Math.abs(g.csi[1]-g.csi[0])),sign:Math.sign(g.csi[1]-g.csi[0])});
+  return out;
+ }
+ function compareBars(m){
+  const box=el('div','pw-bars'),lo=m.min||0,hi=m.max||Math.max(m.before,m.after,1e-9),w=v=>Math.max(2,Math.min(100,(v-lo)/(hi-lo||1)*100))+'%';
+  for(const [cls,label,v] of [['prev','прошлая',m.before],['now','эта',m.after]]){const row=el('div','pw-bar '+cls),track=el('span','pw-track'),fill=el('i');fill.style.width=w(v);track.append(fill);row.append(el('span','pw-bar-label',label),track,el('span','pw-bar-value',m.show(v)));box.append(row);}
+  return box;
+ }
+ function watchRow(p){
+  const g=(brief.signals||[]).find(x=>x.channel===p.channel&&x.id===p.id)||{reasons:[p.line]},row=el('article','pw-row');
+  const head=el('div','pw-head'),title=el('div','pw-title');
+  title.append(el('span','pp-id','#'+p.id),document.createTextNode(' '+p.name));
+  head.append(title,el('span','pw-meta',[p.channelLabel,(p.products||[]).join(', ')].filter(Boolean).join(' · ')));
+  const metrics=weeklyMetrics(g),body=el('div','pw-metrics');
+  for(const m of metrics){const cell=el('div','pw-metric'),top=el('div','pw-metric-top');
+   top.append(el('span','pw-metric-name',m.label),el('strong',m.sign<0?'bad':'',(m.sign<0?'−':m.sign>0?'+':'')+m.delta));
+   cell.append(top,compareBars(m));if(m.hint)cell.append(el('small','pw-metric-hint',m.hint));body.append(cell);}
+  const covered=/Доля отправок|Ответов|CSI/,other=g.reasons.filter(r=>!covered.test(r)||!metrics.length);
+  if(other.length)body.append(el('p','pw-other',other.join(' · ')));
+  const more=el('div','pp-more');more.hidden=true;
+  const open=button('Разобрать',()=>{more.hidden=!more.hidden;open.textContent=more.hidden?'Разобрать':'Свернуть';open.setAttribute('aria-expanded',String(!more.hidden));row.classList.toggle('is-open',!more.hidden);if(!more.hidden&&!more.childElementCount)surveyCheck(more,p.channel,p.id);},'pulse-btn ghost pw-open');
+  open.setAttribute('aria-expanded','false');
+  row.append(head,body,open,more);return row;
+ }
+ function watchSection(){
+  const items=watchProblems(),sec=el('section','pulse-section pw-section');sec.id='pulse-watch';
+  if(!items.length)return sec;
+  sec.append(el('h2','pp-list-title','На контроле · изменения недели · '+items.length),
+   el('p','pw-lead','Ранние сигналы: последние 7 дней к тем же дням недели неделей раньше. Не подтверждены дневной динамикой — если изменение продержится, опрос перейдёт в «Требует решения».'));
+  const list=el('div','pw-list');for(const p of items.slice(0,8))list.append(watchRow(p));sec.append(list);
+  if(items.length>8){const d=el('details','pulse-more');d.append(el('summary','','Ещё на контроле · '+(items.length-8)));const l=el('div','pw-list');for(const p of items.slice(8))l.append(watchRow(p));d.append(l);sec.append(d);}
   return sec;
  }
  let analystOpen=false;

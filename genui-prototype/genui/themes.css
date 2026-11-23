@@ -672,3 +672,34 @@ input.sa-switch:focus-visible{outline:2px solid var(--accent);outline-offset:2px
 .pp-summary-sub{display:flex;flex-wrap:wrap;gap:4px 18px}
 .pp-group{white-space:nowrap}
 @media (max-width:640px){.pp-group{white-space:normal}}
+
+/* --- брифинг: блок «На контроле · изменения недели» --- */
+.pw-section{display:flex;flex-direction:column;gap:10px;scroll-margin-top:80px}
+.pw-lead{margin:-2px 0 4px;font-size:13px;line-height:19px;color:var(--muted);max-width:820px}
+.pw-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.pw-row{display:grid;grid-template-columns:minmax(180px,260px) minmax(0,1fr) auto;gap:8px 20px;align-items:center;padding:12px 16px;border-top:1px solid var(--line);background:var(--surface)}
+.pw-row:first-child{border-top:0}
+.pw-row.is-open{background:var(--raised)}
+.pw-head{display:flex;flex-direction:column;gap:2px;min-width:0}
+.pw-title{font-size:14px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pw-meta{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pw-metrics{display:flex;flex-wrap:wrap;gap:10px 28px;min-width:0}
+.pw-metric{display:flex;flex-direction:column;gap:4px;min-width:200px;flex:1 1 220px;max-width:340px}
+.pw-metric-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.pw-metric-name{font-size:12px;color:var(--text-secondary)}
+.pw-metric-top strong{font-size:14px;font-variant-numeric:tabular-nums;color:var(--text)}
+.pw-metric-top strong.bad{color:var(--negative)}
+.pw-metric-hint{font-size:11px;color:var(--muted)}
+.pw-bars{display:flex;flex-direction:column;gap:3px}
+.pw-bar{display:grid;grid-template-columns:56px minmax(0,1fr) 64px;align-items:center;gap:8px;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.pw-track{position:relative;height:6px;border-radius:3px;background:var(--line)}
+.pw-track i{position:absolute;inset:0 auto 0 0;border-radius:3px;background:var(--line-strong)}
+.pw-bar.now .pw-track i{background:var(--accent)}
+.pw-bar.now{color:var(--text-secondary)}
+.pw-bar-value{text-align:right}
+.pw-other{margin:0;font-size:13px;color:var(--text-secondary)}
+.pw-open{padding:6px 12px;font-size:13px;justify-self:end}
+.pw-row .pp-more{grid-column:1/-1}
+.pp-watch-link{color:var(--text-secondary);text-decoration:none;border-bottom:1px dashed var(--line-strong)}
+.pp-watch-link:hover{color:var(--text)}
+@media (max-width:760px){.pw-row{grid-template-columns:1fr}.pw-open{justify-self:start}.pw-metric{max-width:none}}

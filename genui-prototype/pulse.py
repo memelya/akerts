@@ -18,7 +18,7 @@ from pathlib import Path
 
 from metric_registry import POLICY
 
-VERSION = '1'
+VERSION = '2'
 WINDOW_DAYS = 56
 MIN_SIDE = 7
 LOOSEST = 0.6   # кандидаты сдвигов ищутся при самом мягком пороге; отбор по чувствительности — в apply_sensitivity
@@ -399,7 +399,12 @@ class Pulse:
                                 'channel': channel, 'channelLabel': CHANNEL_LABELS[channel], 'severity': signal['severity'],
                                 'reasons': signal['reasons'], 'through': signal['through'],
                                 'answers': [signal['baseline'].get('answers'), signal['current'].get('answers')],
-                                'sendShare': [signal['baseline'].get('sendShare'), signal['current'].get('sendShare')]})
+                                'sendShare': [signal['baseline'].get('sendShare'), signal['current'].get('sendShare')],
+                                # Значения прошлой и этой недели для строки «На контроле»: что сработало и насколько.
+                                'sends': [signal['baseline'].get('sends'), signal['current'].get('sends')],
+                                'csi': [signal['baseline'].get('csi'), signal['current'].get('csi')],
+                                'csiSample': [signal['baseline'].get('csiSample'), signal['current'].get('csiSample')],
+                                'days': len(signal.get('pairedDays') or [])})
         started = time.monotonic()
         candidates = self.shifts(state, revision)
         settings = self.settings()
@@ -466,7 +471,9 @@ class Pulse:
     def cached_brief(self, revision):
         with self.db() as db:
             row = db.execute('SELECT document FROM pulse_briefs WHERE revision=?', (revision,)).fetchone()
-        return json.loads(row[0]) if row else None
+        brief = json.loads(row[0]) if row else None
+        # Брифинг старого формата пересчитывается: в нём нет полей, которые ждёт интерфейс.
+        return brief if brief and brief.get('version', VERSION) == VERSION else None
 
     def ensure_brief(self, force=False):
         with self.lock:
@@ -597,7 +604,7 @@ class Pulse:
         return result
 
     def narrative_items(self, brief):
-        items = [p for p in brief.get('problems', []) if p['inFocus'] and not p['lowVolume'] and p['kind'] != 'growth'][:5]
+        items = [p for p in brief.get('problems', []) if p['inFocus'] and not p['lowVolume'] and p['kind'] not in ('growth', 'weekly')][:5]
         facts = [{'ref': 'I' + str(i + 1), 'label': p['title'] + ' — ' + p['line'], 'value': p['kindLabel'], 'unit': '', 'period': p.get('since') or ''}
                  for i, p in enumerate(items)]
         return items, facts
@@ -3280,7 +3287,7 @@ def build_problems(shifts, signals, focus, favorites):
 
 
 def canned_status(brief, items):
-    focus = [p for p in brief.get('problems', []) if p['inFocus'] and not p['lowVolume'] and p['kind'] != 'growth']
+    focus = [p for p in brief.get('problems', []) if p['inFocus'] and not p['lowVolume'] and p['kind'] not in ('growth', 'weekly')]
     bank = [b for b in brief.get('bank', []) if b['alert']]
     head = ('В вашем фокусе требуют решения ' + str(len(focus)) + ' ' + plural(len(focus), 'опрос', 'опроса', 'опросов')) if focus else 'В вашем фокусе проблем нет'
     tail = '; по банку: ' + ', '.join(b['label'] + ': ' + ', '.join(b['reasons']) for b in bank) if bank else '; по банку существенных изменений нет'
