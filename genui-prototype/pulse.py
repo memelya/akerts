@@ -18,7 +18,7 @@ from pathlib import Path
 
 from metric_registry import POLICY
 
-VERSION = '2'
+VERSION = '3'
 WINDOW_DAYS = 56
 MIN_SIDE = 7
 LOOSEST = 0.6   # кандидаты сдвигов ищутся при самом мягком пороге; отбор по чувствительности — в apply_sensitivity
@@ -423,7 +423,9 @@ class Pulse:
             key = (item['channel'], item['id'])
             item['inFocus'] = key in focus
             item['favorite'] = key in favorites
-        brief['problems'] = build_problems(shifts, signals, focus, favorites)
+        overview, month = self.brief_overview(state, revision)
+        brief['problems'] = build_problems(shifts, signals, focus, favorites, month, {(s['meta']['channel'], s['event']['id']): s for s in state['surveys']})
+        brief['overview'] = finish_overview(overview, brief['problems'])
         brief['focus'] = {'total': len(focus), 'top': sum(1 for s in state['surveys'] if s['event'].get('isTop')),
                           'favorites': len(favorites), 'minAnswers': MIN_FOCUS_ANSWERS}
         brief['bank'] = self.bank_status(state, revision)
@@ -604,7 +606,7 @@ class Pulse:
         return result
 
     def narrative_items(self, brief):
-        items = [p for p in brief.get('problems', []) if p['inFocus'] and not p['lowVolume'] and p['kind'] not in ('growth', 'weekly')][:5]
+        items = [p for p in brief.get('problems', []) if p['inFocus'] and not p['lowVolume'] and is_decision(p)][:5]
         facts = [{'ref': 'I' + str(i + 1), 'label': p['title'] + ' — ' + p['line'], 'value': p['kindLabel'], 'unit': '', 'period': p.get('since') or ''}
                  for i, p in enumerate(items)]
         return items, facts
@@ -1888,6 +1890,55 @@ class Pulse:
         counts = {k: sum(1 for c in checks if c['status'] == k) for k in ('problem', 'attention', 'ok', 'na')}
         return checks, counts, now_, before
 
+    def brief_overview(self, state, revision):
+        """Объём и воронки по каналам для сводки брифинга и сравнение «с начала месяца» по каждому опросу.
+        Одна выборка дневных строк: от начала прошлого месяца (или 14 дней назад) по последнюю дату."""
+        surveys = [s for s in state['surveys'] if s['meta']['channel'] in CHANNELS]
+        keys = [(s['meta']['channel'], s['event']['id']) for s in surveys]
+        latest = self.last_day(revision, keys)
+        if not latest:
+            return {}, {}
+        end = dt.date.fromisoformat(latest)
+        windows = month_windows(end)
+        week, prev_week = (end - dt.timedelta(days=6), end), (end - dt.timedelta(days=13), end - dt.timedelta(days=7))
+        start = min(windows['prev'][0], prev_week[0])
+        rows = self.daily(revision, keys, start.isoformat(), latest)
+        fields = ('events', 'contactPolicy', 'stop', 'sends', 'answers', 'csiWeight', 'csiSample')
+        blank = lambda: dict.fromkeys(fields, 0)
+        channels = {c: {'channel': c, 'label': CHANNEL_LABELS[c], 'through': latest, 'surveys': set(),
+                        'week': blank(), 'prevWeek': blank(), 'mtd': blank(), 'prevMtd': blank()} for c in CHANNELS}
+        per = defaultdict(lambda: {'cur': blank(), 'prev': blank(), 'curDays': set(), 'prevDays': set()})
+        spans = {'week': week, 'prevWeek': prev_week, 'mtd': windows['cur'], 'prevMtd': windows['prev']}
+        for row in rows:
+            channel = row['channel']
+            if channel not in channels:
+                continue
+            day = dt.date.fromisoformat(row['date'])
+            key = (channel, row['survey_id'])
+            if day >= prev_week[0]:
+                channels[channel]['surveys'].add(row['survey_id'])
+            for name, (a, b) in spans.items():
+                if a <= day <= b:
+                    bucket = channels[channel][name]
+                    for f in fields:
+                        bucket[f] += row.get(f) or 0
+            for side, (a, b) in (('cur', windows['cur']), ('prev', windows['prev'])):
+                if a <= day <= b:
+                    for f in ('sends', 'answers'):
+                        per[key][side][f] += row.get(f) or 0
+                    per[key][side + 'Days'].add(row['date'])
+        days = {'cur': (windows['cur'][1] - windows['cur'][0]).days + 1, 'prev': (windows['prev'][1] - windows['prev'][0]).days + 1}
+        month = {}
+        for key, item in per.items():
+            # Сравниваем, только если прошлый месяц покрыт данными хотя бы на 80% дней.
+            if len(item['prevDays']) < .8 * days['prev']:
+                continue
+            month[key] = {'sends': [item['prev']['sends'], item['cur']['sends']], 'answers': [item['prev']['answers'], item['cur']['answers']],
+                          'days': days['cur'], 'avgAnswers': item['cur']['answers'] / max(1, days['cur'])}
+        label = {name: [a.isoformat(), b.isoformat()] for name, (a, b) in spans.items()}
+        overview = [dict(v, surveys=len(v['surveys']), windows=label) for v in channels.values()]
+        return overview, {'windows': label, 'surveys': month}
+
     def survey_check(self, request):
         """Проверки одного опроса за последние две недели (неделя = 7 дней по последнюю дату выгрузки).
         Каждая проверка возвращает правило, факт и итог: ok / attention / problem / na."""
@@ -1905,7 +1956,8 @@ class Pulse:
             raise ValueError('Для опроса #' + str(ident) + ' нет дневных строк в выгрузке.')
         end = dt.date.fromisoformat(latest)
         start = end - dt.timedelta(days=27)
-        rows = self.daily(revision, keys, start.isoformat(), latest)
+        windows = month_windows(end)
+        rows = self.daily(revision, keys, min(start, windows['prev'][0]).isoformat(), latest)
         by_date = defaultdict(list)
         for row in rows:
             by_date[row['date']].append(row)
@@ -1918,8 +1970,27 @@ class Pulse:
                          'sends': sum(r.get('sends') or 0 for r in items), 'answers': sum(r.get('answers') or 0 for r in items),
                          'csi': csi, 'csiSample': sample, 'csiWeight': sum(r.get('csiWeight') or 0 for r in items)})
         checks, counts, now_, before = self.evaluate_checks(days, channel)
+        # Календарь текущего месяца: по каждому дню — были ли строки, отправки, ответы.
+        calendar_days = []
+        day = windows['cur'][0]
+        month_end = dt.date(end.year, end.month, calendar.monthrange(end.year, end.month)[1])
+        while day <= month_end:
+            items = by_date.get(day.isoformat(), [])
+            calendar_days.append({'date': day.isoformat(), 'weekday': day.weekday(), 'future': day > end, 'hasRows': bool(items),
+                                  'sends': sum(r.get('sends') or 0 for r in items), 'answers': sum(r.get('answers') or 0 for r in items)})
+            day += dt.timedelta(days=1)
+        totals = {}
+        for side in ('cur', 'prev'):
+            a, b = windows[side]
+            picked = [r for d, items in by_date.items() if a.isoformat() <= d <= b.isoformat() for r in items]
+            totals[side] = {'from': a.isoformat(), 'to': b.isoformat(), 'sends': sum(r.get('sends') or 0 for r in picked),
+                            'answers': sum(r.get('answers') or 0 for r in picked), 'days': len({r['date'] for r in picked})}
+        month_check = month_rule(totals['prev'], totals['cur'], (windows['prev'][1] - windows['prev'][0]).days + 1)
+        checks.append(month_check)
+        counts[month_check['status']] = counts.get(month_check['status'], 0) + 1
         return {'channel': channel, 'channelLabel': CHANNEL_LABELS[channel], 'id': ident, 'name': selected[0]['meta']['name'],
                 'through': latest, 'week': now_, 'previous': before, 'days': days, 'checks': checks, 'counts': counts,
+                'calendar': calendar_days, 'monthToDate': totals,
                 'verdict': 'problem' if counts['problem'] else 'attention' if counts['attention'] else 'ok', 'rules': self.CHECK_RULES,
                 'method': 'Неделя — 7 дней по ' + latest + ', прошлая — 7 дней перед ней. Отправки и ответы — суммы за неделю; конверсия — ответы / отправки; '
                           'CSI — средневзвешенный по оценкам 1–5. День без строк в выгрузке для правила «Отправки в будни» считается днём без отправок и помечен.'}
@@ -3225,7 +3296,67 @@ def short_pct(value):
     return ('+' if value > 0 else '−' if value < 0 else '') + str(abs(round(value))) + '%'
 
 
-def build_problems(shifts, signals, focus, favorites):
+MONTH_RULE = {'problem': -30, 'attention': -15, 'min_sends': 1000, 'min_answers': 100}
+
+
+def month_windows(end):
+    """С начала месяца по дату выгрузки и те же дни прошлого месяца (обрезаются по его длине)."""
+    cur = (end.replace(day=1), end)
+    prev_year, prev_month = (end.year, end.month - 1) if end.month > 1 else (end.year - 1, 12)
+    last = min(end.day, calendar.monthrange(prev_year, prev_month)[1])
+    return {'cur': cur, 'prev': (dt.date(prev_year, prev_month, 1), dt.date(prev_year, prev_month, last))}
+
+
+def span_label(a, b):
+    """«1–22 нояб.» для одного месяца, «28 окт.–3 нояб.» — для двух."""
+    a, b = str(a)[:10], str(b)[:10]
+    return (str(int(a[8:])) + '–' + human_date(b)) if a[:7] == b[:7] else human_date(a) + '–' + human_date(b)
+
+
+def month_drops(month):
+    """Падения «с начала месяца к тем же дням прошлого»: [(metric, label, rel, prev, cur)] от сильного к слабому."""
+    out = []
+    for metric, label, minimum in (('sends', 'Отправки', MONTH_RULE['min_sends']), ('answers', 'Ответы', MONTH_RULE['min_answers'])):
+        prev, cur = month[metric]
+        if prev >= minimum:
+            rel = (cur - prev) / prev * 100
+            if rel <= MONTH_RULE['attention']:
+                out.append((metric, label, rel, prev, cur))
+    return sorted(out, key=lambda x: x[2])
+
+
+def month_rule(prev, cur, days):
+    """Проверка опроса «месяц к прошлому месяцу» в формате остальных проверок."""
+    rule = ('Отправки или ответы с начала месяца к тем же дням прошлого месяца: падение на 30% и больше — проблема, '
+            'на 15–30% — внимание. Нужно от 1 000 отправок или 100 ответов в прошлом месяце.')
+    base = {'key': 'month_to_date', 'title': 'Месяц к прошлому месяцу', 'rule': rule, 'dates': []}
+    period = span_label(cur['from'], cur['to']) + ' к ' + span_label(prev['from'], prev['to'])
+    if prev['days'] < .8 * days:
+        return dict(base, status='na', fact='В прошлом месяце данных меньше чем за 80% дней — сравнение не делается (' + period + ').')
+    drops = month_drops({'sends': [prev['sends'], cur['sends']], 'answers': [prev['answers'], cur['answers']]})
+    fact = '; '.join(label + ': ' + compact(prev[m]) + ' → ' + compact(cur[m]) + ' (' + short_pct((cur[m] - prev[m]) / prev[m] * 100 if prev[m] else 0) + ')'
+                     for m, label in (('sends', 'отправки'), ('answers', 'ответы'))) + ' · ' + period
+    if not drops:
+        return dict(base, status='ok', fact=fact)
+    return dict(base, status='problem' if drops[0][2] <= MONTH_RULE['problem'] else 'attention', fact=fact)
+
+
+def is_decision(problem):
+    """«Требует решения»: срочно, устойчивый сдвиг или сильное падение месяца к месяцу. Остальное — «на контроле»."""
+    return problem['kind'] in ('urgent', 'shift') or (problem['kind'] == 'month' and problem.get('monthSeverity') == 'problem')
+
+
+def finish_overview(overview, problems):
+    """Счётчики сводки: сколько опросов проверено и сколько из них работают без замечаний."""
+    for item in overview:
+        flagged = [p for p in problems if p['channel'] == item['channel'] and p['kind'] != 'growth']
+        decide = {p['id'] for p in flagged if is_decision(p)}
+        watch = {p['id'] for p in flagged} - decide
+        item.update(decide=len(decide), watch=len(watch), ok=max(0, item['surveys'] - len(decide | watch)))
+    return overview
+
+
+def build_problems(shifts, signals, focus, favorites, month=None, catalog=None):
     """Одна проблема на опрос: сдвиги и сигналы одного опроса объединяются."""
     by_key = {}
     for shift in shifts:
@@ -3235,6 +3366,12 @@ def build_problems(shifts, signals, focus, favorites):
     for signal in signals:
         key = (signal['channel'], signal['id'])
         by_key.setdefault(key, {'shifts': [], 'signals': [], 'name': signal['name'], 'products': [], 'avgAnswers': None})['signals'].append(signal)
+    month = month or {}
+    month_surveys, month_windows_ = month.get('surveys', {}), month.get('windows', {})
+    for key, item in month_surveys.items():
+        if key not in by_key and month_drops(item) and catalog and key in catalog:
+            meta = catalog[key]['meta']
+            by_key[key] = {'shifts': [], 'signals': [], 'name': meta['name'], 'products': meta.get('products', []), 'avgAnswers': item['avgAnswers']}
     output = []
     for (channel, ident), group in by_key.items():
         down = [s for s in group['shifts'] if s['direction'] == 'down']
@@ -3265,6 +3402,18 @@ def build_problems(shifts, signals, focus, favorites):
             else:
                 line += ' · ' + shift_line
                 since = main['date']
+        mtd = month_surveys.get((channel, ident))
+        drops = month_drops(mtd) if mtd else []
+        month_severity = ('problem' if drops[0][2] <= MONTH_RULE['problem'] else 'attention') if drops else None
+        if not kind and drops:
+            metric, label, rel, prev, cur = drops[0]
+            score, kind = (60 if month_severity == 'problem' else 35) + min(-rel, 100) / 10, 'month'
+            cur_w, prev_w = month_windows_.get('mtd'), month_windows_.get('prevMtd')
+            line = (label + ' с начала месяца ' + short_pct(rel) + ' (' + compact(prev) + ' → ' + compact(cur)
+                    + (' к ' + span_label(prev_w[0], prev_w[1]) if prev_w else '') + ')')
+            since = cur_w[0] if cur_w else None
+            hint = ('Меньше, чем за те же дни прошлого месяца: проверьте аудиторию, триггер и частоту коммуникаций.' if metric == 'sends'
+                    else 'Ответов меньше, чем за те же дни прошлого месяца: проверьте отправки и отклик.')
         if not kind and group['signals']:
             score, kind = 40, 'weekly'
             line = group['signals'][0]['reasons'][0]
@@ -3278,7 +3427,8 @@ def build_problems(shifts, signals, focus, favorites):
         low = avg is not None and avg < MIN_FOCUS_ANSWERS and kind != 'urgent'
         output.append({'key': 'problem:' + channel + ':' + str(ident), 'channel': channel, 'channelLabel': CHANNEL_LABELS[channel], 'id': ident,
                        'name': group['name'], 'title': '#' + str(ident) + ' · ' + group['name'], 'products': group['products'],
-                       'kind': kind, 'kindLabel': {'urgent': 'срочно', 'shift': 'устойчивый сдвиг', 'weekly': 'изменение недели', 'growth': 'рост'}[kind],
+                       'kind': kind, 'kindLabel': {'urgent': 'срочно', 'shift': 'устойчивый сдвиг', 'weekly': 'изменение недели', 'month': 'месяц к месяцу', 'growth': 'рост'}[kind],
+                       'month': dict(mtd, windows=[month_windows_.get('prevMtd'), month_windows_.get('mtd')]) if mtd else None, 'monthSeverity': month_severity,
                        'score': round(score, 1), 'line': line, 'since': since, 'hint': hint,
                        'inFocus': (channel, ident) in focus, 'favorite': (channel, ident) in favorites, 'lowVolume': low,
                        'avgAnswers': avg, 'shiftKeys': [s['key'] for s in group['shifts']], 'metrics': sorted({s['metric'] for s in group['shifts']})})
@@ -3287,7 +3437,7 @@ def build_problems(shifts, signals, focus, favorites):
 
 
 def canned_status(brief, items):
-    focus = [p for p in brief.get('problems', []) if p['inFocus'] and not p['lowVolume'] and p['kind'] not in ('growth', 'weekly')]
+    focus = [p for p in brief.get('problems', []) if p['inFocus'] and not p['lowVolume'] and is_decision(p)]
     bank = [b for b in brief.get('bank', []) if b['alert']]
     head = ('В вашем фокусе требуют решения ' + str(len(focus)) + ' ' + plural(len(focus), 'опрос', 'опроса', 'опросов')) if focus else 'В вашем фокусе проблем нет'
     tail = '; по банку: ' + ', '.join(b['label'] + ': ' + ', '.join(b['reasons']) for b in bank) if bank else '; по банку существенных изменений нет'
