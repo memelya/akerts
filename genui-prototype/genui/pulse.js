@@ -937,7 +937,7 @@ function create(main){
   return pptx.writeFile({fileName:'pulse-effect-'+new Date().toISOString().slice(0,10)+'.pptx'});
  }
  /* --- проверки опроса: правило, факт и итог по отправкам, ответам, конверсии и CSI --- */
- const CHECK_STATUS={problem:['Проблема','bad'],attention:['Внимание','warn'],ok:['Норма','good'],na:['Неприменимо','']};
+ const CHECK_STATUS={problem:['Проблема','bad'],attention:['Внимание','warn'],ok:['Норма','good'],na:['Неприменимо',''],consequence:['Следствие','']};
  async function surveyCheck(host,channel,id,extra){
   const box=el('section','pulse-check-card');box.append(el('p','pulse-muted','Проверяем опрос…'));host.append(box);
   let d;try{d=await post({action:'survey-check',channel,id});}catch(error){box.replaceChildren(el('p','pulse-status is-error',error.message));return;}
@@ -959,12 +959,12 @@ function create(main){
   weeks.append(el('span','pc-weeks-note','показатели ниже — эта неделя и изменение к прошлой'));
   box.append(weeks,kpis);
   // Сначала нарушенные проверки, коротко: что не так и факт. Правила и остальные проверки — по запросу.
-  const failed=d.checks.filter(c=>c.status==='problem'||c.status==='attention'),rest=d.checks.filter(c=>!failed.includes(c));
+  const broken=d.checks.filter(c=>c.status==='problem'||c.status==='attention'),failed=[...broken,...d.checks.filter(c=>c.status==='consequence')],rest=d.checks.filter(c=>!failed.includes(c));
   const item=c=>{const li=el('li','pc-check is-'+c.status),st=CHECK_STATUS[c.status];li.title=c.rule;
    li.append(el('span','pc-check-mark',st[0]),el('b','',c.title),el('span','pc-check-fact',c.fact));
    if(c.dates.length){const det=el('details','pc-dates');det.append(el('summary','','дни: '+c.dates.length));const ul=el('ul','pulse-tile-list');for(const x of c.dates)ul.append(el('li','',x));det.append(ul);li.append(det);}
    return li;};
-  box.append(el('h4','pc-title',failed.length?'Нарушено '+failed.length+' из '+d.checks.length+' проверок':'Все проверки пройдены'));
+  box.append(el('h4','pc-title',broken.length?'Нарушено '+broken.length+' из '+d.checks.length+' проверок':'Все проверки пройдены'));
   if(failed.length){const ul=el('ul','pc-checks');failed.forEach(c=>ul.append(item(c)));box.append(ul);}
   if(rest.length){const det=el('details','pc-rest');det.append(el('summary','',failed.length?'Остальные проверки · '+rest.length:'Показать проверки · '+rest.length));const ul=el('ul','pc-checks');rest.forEach(c=>ul.append(item(c)));det.append(ul);
    const rules=el('ul','pc-rules');for(const c of d.checks)rules.append(el('li','',c.title+': '+c.rule));det.append(el('p','pc-rules-title','Правила'),rules);box.append(det);}
@@ -996,8 +996,8 @@ function create(main){
   for(const st of ['ok','silent','quiet','none','future']){const k=el('span','pc-cal-key');k.append(el('i','pc-cal-swatch is-'+st),document.createTextNode(labels[st]+' · '+(counts[st]||0)));legend.append(k);}
   const m=d.monthToDate,body=el('div','pc-cal-body');body.append(grid);
   if(m){const sum=el('div','pc-cal-sum');
-   for(const [name,key] of [[screen?'Показы':'Отправки','sends'],['Ответы','answers']]){const ch=pctOf(m.cur[key],m.prev[key]),row=el('div','pc-cal-sumrow');
-    row.append(el('span','pc-kpi-name',name+' с начала месяца'),el('b','',nf.format(m.cur[key])),el('small',ch!=null&&ch<=-15?'bad':'','за '+spanLabel(m.prev.from,m.prev.to)+': '+nf.format(m.prev[key])+(ch==null?'':' ('+(ch>0?'+':ch<0?'−':'')+df.format(Math.abs(ch))+'%)')));sum.append(row);}
+   for(const [name,key] of [[screen?'Показы':'Отправки','sends'],['Ответы','answers']]){const exp=m.expected?.[key],ch=pctOf(m.cur[key],exp||m.prev[key]),row=el('div','pc-cal-sumrow'),sig=v=>(v>0?'+':v<0?'−':'')+df.format(Math.abs(v))+'%';
+    row.append(el('span','pc-kpi-name',name+' с начала месяца'),el('b','',nf.format(m.cur[key])),el('small',ch!=null&&ch<=-15?'bad':'','за '+spanLabel(m.prev.from,m.prev.to)+': '+nf.format(m.prev[key])+(exp?' · ожидалось '+nf.format(Math.round(exp))+' по дням недели':'')+(ch==null?'':' ('+sig(ch)+')')));sum.append(row);}
    body.append(sum);}
   sec.append(body,legend);return sec;
  }
@@ -1053,8 +1053,12 @@ function create(main){
    if(csi!=null){foot.append(document.createTextNode('CSI '),el('b','',cf.format(csi)));if(csiPrev!=null){const d=csi-csiPrev;foot.append(el('span','po-delta '+(d<=-.1?'bad':d<=-.05?'warn':'ok'),' '+(d>=.005?'+':d<=-.005?'−':'±')+cf.format(Math.abs(d))));}foot.append(document.createTextNode(' · оценок '+bigNum(k.csiSample)));}
    card.append(foot);
    const m=c.mtd,pm=c.prevMtd,mm=el('p','po-month');
-   mm.append(el('span','po-month-label','С начала месяца '+spanLabel(w.mtd[0],w.mtd[1])+' к '+spanLabel(w.prevMtd[0],w.prevMtd[1])));
-   for(const [name,now,before] of [[screen?'показы':'отправки',m.sends,pm.sends],['ответы',m.answers,pm.answers]]){const ch=pctOf(now,before);const it=el('span','po-month-item');it.title=name+': '+nf.format(now)+' против '+nf.format(before);it.append(document.createTextNode(name+' '),el('b','',bigNum(now)),el('span','po-delta '+(ch==null?'':ch<=-15?'bad':ch<=-5?'warn':'ok'),' '+(ch==null?'—':(ch>0?'+':ch<0?'−':'')+df.format(Math.abs(ch))+'%')));mm.append(it);}
+   mm.append(el('span','po-month-label','С начала месяца '+spanLabel(w.mtd[0],w.mtd[1])+' к '+spanLabel(w.prevMtd[0],w.prevMtd[1])+(c.expectedMtd?' · с поправкой на дни недели и праздники':'')));
+   const ex=c.expectedMtd||{};
+   for(const [name,now,before,exp] of [[screen?'показы':'отправки',m.sends,pm.sends,ex.sends],['ответы',m.answers,pm.answers,ex.answers]]){const ch=pctOf(now,before),adj=exp?pctOf(now,exp):null;const it=el('span','po-month-item');it.title=name+': '+nf.format(now)+' против '+nf.format(before)+(exp?' · ожидалось '+nf.format(Math.round(exp))+' с поправкой на дни недели и праздники':'');
+    const sig=v=>(v>0?'+':v<0?'−':'')+df.format(Math.abs(v))+'%',tone=v=>v==null?'':v<=-15?'bad':v<=-5?'warn':'ok',main=adj??ch;
+    it.append(document.createTextNode(name+' '),el('b','',bigNum(now)),el('span','po-delta '+tone(main),' '+(main==null?'—':sig(main))));
+    if(adj!=null&&ch!=null)it.append(el('small','po-raw',' (без поправки '+sig(ch)+')'));mm.append(it);}
    card.append(mm);grid.append(card);}
   wrap.append(head,grid);return wrap;
  }
@@ -1069,6 +1073,7 @@ function create(main){
   const watch=watchProblems();
   if(watch.length){const g=el('a','pp-group pp-watch-link');g.href='#pulse-watch';g.onclick=e=>{e.preventDefault();document.getElementById('pulse-watch')?.scrollIntoView({behavior:'smooth',block:'start'});};g.append(el('b','',String(watch.length)),document.createTextNode(' на контроле'));sub.append(g);}
   text.append(sub);head.append(text,button('Фокус: '+focus.total,()=>openFocus(),'pulse-btn ghost pp-focus'));card.append(head);
+  if(brief.dataNotice){const n=el('p','po-notice');n.setAttribute('role','note');n.append(el('b','','Неполный день'),document.createTextNode(brief.dataNotice.text));card.append(n);}
   if(brief.overview?.length)card.append(overviewBlock(brief.overview));
   return card;
  }
@@ -1096,11 +1101,12 @@ function create(main){
   const meta=el('p','pp-meta');meta.append(el('span','pp-kind',p.kindLabel),document.createTextNode([p.channelLabel,(p.products||[]).join(', '),p.since?'с '+dateLabel(p.since):''].filter(Boolean).join(' · ')));
   main.append(top,meta);
   const metrics=el('div','pp-metrics');
-  for(const x of sh.slice(0,2)){const unit=x.metric==='csi'?'':' '+x.unit,m=el('span','pp-metric');m.append(el('span','pp-metric-name',x.label),el('strong',x.direction==='down'?'bad':'good',change(x)),el('small','',fmt(x.before,x.metric)+' → '+fmt(x.after,x.metric)+unit));metrics.append(m);}
+  const follows=new Set((p.rootCause?.consequences||[]).map(c=>c.metric));
+  for(const x of sh.slice(0,2)){const unit=x.metric==='csi'?'':' '+x.unit,m=el('span','pp-metric'+(follows.has(x.metric)?' is-consequence':''));if(follows.has(x.metric))m.title='Следствие: '+p.rootCause.note;m.append(el('span','pp-metric-name',x.label+(follows.has(x.metric)?' · следствие':'')),el('strong',x.direction==='down'?'bad':'good',change(x)),el('small','',fmt(x.before,x.metric)+' → '+fmt(x.after,x.metric)+unit));metrics.append(m);}
   if(p.month){
-   const [prevW,curW]=p.month.windows||[],key=p.month.sends[0]>=1000||!p.month.answers[0]?'sends':'answers',[before,now]=p.month[key],ch=pctOf(now,before);
+   const [prevW,curW]=p.month.windows||[],key=p.month.sends[0]>=1000||!p.month.answers[0]?'sends':'answers',[before,now]=p.month[key],expected=p.month.expected?.[key],ch=pctOf(now,expected||before);
    if(ch!=null){const m=el('span','pp-metric pp-metric-month');m.title='С начала месяца '+(curW?spanLabel(curW[0],curW[1]):'')+' к тем же дням прошлого месяца '+(prevW?spanLabel(prevW[0],prevW[1]):'');
-    m.append(el('span','pp-metric-name',(key==='sends'?'Отправки':'Ответы')+' месяц к месяцу'),el('strong',ch<=-15?'bad':ch>=15?'good':'',(ch>0?'+':ch<0?'−':'')+df.format(Math.abs(ch))+'%'),el('small','',bigNum(before)+' → '+bigNum(now)+(prevW&&curW?' · '+spanLabel(curW[0],curW[1])+' к '+spanLabel(prevW[0],prevW[1]):'')));metrics.append(m);}}
+    m.append(el('span','pp-metric-name',(key==='sends'?'Отправки':'Ответы')+' месяц к месяцу'),el('strong',ch<=-15?'bad':ch>=15?'good':'',(ch>0?'+':ch<0?'−':'')+df.format(Math.abs(ch))+'%'),el('small','',bigNum(before)+' → '+bigNum(now)+(prevW&&curW?' · '+spanLabel(curW[0],curW[1])+' к '+spanLabel(prevW[0],prevW[1]):'')+(expected?' · ожидалось '+bigNum(expected)+' с поправкой на дни недели':'')));metrics.append(m);}}
   const labels=sh.map(x=>x.label+' '),other=String(p.line||'').split(' · ').filter(t=>t&&!labels.some(l=>t.startsWith(l))&&!(p.kind==='month'&&metrics.querySelector('.pp-metric-month')));
   if(metrics.childElementCount)main.append(metrics);
   if(other.length)main.append(el('p','pp-signal',other.join(' · ')));
@@ -1143,8 +1149,8 @@ function create(main){
  }
  function monthMetrics(p){
   const out=[],[prevW,curW]=p.month?.windows||[];
-  for(const [key,label] of [['sends','Отправки с начала месяца'],['answers','Ответы с начала месяца']]){const [before,now]=p.month?.[key]||[];if(!before)continue;const ch=pctOf(now,before);
-   out.push({label,before,after:now,show:bigNum,delta:df.format(Math.abs(ch))+'%',sign:Math.sign(ch),prevLabel:prevW?spanLabel(prevW[0],prevW[1]):'прошлый',nowLabel:curW?spanLabel(curW[0],curW[1]):'этот'});}
+  for(const [key,label] of [['sends','Отправки с начала месяца'],['answers','Ответы с начала месяца']]){const [before,now]=p.month?.[key]||[];if(!before)continue;const exp=p.month.expected?.[key],ch=pctOf(now,exp||before);
+   out.push({label,before,after:now,show:bigNum,delta:df.format(Math.abs(ch))+'%',sign:Math.sign(ch),prevLabel:prevW?spanLabel(prevW[0],prevW[1]):'прошлый',nowLabel:curW?spanLabel(curW[0],curW[1]):'этот',hint:exp?'изменение — к ожиданию '+bigNum(exp)+' с поправкой на дни недели и праздники':''});}
   return out;
  }
  function compareBars(m){

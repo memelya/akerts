@@ -771,3 +771,12 @@ input.sa-switch:focus-visible{outline:2px solid var(--accent);outline-offset:2px
 .pc-cal-sumrow small.bad{color:var(--negative)}
 .po-stage b{white-space:nowrap}
 @media (max-width:560px){.po-stage{grid-template-columns:62px minmax(36px,1fr) 88px 50px}}
+
+/* --- полнота данных, следствие, поправка на дни недели --- */
+.po-notice{margin:0;padding:10px 14px;border:1px solid color-mix(in srgb,#d5a53f 55%,var(--line));border-radius:10px;background:color-mix(in srgb,#d5a53f 8%,transparent);font-size:13px;line-height:19px;color:var(--text-secondary)}
+.po-notice b{color:#d5a53f;margin-right:8px}
+.pp-metric.is-consequence strong{color:var(--text-secondary);font-size:16px}
+.pp-metric.is-consequence .pp-metric-name{color:var(--muted)}
+.po-raw{font-size:11px;color:var(--muted)}
+.pc-check.is-consequence .pc-check-mark{color:var(--muted)}
+.pc-check.is-consequence b,.pc-check.is-consequence .pc-check-fact{color:var(--muted)}
