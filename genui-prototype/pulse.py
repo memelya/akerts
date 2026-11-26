@@ -18,7 +18,7 @@ from pathlib import Path
 
 from metric_registry import POLICY
 
-VERSION = '6'
+VERSION = '7'
 WINDOW_DAYS = 56
 MIN_SIDE = 7
 LOOSEST = 0.6   # кандидаты сдвигов ищутся при самом мягком пороге; отбор по чувствительности — в apply_sensitivity
@@ -140,12 +140,12 @@ def shrink(value, n, prior, weight=20):
     return (value * n + prior * weight) / (n + weight)
 
 
-CUSUM = {'k': .5, 'h': 7.0, 'recent': 14, 'baseline': 28, 'min_base_days': 12,
+CUSUM = {'k': .5, 'h': 7.0, 'recent': 14, 'baseline': 28, 'min_base_days': 12, 'min_base_after_shift': 8,
          # Минимальный эффект за дни сигнала: у событий объём стабилен, и −5% — уже заметная потеря потока.
          'min_effect': {'events': -5, 'sends': -10, 'answers': -15}}
 
 
-def cusum_signal(days, metric, end):
+def cusum_signal(days, metric, end, since=None):
     """Ранний сигнал CUSUM: накопленное отклонение вниз от ожидаемого по профилю дней недели.
     База — 28 дней перед последними 14; срабатывает, когда сумма стандартизованных недостач превышает h."""
     spec = METRICS[metric]
@@ -155,9 +155,15 @@ def cusum_signal(days, metric, end):
         row = days.get(date.isoformat())
         series.append((date, float(row.get(metric) or 0) if row else None))
     base, recent = series[:CUSUM['baseline']], series[CUSUM['baseline']:]
+    minimum = CUSUM['min_base_days']
+    if since and base[0][0] < since <= base[-1][0]:
+        # В базе была ступень (например, рост 27 окт.): норма — только дни после неё, иначе старый уровень
+        # занижает ожидание и раздувает разброс, и свежее падение не видно.
+        base = [(d, v) for d, v in base if d >= since]
+        minimum = CUSUM['min_base_after_shift']
     known = [(d, v) for d, v in base if v is not None]
     # Опросы со строками только по будням (≈19 дней из 28) тоже проверяются: важны дни с данными, а не календарные.
-    if len(known) < CUSUM['min_base_days'] or sum(1 for _, v in recent if v is not None) < 2:
+    if len(known) < minimum or sum(1 for _, v in recent if v is not None) < 2:
         return None
     profile = defaultdict(list)
     for d, v in known:
@@ -190,9 +196,9 @@ def cusum_signal(days, metric, end):
         if z > -2:
             break
         tail.insert(0, (d, v, z))
-    strong = [x for x in tail if x[2] <= -2.5]
-    # Правило серий: два и больше дня подряд за 2,5σ — сигнал, даже если накопление ещё не дошло до порога.
-    run_rule = len(tail) >= 2 and len(strong) >= 2
+    # Правило серий: два и больше дня подряд ниже −2σ с суммарным отклонением от 5,5σ — сигнал,
+    # даже если накопленная сумма ещё не дошла до порога (вероятность на шуме ~1 к 10 000).
+    run_rule = len(tail) >= 2 and sum(x[2] for x in tail) <= -5.5
     if not (level >= CUSUM['h'] or run_rule):
         return None
     window = [(d, v) for d, v, _ in tail] if tail else [(d, v) for d, v, _ in scored if start and d >= start]
@@ -483,7 +489,8 @@ class Pulse:
                 if early is not None:
                     info = meta.get(sid, {})
                     for metric in ('answers', 'sends', 'events'):
-                        signal = cusum_signal(days, metric, end)
+                        step = detect_shift(days, metric)
+                        signal = cusum_signal(days, metric, end, dt.date.fromisoformat(step['date']) if step else None)
                         if signal:
                             signal.update(channel=ch, id=sid, name=info.get('name', 'Опрос ' + str(sid)), products=info.get('products', []), through=latest)
                             early.append(signal)
