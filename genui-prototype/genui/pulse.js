@@ -951,8 +951,9 @@ function create(main){
    if(now!=null&&before!=null){const v=kind==='count'?(before?(now-before)/before*100:null):now-before;
     if(v!=null){delta=kind==='count'?signed(v):(v>0?'+':v<0?'−':'')+cf.format(Math.abs(v))+(kind==='rate'?' п.п.':'');tone=kind==='count'?(v<=-20?'bad':v>=20?'good':''):kind==='rate'?(v<0&&before&&-v/before>=.15?'bad':''):(v<=-.05?'bad':'');}}
    const few=kind==='csi'&&(w.csiSample||0)<30;
+   const value=few&&w.csiShrunk!=null?w.csiShrunk:now;
    const k=el('div','pc-kpi'+(few?' is-few':''));k.title=name+' за прошлую неделю: '+show(before)+(kind==='csi'?' · оценок: '+nf.format(w.csiSample||0)+' на этой неделе':'');
-   k.append(el('span','pc-kpi-name',name),el('b','',show(now)),el('small',tone,few&&now!=null?'мало оценок: '+nf.format(w.csiSample):delta?delta+' к '+prevSpan:'прошлая: '+show(before)));kpis.append(k);}
+   k.append(el('span','pc-kpi-name',name),el('b','',show(value)),el('small',tone,few&&now!=null?'сглажено: оценок '+nf.format(w.csiSample)+(w.csi!=null?', без сглаживания '+cf.format(w.csi):''):delta?delta+' к '+prevSpan:'прошлая: '+show(before)));kpis.append(k);}
   // Явная подпись сравниваемых недель: цвет совпадает с полосами на графиках ниже.
   const weeks=el('div','pc-weeks');
   for(const [cls,label,span] of [['now','Эта неделя',nowSpan],['prev','Прошлая неделя',prevSpan]]){const c=el('span','pc-week pc-week-'+cls);c.append(el('i'),el('span','',label),el('b','',span));weeks.append(c);}
@@ -1018,6 +1019,7 @@ function create(main){
  function problemType(p){
   const sh=shiftsOf(p),main=sh[0];
   if(p.kind==='month')return p.line.startsWith('Ответы')?'меньше ответов, чем месяц назад':'меньше отправок, чем месяц назад';
+  if(p.kind==='early')return 'ранний сигнал: '+(p.early?.[0]?.metric==='sends'?'отправки':'ответы')+' ниже обычного';
   if(sh.some(x=>x.direction==='down'&&x.before>0&&x.after<=x.before*.05))return sh.some(x=>x.metric==='sends'&&x.after<=x.before*.05)?'остановились отправки':'пропали ответы';
   if(!main)return p.kind==='urgent'?'срочный сигнал':'сигнал мониторинга';
   return {answers:'падают ответы',sends:'падают отправки',csi:'снижается CSI',responseRate:'падает отклик',conversion:'падает отклик'}[main.metric]||'снижение '+main.label.toLowerCase();
@@ -1093,6 +1095,19 @@ function create(main){
   add('circle',{cx:X(pts.length-1),cy:Y(vals.at(-1)),r:2.6,class:'pp-spark-dot'});
   return svg;
  }
+ // Отзыв на сигнал: «Верно» / «Ложная тревога». Из отзывов считается точность каждого правила.
+ const problemRef=p=>p.key+':'+(p.since||brief.revision);
+ function verdictControl(p){
+  const box=el('div','pv-box'),ref=problemRef(p),current=brief.precision?.verdicts?.[ref]||null,stat=(brief.precision?.rules||[]).find(r=>r.rule===p.rule);
+  const buttons={};
+  const set=async v=>{const next=current===v?null:v;for(const b of Object.values(buttons))b.disabled=true;
+   try{const r=await post({action:'journal-add',kind:'rule-verdict',verdict:next,rule:p.rule,problem:ref,channel:p.channel,id:p.id});brief.precision=r.precision;box.replaceWith(verdictControl(p));}
+   catch(e){status.textContent=e.message;for(const b of Object.values(buttons))b.disabled=false;}};
+  box.append(el('span','pv-label','Сигнал'));
+  for(const [v,label] of [['confirmed','Верно'],['false','Ложная тревога']]){const b=button(label,()=>set(v),'pv-btn'+(current===v?' is-on is-'+v:''));b.setAttribute('aria-pressed',String(current===v));buttons[v]=b;box.append(b);}
+  if(stat&&stat.total)box.append(el('span','pv-stat'+(stat.weak?' is-weak':''),'правило верно в '+stat.confirmed+' из '+stat.total+(stat.weak?' — часто ложное':'')));
+  return box;
+ }
  function problemCard(p){
   const card=el('article','pulse-card pp-card is-'+p.kind),sh=shiftsOf(p);
   const main=el('div','pp-main'),top=el('div','pp-top');
@@ -1128,6 +1143,7 @@ function create(main){
   const actions=el('div','pp-actions');
   actions.append(toggle,button('Записать вывод',()=>openNote({surveyId:p.id,channel:p.channel,metric:p.metrics[0]||'other',direction:'down',date:p.since,products:p.products,title:p.title}),'pulse-btn ghost'),
    button('Что если…',()=>{select('whatif');whatifPrefill({id:p.id,channel:p.channel});},'pulse-btn ghost'));
+  if(p.rule&&p.kind!=='growth')actions.append(verdictControl(p));
   card.append(body,actions,more);return card;
  }
  function decisionsSection(){
@@ -1147,6 +1163,11 @@ function create(main){
   if(/CSI/.test(r)&&g.csi?.every(v=>v!=null))out.push({label:'CSI',hint:'оценок: '+nf.format(g.csiSample?.[1]||0),before:g.csi[0],after:g.csi[1],min:1,max:5,show:v=>cf.format(v),delta:cf.format(Math.abs(g.csi[1]-g.csi[0])),sign:Math.sign(g.csi[1]-g.csi[0])});
   return out;
  }
+ function earlyMetrics(p){
+  return (p.early||[]).map(e=>({label:e.label+' за '+e.days+' '+plural(e.days,'день','дня','дней')+' с '+dateLabel(e.start),before:e.expected,after:e.actual,show:bigNum,
+   delta:df.format(Math.abs(e.relative||0))+'%',sign:Math.sign(e.relative||0),prevLabel:'ожидалось',nowLabel:'факт',
+   hint:'накопленное отклонение '+df.format(e.level)+' при пороге 7 · ожидание — по тем же дням недели за 4 прошлые недели'}));
+ }
  function monthMetrics(p){
   const out=[],[prevW,curW]=p.month?.windows||[];
   for(const [key,label] of [['sends','Отправки с начала месяца'],['answers','Ответы с начала месяца']]){const [before,now]=p.month?.[key]||[];if(!before)continue;const exp=p.month.expected?.[key],ch=pctOf(now,exp||before);
@@ -1163,25 +1184,34 @@ function create(main){
   const head=el('div','pw-head'),title=el('div','pw-title');
   title.append(el('span','pp-id','#'+p.id),document.createTextNode(' '+p.name));
   head.append(title,el('span','pw-meta',[p.channelLabel,(p.products||[]).join(', ')].filter(Boolean).join(' · ')));
-  const metrics=p.kind==='month'?monthMetrics(p):weeklyMetrics(g),body=el('div','pw-metrics');
+  const metrics=p.kind==='month'?monthMetrics(p):p.kind==='early'?earlyMetrics(p):weeklyMetrics(g),body=el('div','pw-metrics');
   for(const m of metrics){const cell=el('div','pw-metric'),top=el('div','pw-metric-top');
    top.append(el('span','pw-metric-name',m.label),el('strong',m.sign<0?'bad':'',(m.sign<0?'−':m.sign>0?'+':'')+m.delta));
    cell.append(top,compareBars(m));if(m.hint)cell.append(el('small','pw-metric-hint',m.hint));body.append(cell);}
-  const covered=/Доля отправок|Ответов|CSI/,other=p.kind==='month'?[]:g.reasons.filter(r=>!covered.test(r)||!metrics.length);
+  const covered=/Доля отправок|Ответов|CSI/,other=p.kind==='month'||p.kind==='early'?[]:g.reasons.filter(r=>!covered.test(r)||!metrics.length);
   if(other.length)body.append(el('p','pw-other',other.join(' · ')));
   const more=el('div','pp-more');more.hidden=true;
   const open=button('Разобрать',()=>{more.hidden=!more.hidden;open.textContent=more.hidden?'Разобрать':'Свернуть';open.setAttribute('aria-expanded',String(!more.hidden));row.classList.toggle('is-open',!more.hidden);if(!more.hidden&&!more.childElementCount)surveyCheck(more,p.channel,p.id);},'pulse-btn ghost pw-open');
   open.setAttribute('aria-expanded','false');
-  row.append(head,body,open,more);return row;
+  const side=el('div','pw-side');side.append(open);if(p.rule)side.append(verdictControl(p));
+  row.append(head,body,side,more);return row;
  }
  function watchSection(){
   const items=watchProblems(),sec=el('section','pulse-section pw-section');sec.id='pulse-watch';
   if(!items.length)return sec;
   sec.append(el('h2','pp-list-title','На контроле · '+items.length),
-   el('p','pw-lead','Ранние сигналы: последние 7 дней к тем же дням недели неделей раньше, а также умеренное падение (15–30%) с начала месяца к тем же дням прошлого месяца. Если изменение продержится или усилится, опрос перейдёт в «Требует решения».'));
+   el('p','pw-lead','Ранние сигналы: отправки или ответы несколько дней подряд ниже обычного для своего дня недели (накопленное отклонение, CUSUM), доля отправок или CSI ниже прошлой недели, умеренное падение (15–30%) с начала месяца. Если изменение продержится или усилится, опрос перейдёт в «Требует решения».'));
   const list=el('div','pw-list');for(const p of items.slice(0,8))list.append(watchRow(p));sec.append(list);
   if(items.length>8){const d=el('details','pulse-more');d.append(el('summary','','Ещё на контроле · '+(items.length-8)));const l=el('div','pw-list');for(const p of items.slice(8))l.append(watchRow(p));d.append(l);sec.append(d);}
   return sec;
+ }
+ function precisionTable(){
+  const sec=el('section','pulse-section pv-table'),rows=brief.precision?.rules||[];
+  sec.append(el('h3','','Точность правил'),el('p','pulse-muted','По отметкам «Верно» и «Ложная тревога» на карточках. Правило с точностью ниже 50% при 5+ отметках помечено: его стоит ослабить в настройках чувствительности.'));
+  if(!rows.length){sec.append(el('p','pulse-empty','Отметок пока нет. Отмечайте сигналы на карточках — здесь появится доля верных по каждому правилу.'));return sec;}
+  const t=el('table','pulse-table'),h=el('tr');for(const x of ['Правило','Верно','Ложная тревога','Точность'])h.append(el('th','',x));t.append(h);
+  for(const r of rows){const tr=el('tr',r.weak?'is-weak':'');tr.append(el('td','',r.label),el('td','',String(r.confirmed)),el('td','',String(r.false)),el('td',r.weak?'bad':'',r.precision==null?'—':r.precision+'%'+(r.weak?' · часто ложное':'')));t.append(tr);}
+  sec.append(t);return sec;
  }
  let analystOpen=false;
  function analystSection(){
@@ -1191,6 +1221,7 @@ function create(main){
   d.addEventListener('toggle',()=>{analystOpen=d.open;if(!d.open||built)return;built=true;
    if(others.length){const list=el('section','pulse-section');list.append(el('h3','','Вне фокуса руководителя'),el('p','pulse-muted','Опросы не в топе и не в избранном, а также малые опросы (меньше '+(brief.focus?.minAnswers||5)+' ответов в день). Звёздочка добавляет опрос в фокус.'));for(const p of others.slice(0,30))list.append(problemCard(p));body.append(list);}
    if(ai())body.append(narrativeCard());
+   body.append(precisionTable());
    body.append(el('h3','','Показатели каналов за неделю'),kpiRow(),changesCard(),sensitivityBar());
    clustersHost=el('section','pulse-section');shiftsHost=el('section','pulse-section');body.append(clustersHost,shiftsHost);renderShiftSections(visibleShifts());
    const signals=el('section','pulse-section');signals.append(el('h2','','Сигналы утреннего мониторинга · '+brief.signals.length));for(const s of brief.signals.slice(0,12)){const card=el('article','pulse-card pulse-signal '+s.severity);card.append(el('span','pulse-tag '+(s.severity==='urgent'?'bad':''),s.severity==='urgent'?'Срочно':'Внимание'),el('h3','','#'+s.id+' · '+s.name),el('p','',s.reasons.join(' · ')));signals.append(card);}body.append(signals);

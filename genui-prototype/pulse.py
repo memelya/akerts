@@ -18,7 +18,7 @@ from pathlib import Path
 
 from metric_registry import POLICY
 
-VERSION = '4'
+VERSION = '5'
 WINDOW_DAYS = 56
 MIN_SIDE = 7
 LOOSEST = 0.6   # кандидаты сдвигов ищутся при самом мягком пороге; отбор по чувствительности — в apply_sensitivity
@@ -93,6 +93,101 @@ def variance(values, centre):
 def weighted_csi(rows):
     sample = sum(r.get('csiSample') or 0 for r in rows)
     return (sum(r.get('csiWeight') or 0 for r in rows) / sample, sample) if sample else (None, 0)
+
+
+# --------------------------------------------------------------- статистика правил ---
+# Изменение считается проблемой, только если оно и заметное (порог в %), и выходит за обычные колебания опроса.
+
+def dispersion(days, metric):
+    """Разброс опроса для сравнения «неделя к неделе»: пары одинаковых дней недели в истории.
+    Для чистого Пуассона ≈ 1; у реальных опросов больше — во столько раз шире «нормальные» колебания."""
+    values = [d[metric] for d in days]
+    ratios = [(values[i] - values[i - 7]) ** 2 / (values[i] + values[i - 7]) for i in range(7, len(values)) if values[i] + values[i - 7] > 0]
+    # Медиана, а не среднее: пары на стыке настоящего сдвига не должны раздувать «обычные колебания».
+    # Без верхней границы: у крупных опросов разброс растёт вместе с объёмом и в тысячи раз больше пуассоновского.
+    return max(1.0, sorted(ratios)[len(ratios) // 2] / .455) if len(ratios) >= 5 else 1.0
+
+
+def count_z(before, now, phi):
+    """z-оценка изменения суммы за неделю при квазипуассоновском разбросе φ."""
+    total = before + now
+    return (now - before) / math.sqrt(phi * total) if total else 0.0
+
+
+def rate_z(a1, n1, a2, n2, phi=1.0):
+    """z-оценка изменения доли (ответы / отправки) между двумя периодами."""
+    if not n1 or not n2:
+        return 0.0
+    pooled = (a1 + a2) / (n1 + n2)
+    se = math.sqrt(max(phi, 1.0) * pooled * (1 - pooled) * (1 / n1 + 1 / n2)) if 0 < pooled < 1 else 0
+    return (a2 / n2 - a1 / n1) / se if se else 0.0
+
+
+def csi_stats(part):
+    n = sum(d.get('csiSample') or 0 for d in part)
+    if not n:
+        return None, 0, None
+    m = sum(d.get('csiWeight') or 0 for d in part) / n
+    square = sum(d.get('csiSquare') or 0 for d in part)
+    var = max(square / n - m * m, .05) if square else 1.0   # без суммы квадратов — консервативно σ = 1 балл
+    return m, n, var
+
+
+def shrink(value, n, prior, weight=20):
+    """Сглаживание к истории опроса: при малом числе оценок значение тянется к обычному уровню."""
+    if value is None or prior is None:
+        return value
+    return (value * n + prior * weight) / (n + weight)
+
+
+CUSUM = {'k': .5, 'h': 7.0, 'recent': 14, 'baseline': 28, 'min_effect': -15}
+
+
+def cusum_signal(days, metric, end):
+    """Ранний сигнал CUSUM: накопленное отклонение вниз от ожидаемого по профилю дней недели.
+    База — 28 дней перед последними 14; срабатывает, когда сумма стандартизованных недостач превышает h."""
+    spec = METRICS[metric]
+    series = []
+    for offset in range(CUSUM['baseline'] + CUSUM['recent'] - 1, -1, -1):
+        date = end - dt.timedelta(days=offset)
+        row = days.get(date.isoformat())
+        series.append((date, float(row.get(metric) or 0) if row else None))
+    base, recent = series[:CUSUM['baseline']], series[CUSUM['baseline']:]
+    known = [(d, v) for d, v in base if v is not None]
+    if len(known) < 21 or sum(1 for _, v in recent if v is not None) < 7:
+        return None
+    profile = defaultdict(list)
+    for d, v in known:
+        profile[day_type(d)].append(v)
+    overall = mean([v for _, v in known])
+    if overall < spec['floor']:
+        return None
+    expect = {t: mean(v) for t, v in profile.items()}
+    mu = lambda d: max(expect.get(day_type(d), overall), 1e-9)
+    # Поправка на то, что среднее каждого дня недели оценено по ~4 точкам: остатки от него систематически меньше настоящего разброса.
+    correction = mean([len(v) / (len(v) - 1) for v in profile.values() if len(v) > 1]) or 1.0
+    phi = max(1.0, correction * mean([(v - mu(d)) ** 2 / mu(d) for d, v in known]))
+    level, start, alarm = 0.0, None, None
+    for d, v in recent:
+        if v is None:
+            continue
+        z = (v - mu(d)) / math.sqrt(phi * mu(d))
+        level = max(0.0, level - z - CUSUM['k'])
+        if level == 0:
+            start = None
+        elif start is None:
+            start = d
+        if level >= CUSUM['h'] and alarm is None:
+            alarm = d
+    if alarm is None or level < CUSUM['h'] or start is None:
+        return None
+    run = [(d, v) for d, v in recent if v is not None and d >= start]
+    expected, actual = sum(mu(d) for d, _ in run), sum(v for _, v in run)
+    if not expected or (actual - expected) / expected * 100 > CUSUM['min_effect']:
+        return None   # статистически заметно, но слишком мало, чтобы отвлекать руководителя
+    return {'metric': metric, 'label': spec['label'], 'start': start.isoformat(), 'alarm': alarm.isoformat(), 'days': len(run),
+            'level': round(level, 1), 'expected': round(expected), 'actual': round(actual),
+            'relative': round((actual - expected) / expected * 100, 1) if expected else None}
 
 
 def weekday_adjusted(points):
@@ -354,7 +449,8 @@ class Pulse:
         return result
 
     # -- level shifts -----------------------------------------------------
-    def shifts(self, state, revision, channel=None, ident=None):
+    def shifts(self, state, revision, channel=None, ident=None, early=None):
+        """Устойчивые сдвиги; если передан список early — туда же складываются ранние сигналы CUSUM."""
         found = []
         for current in ([channel] if channel else CHANNELS):
             selected = self.surveys(state, current, ident)
@@ -367,6 +463,13 @@ class Pulse:
             grouped = series_by_survey(rows)
             meta = {s['event']['id']: s['meta'] for s in selected}
             for (ch, sid), days in grouped.items():
+                if early is not None:
+                    info = meta.get(sid, {})
+                    for metric in ('answers', 'sends'):
+                        signal = cusum_signal(days, metric, end)
+                        if signal:
+                            signal.update(channel=ch, id=sid, name=info.get('name', 'Опрос ' + str(sid)), products=info.get('products', []), through=latest)
+                            early.append(signal)
                 for metric in ('sends', 'answers', 'csi'):
                     shift = detect_shift(days, metric)
                     if not shift:
@@ -473,7 +576,8 @@ class Pulse:
                                 'csiSample': [signal['baseline'].get('csiSample'), signal['current'].get('csiSample')],
                                 'days': len(signal.get('pairedDays') or [])})
         started = time.monotonic()
-        candidates = self.shifts(state, revision)
+        early = []
+        candidates = self.shifts(state, revision, early=early)
         settings = self.settings()
         shifts = apply_sensitivity(candidates, settings['sensitivity'])
         clusters = self.clusters(shifts)
@@ -491,7 +595,8 @@ class Pulse:
             item['inFocus'] = key in focus
             item['favorite'] = key in favorites
         overview, month = self.brief_overview(state, revision)
-        brief['problems'] = build_problems(shifts, signals, focus, favorites, month, {(s['meta']['channel'], s['event']['id']): s for s in state['surveys']})
+        brief['early'] = early
+        brief['problems'] = build_problems(shifts, signals, focus, favorites, month, {(s['meta']['channel'], s['event']['id']): s for s in state['surveys']}, early)
         brief['overview'] = finish_overview(overview, brief['problems'])
         brief['dataNotice'] = self.completeness(revision)
         brief['focus'] = {'total': len(focus), 'top': sum(1 for s in state['surveys'] if s['event'].get('isTop')),
@@ -602,7 +707,8 @@ class Pulse:
             if not force:
                 self.lock.release()
         demo = self.demo()
-        return dict(brief, settings=self.settings(), modelReady=self.model_ready(), demo=bool(demo), demoStories=(demo or {}).get('stories'))
+        return dict(brief, settings=self.settings(), modelReady=self.model_ready(), demo=bool(demo), demoStories=(demo or {}).get('stories'),
+                    precision=self.rule_precision() if not brief.get('empty') else None)
 
     # -- background preparation --------------------------------------------
     def start(self, interval=30):
@@ -1443,9 +1549,39 @@ class Pulse:
                 raise ValueError('Оценка разбора: принять, исправить или отклонить.')
             self.log(kind, verdict=verdict, target=clean_text(request.get('target'), 'Объект', 160), canned=bool(request.get('canned')),
                      comment=clean_text(request.get('comment'), 'Комментарий', 500))
+        elif kind == 'rule-verdict':
+            verdict = request.get('verdict')
+            if verdict not in ('confirmed', 'false', None):
+                raise ValueError('Оценка сигнала: «верно» или «ложная тревога».')
+            rule = clean_text(request.get('rule'), 'Правило', 40)
+            if rule not in RULE_LABELS:
+                raise ValueError('Неизвестное правило.')
+            self.log(kind, verdict=verdict, rule=rule, problem=clean_text(request.get('problem'), 'Сигнал', 160),
+                     channel=clean_text(request.get('channel'), 'Канал', 40), id=request.get('id') if type(request.get('id')) is int else None)
+            return {'ok': True, 'precision': self.rule_precision()}
         else:
             raise ValueError('Неизвестное событие журнала.')
         return {'ok': True}
+
+    def rule_precision(self):
+        """Точность правил по отзывам: для каждого сигнала учитывается последняя оценка."""
+        latest = {}
+        for row in self.journal(['rule-verdict']):
+            if not latest.get(row['problem']) or row['at'] >= latest[row['problem']]['at']:
+                latest[row['problem']] = row
+        stats = {}
+        for row in latest.values():
+            if not row.get('verdict'):
+                continue
+            item = stats.setdefault(row['rule'], {'rule': row['rule'], 'label': RULE_LABELS.get(row['rule'], row['rule']), 'confirmed': 0, 'false': 0})
+            item[row['verdict']] += 1
+        for item in stats.values():
+            total = item['confirmed'] + item['false']
+            item['total'] = total
+            item['precision'] = round(item['confirmed'] / total * 100) if total else None
+            item['weak'] = total >= 5 and item['precision'] < 50
+        return {'rules': sorted(stats.values(), key=lambda x: (-x['total'], x['rule'])),
+                'verdicts': {p: r.get('verdict') for p, r in latest.items() if r.get('verdict')}}
 
     def effect(self, request=None):
         settings = self.settings()
@@ -1704,7 +1840,8 @@ class Pulse:
     CHECK_RULES = {
         'drop_problem': -50, 'drop_attention': -20,        # % к прошлой неделе для отправок и ответов
         'conversion_problem': -30, 'conversion_attention': -15,   # относительное изменение конверсии, %
-        'csi_problem': -0.10, 'csi_attention': -0.05, 'csi_min_sample': 30,
+        'csi_problem': -0.10, 'csi_attention': -0.05, 'csi_min_sample': 30, 'csi_min_any': 5,
+        'z_problem': -2.5, 'z_attention': -2.0,              # изменение должно выйти за обычные колебания опроса
         'expected_answers_min': 3,                          # ниже — ноль ответов за день может быть случайным
     }
 
@@ -1765,7 +1902,8 @@ class Pulse:
                 items = dates.get(d.isoformat(), [])
                 days.append({'date': d.isoformat(), 'weekday': d.weekday(), 'hasRows': bool(items),
                              'sends': sum(r.get('sends') or 0 for r in items), 'answers': sum(r.get('answers') or 0 for r in items),
-                             'csiSample': sum(r.get('csiSample') or 0 for r in items), 'csiWeight': sum(r.get('csiWeight') or 0 for r in items)})
+                             'csiSample': sum(r.get('csiSample') or 0 for r in items), 'csiWeight': sum(r.get('csiWeight') or 0 for r in items),
+                             'csiSquare': sum(r.get('csiSquare') or 0 for r in items)})
             if not any(d['hasRows'] for d in days):
                 continue
             checks, counts, _, _ = self.evaluate_checks(days, key[0])
@@ -1925,36 +2063,68 @@ class Pulse:
             else 'В каждый день с отправками были ответы.',
             'problem' if week_silent or heavy else 'attention' if silent else 'ok',
             [d['date'] + ': ' + fmt(d['sends']) + ' отправок, ожидалось ~' + fmt(d['sends'] * base_conv if base_conv else None) + ' ответов' for d in silent])
-        # 3–4. Неделя к неделе: отправки и ответы
+        # 3–4. Неделя к неделе: отправки и ответы. Нужен и заметный процент, и выход за обычные колебания опроса.
+        sigma = {}
         for key, title, metric in (('sends_drop', 'Отправки неделя к неделе', 'sends'), ('answers_drop', 'Ответы неделя к неделе', 'answers')):
             delta = change(now_[metric], before[metric])
             last_active = next((d['date'] for d in reversed(history) if d[metric] > 0), None)
+            rule = ('Падение к прошлой неделе на ' + str(-rules['drop_problem']) + '% и больше — проблема, на ' + str(-rules['drop_attention']) + '–'
+                    + str(-rules['drop_problem']) + '% — внимание, если изменение выходит за обычные колебания опроса (z ≤ '
+                    + str(rules['z_attention']).replace('.', ',') + '; разброс оценивается по парам одинаковых дней недели за 4 недели).')
             if before[metric] == 0 and now_[metric] == 0 and last_active:
-                add(key, title, 'Падение к прошлой неделе на ' + str(-rules['drop_problem']) + '% и больше — проблема. Если показатель обнулился раньше, '
-                    'проверка смотрит на 4 недели.', 'Обе недели 0, последний ненулевой день ' + last_active + '.', 'problem')
+                add(key, title, rule, 'Обе недели 0, последний ненулевой день ' + last_active + '.', 'problem')
                 continue
-            status = 'na' if before[metric] == 0 and now_[metric] == 0 else 'problem' if (delta is not None and delta <= rules['drop_problem']) or (before[metric] > 0 and now_[metric] == 0) \
-                else 'attention' if delta is not None and delta <= rules['drop_attention'] else 'ok'
+            phi = dispersion(days, metric)
+            z = count_z(before[metric], now_[metric], phi)
+            sigma[metric] = (phi, z)
+            band = 2 * math.sqrt(phi * 2 * before[metric]) / before[metric] * 100 if before[metric] else None
+            significant = lambda limit: z <= limit
+            if before[metric] == 0 and now_[metric] == 0:
+                status = 'na'
+            elif before[metric] > 0 and now_[metric] == 0:
+                status = 'problem'
+            elif delta is not None and delta <= rules['drop_problem'] and significant(rules['z_problem']):
+                status = 'problem'
+            elif delta is not None and delta <= rules['drop_attention'] and significant(rules['z_attention']):
+                status = 'attention'
+            else:
+                status = 'ok'
             if metric == 'answers' and now_['sends'] == 0:
                 status = 'na' if status != 'problem' else status
-            add(key, title, 'Падение к прошлой неделе на ' + str(-rules['drop_problem']) + '% и больше — проблема, на ' + str(-rules['drop_attention']) + '–'
-                + str(-rules['drop_problem']) + '% — внимание.',
-                ('Не было ни на этой, ни на прошлой неделе.' if before[metric] == 0 and now_[metric] == 0 else fmt(before[metric]) + ' → ' + fmt(now_[metric]) + ' (' + pct(delta) + ')'), status)
-        # 5. Конверсия
+            fact = 'Не было ни на этой, ни на прошлой неделе.' if before[metric] == 0 and now_[metric] == 0 else fmt(before[metric]) + ' → ' + fmt(now_[metric]) + ' (' + pct(delta) + ')'
+            if band is not None and status in ('ok', 'attention', 'problem') and before[metric]:
+                fact += ('; обычные колебания опроса ±' + '{:.0f}'.format(band) + '%')
+                if status == 'ok' and delta is not None and delta <= rules['drop_attention']:
+                    fact += ' — падение в их пределах, не сигнал'
+            add(key, title, rule, fact, status)
+        # 5. Конверсия: заметное снижение и статистически значимое при этих объёмах отправок
         conv_delta = change(now_['conversion'], before['conversion']) if now_['conversion'] is not None and before['conversion'] else None
+        conv_z = rate_z(before['answers'], before['sends'], now_['answers'], now_['sends'], sigma.get('answers', (1.0, 0))[0])
+        conv_status = 'na' if conv_delta is None else 'problem' if conv_delta <= rules['conversion_problem'] and conv_z <= rules['z_problem'] \
+            else 'attention' if conv_delta <= rules['conversion_attention'] and conv_z <= rules['z_attention'] else 'ok'
         add('conversion', 'Конверсия (ответы / отправки)', 'Снижение конверсии на ' + str(-rules['conversion_problem']) + '% и больше — проблема, на '
-            + str(-rules['conversion_attention']) + '–' + str(-rules['conversion_problem']) + '% — внимание.',
-            (('{:.2f}'.format(before['conversion']).replace('.', ',') + '% → ' + '{:.2f}'.format(now_['conversion']).replace('.', ',') + '% (' + pct(conv_delta) + ')')
+            + str(-rules['conversion_attention']) + '–' + str(-rules['conversion_problem']) + '% — внимание, если снижение значимо при этих объёмах.',
+            (('{:.2f}'.format(before['conversion']).replace('.', ',') + '% → ' + '{:.2f}'.format(now_['conversion']).replace('.', ',') + '% (' + pct(conv_delta) + ')'
+              + (' — в пределах случайных колебаний' if conv_status == 'ok' and conv_delta is not None and conv_delta <= rules['conversion_attention'] else ''))
              if now_['conversion'] is not None and before['conversion'] is not None else 'Нет отправок в одной из недель — конверсию не сравнить.'),
-            'na' if conv_delta is None else 'problem' if conv_delta <= rules['conversion_problem'] else 'attention' if conv_delta <= rules['conversion_attention'] else 'ok')
-        # 6. CSI
-        enough = now_['csiSample'] >= rules['csi_min_sample'] and before['csiSample'] >= rules['csi_min_sample']
-        csi_delta = now_['csi'] - before['csi'] if now_['csi'] is not None and before['csi'] is not None else None
+            conv_status)
+        # 6. CSI: разница средних с учётом разброса оценок; при малом числе оценок значение сглаживается к истории опроса.
+        m_now, n_now, v_now = csi_stats(week)
+        m_before, n_before, v_before = csi_stats(previous)
+        m_hist, _, _ = csi_stats(history + previous)
+        now_['csiShrunk'] = round(shrink(m_now, n_now, m_hist), 3) if m_now is not None and n_now < rules['csi_min_sample'] else None
+        enough = min(n_now, n_before) >= rules['csi_min_any']
+        csi_delta = m_now - m_before if m_now is not None and m_before is not None else None
+        csi_z = csi_delta / math.sqrt(v_now / n_now + v_before / n_before) if csi_delta is not None and n_now and n_before else 0
         add('csi', 'CSI', 'Снижение на ' + str(-rules['csi_problem']).replace('.', ',') + ' балла и больше — проблема, на '
-            + str(-rules['csi_attention']).replace('.', ',') + ' — внимание. Нужно не меньше ' + str(rules['csi_min_sample']) + ' оценок в каждой неделе.',
-            (('{:.2f}'.format(before['csi']).replace('.', ',') + ' → ' + '{:.2f}'.format(now_['csi']).replace('.', ',') + ' (оценок: ' + fmt(before['csiSample']) + ' → '
-              + fmt(now_['csiSample']) + ')') if csi_delta is not None else 'Нет оценок в одной из недель.'),
-            'na' if csi_delta is None or not enough else 'problem' if csi_delta <= rules['csi_problem'] else 'attention' if csi_delta <= rules['csi_attention'] else 'ok')
+            + str(-rules['csi_attention']).replace('.', ',') + ' — внимание, если снижение выходит за разброс оценок (нужно от '
+            + str(rules['csi_min_any']) + ' оценок в каждой неделе).',
+            (('{:.2f}'.format(m_before).replace('.', ',') + ' → ' + '{:.2f}'.format(m_now).replace('.', ',') + ' (оценок: ' + fmt(n_before) + ' → '
+              + fmt(n_now) + ')' + (' — разница в пределах разброса оценок' if enough and csi_delta is not None and csi_delta <= rules['csi_attention'] and csi_z > rules['z_attention'] else '')
+              + ('; при ' + fmt(n_now) + ' оценках сглаженное значение ' + '{:.2f}'.format(now_['csiShrunk']).replace('.', ',') if now_['csiShrunk'] is not None else ''))
+             if csi_delta is not None else 'Нет оценок в одной из недель.'),
+            'na' if csi_delta is None or not enough else 'problem' if csi_delta <= rules['csi_problem'] and csi_z <= rules['z_problem']
+            else 'attention' if csi_delta <= rules['csi_attention'] and csi_z <= rules['z_attention'] else 'ok')
         # Первопричина: если ответы упали вместе с отправками, а конверсия в норме, падение ответов — следствие, а не вторая проблема.
         by_key = {c['key']: c for c in checks}
         sends_c, answers_c, conv_c = by_key.get('sends_drop'), by_key.get('answers_drop'), by_key.get('conversion')
@@ -1983,7 +2153,8 @@ class Pulse:
         channels = {c: {'channel': c, 'label': CHANNEL_LABELS[c], 'through': latest, 'surveys': set(),
                         'week': blank(), 'prevWeek': blank(), 'mtd': blank(), 'prevMtd': blank()} for c in CHANNELS}
         per = defaultdict(lambda: {'cur': blank(), 'prev': blank(), 'curDays': set(), 'prevDays': set(),
-                                   'prevType': {'sends': defaultdict(float), 'answers': defaultdict(float)}})
+                                   'prevType': {'sends': defaultdict(float), 'answers': defaultdict(float)},
+                                   'prevDaily': {'sends': defaultdict(float), 'answers': defaultdict(float)}})
         channel_type = {c: {'sends': defaultdict(float), 'answers': defaultdict(float)} for c in CHANNELS}
         spans = {'week': week, 'prevWeek': prev_week, 'mtd': windows['cur'], 'prevMtd': windows['prev']}
         for row in rows:
@@ -2005,6 +2176,7 @@ class Pulse:
                         per[key][side][f] += row.get(f) or 0
                         if side == 'prev':
                             per[key]['prevType'][f][day_type(day)] += row.get(f) or 0
+                            per[key]['prevDaily'][f][day] += row.get(f) or 0
                             channel_type[channel][f][day_type(day)] += row.get(f) or 0
                     per[key][side + 'Days'].add(row['date'])
         days = {'cur': (windows['cur'][1] - windows['cur'][0]).days + 1, 'prev': (windows['prev'][1] - windows['prev'][0]).days + 1}
@@ -2017,8 +2189,10 @@ class Pulse:
             # Сравниваем, только если прошлый месяц покрыт данными хотя бы на 80% дней.
             if len(item['prevDays']) < .8 * days['prev']:
                 continue
+            exp_values = expect(item['prevType'])
             month[key] = {'sends': [item['prev']['sends'], item['cur']['sends']], 'answers': [item['prev']['answers'], item['cur']['answers']],
-                          'expected': expect(item['prevType']),
+                          'expected': exp_values,
+                          'z': {f: round(month_z(item['prevDaily'][f], prev_types, item['cur'][f], exp_values[f]), 2) for f in ('sends', 'answers')},
                           'days': days['cur'], 'avgAnswers': item['cur']['answers'] / max(1, days['cur'])}
         label = {name: [a.isoformat(), b.isoformat()] for name, (a, b) in spans.items()}
         overview = [dict(v, surveys=len(v['surveys']), windows=label) for v in channels.values()]
@@ -2053,7 +2227,8 @@ class Pulse:
             csi, sample = weighted_csi(items)
             days.append({'date': date, 'weekday': (start + dt.timedelta(days=offset)).weekday(), 'hasRows': bool(items),
                          'sends': sum(r.get('sends') or 0 for r in items), 'answers': sum(r.get('answers') or 0 for r in items),
-                         'csi': csi, 'csiSample': sample, 'csiWeight': sum(r.get('csiWeight') or 0 for r in items)})
+                         'csi': csi, 'csiSample': sample, 'csiWeight': sum(r.get('csiWeight') or 0 for r in items),
+                         'csiSquare': sum(r.get('csiSquare') or 0 for r in items)})
         checks, counts, now_, before = self.evaluate_checks(days, channel)
         # Календарь текущего месяца: по каждому дню — были ли строки, отправки, ответы.
         calendar_days = []
@@ -2079,7 +2254,10 @@ class Pulse:
         prev_types, cur_types = type_days(*windows['prev']), type_days(*windows['cur'])
         expected = {f: round(expected_by_days(by_type[f], prev_types, cur_types), 1) for f in by_type}
         totals['expected'] = expected
-        month_check = month_rule(totals['prev'], totals['cur'], (windows['prev'][1] - windows['prev'][0]).days + 1, expected)
+        prev_daily = {f: {dt.date.fromisoformat(d): sum(r.get(f) or 0 for r in items) for d, items in by_date.items()
+                          if windows['prev'][0].isoformat() <= d <= windows['prev'][1].isoformat()} for f in ('sends', 'answers')}
+        z = {f: month_z(prev_daily[f], prev_types, totals['cur'][f], expected[f]) for f in ('sends', 'answers')}
+        month_check = month_rule(totals['prev'], totals['cur'], (windows['prev'][1] - windows['prev'][0]).days + 1, expected, z)
         checks.append(month_check)
         counts[month_check['status']] = counts.get(month_check['status'], 0) + 1
         return {'channel': channel, 'channelLabel': CHANNEL_LABELS[channel], 'id': ident, 'name': selected[0]['meta']['name'],
@@ -3431,6 +3609,20 @@ def span_label(a, b):
     return (str(int(a[8:])) + '–' + human_date(b)) if a[:7] == b[:7] else human_date(a) + '–' + human_date(b)
 
 
+def month_z(daily, prev_types, actual, expected):
+    """z-оценка «с начала месяца к ожиданию»: разброс — по дням прошлого месяца вокруг среднего своего дня недели."""
+    if not expected:
+        return 0.0
+    by_type = defaultdict(list)
+    for day, value in daily.items():
+        by_type[day_type(day)].append(value)
+    means = {t: sum(v) / prev_types[t] for t, v in by_type.items() if prev_types.get(t)}
+    residuals = [(v - means[t]) ** 2 / means[t] for t, vs in by_type.items() for v in vs if means.get(t)]
+    correction = mean([len(v) / (len(v) - 1) for v in by_type.values() if len(v) > 1]) or 1.0
+    phi = max(1.0, correction * mean(residuals)) if residuals else 1.0
+    return (actual - expected) / math.sqrt(phi * expected)
+
+
 def month_drops(month):
     """Падения «с начала месяца к тем же дням прошлого»: [(metric, label, rel, prev, cur)] от сильного к слабому."""
     out = []
@@ -3438,14 +3630,23 @@ def month_drops(month):
     for metric, label, minimum in (('sends', 'Отправки', MONTH_RULE['min_sends']), ('answers', 'Ответы', MONTH_RULE['min_answers'])):
         prev, cur = month[metric]
         base = expected.get(metric) or prev   # с поправкой на дни недели и праздники, если ожидание посчитано
+        z = (month.get('z') or {}).get(metric)
         if prev >= minimum and base > 0:
             rel = (cur - base) / base * 100
-            if rel <= MONTH_RULE['attention']:
-                out.append((metric, label, rel, prev, cur))
+            # Нужны и заметное падение, и выход за обычные колебания опроса (если разброс посчитан).
+            if rel <= MONTH_RULE['attention'] and (z is None or z <= -2.0):
+                out.append((metric, label, rel, prev, cur, z))
     return sorted(out, key=lambda x: x[2])
 
 
-def month_rule(prev, cur, days, expected=None):
+def month_severity_of(drops):
+    if not drops:
+        return None
+    metric, label, rel, prev, cur, z = drops[0]
+    return 'problem' if rel <= MONTH_RULE['problem'] and (z is None or z <= -2.5) else 'attention'
+
+
+def month_rule(prev, cur, days, expected=None, z=None):
     """Проверка опроса «месяц к прошлому месяцу» в формате остальных проверок."""
     rule = ('Отправки или ответы с начала месяца к ожиданию по тем же дням прошлого месяца с поправкой на состав дней недели '
             'и праздники: падение на 30% и больше — проблема, на 15–30% — внимание. Нужно от 1 000 отправок или 100 ответов в прошлом месяце.')
@@ -3453,16 +3654,40 @@ def month_rule(prev, cur, days, expected=None):
     period = span_label(cur['from'], cur['to']) + ' к ' + span_label(prev['from'], prev['to'])
     if prev['days'] < .8 * days:
         return dict(base, status='na', fact='В прошлом месяце данных меньше чем за 80% дней — сравнение не делается (' + period + ').')
-    drops = month_drops({'sends': [prev['sends'], cur['sends']], 'answers': [prev['answers'], cur['answers']], 'expected': expected})
+    drops = month_drops({'sends': [prev['sends'], cur['sends']], 'answers': [prev['answers'], cur['answers']], 'expected': expected, 'z': z})
     def part(m, label):
         text = label + ': ' + compact(prev[m]) + ' → ' + compact(cur[m]) + ' (' + short_pct((cur[m] - prev[m]) / prev[m] * 100 if prev[m] else 0) + ')'
         if expected and expected.get(m):
             text += ', с поправкой на дни недели ' + short_pct((cur[m] - expected[m]) / expected[m] * 100)
+            if z and z.get(m) is not None and (cur[m] - expected[m]) / expected[m] * 100 <= MONTH_RULE['attention'] and z[m] > -2.0:
+                text += ' — в пределах обычных колебаний опроса'
         return text
     fact = '; '.join(part(m, label) for m, label in (('sends', 'отправки'), ('answers', 'ответы'))) + ' · ' + period
     if not drops:
         return dict(base, status='ok', fact=fact)
-    return dict(base, status='problem' if drops[0][2] <= MONTH_RULE['problem'] else 'attention', fact=fact)
+    return dict(base, status=month_severity_of(drops), fact=fact)
+
+
+RULE_LABELS = {'urgent': 'Срочно: нет отправок с начала месяца', 'shift:sends': 'Устойчивый сдвиг · отправки', 'shift:answers': 'Устойчивый сдвиг · ответы',
+               'shift:csi': 'Устойчивый сдвиг · CSI', 'month:sends': 'Месяц к месяцу · отправки', 'month:answers': 'Месяц к месяцу · ответы',
+               'early:answers': 'Ранний сигнал CUSUM · ответы', 'early:sends': 'Ранний сигнал CUSUM · отправки',
+               'weekly:sendShare': 'Изменение недели · доля отправок', 'weekly:csi': 'Изменение недели · CSI', 'weekly:other': 'Изменение недели · прочее'}
+
+
+def rule_key(kind, main, month_severity, group, drops, cusum):
+    """Какое правило подняло проблему — для оценки точности правил по отзывам «Верно / Ложная тревога»."""
+    if kind == 'urgent':
+        return 'urgent'
+    if kind == 'shift' and main:
+        return 'shift:' + main['metric']
+    if kind == 'month' and drops:
+        return 'month:' + drops[0][0]
+    if kind == 'early' and cusum:
+        return 'early:' + cusum[0]['metric']
+    if kind == 'weekly':
+        reason = ' '.join(group['signals'][0]['reasons']) if group['signals'] else ''
+        return 'weekly:sendShare' if 'Доля отправок' in reason else 'weekly:csi' if 'CSI' in reason else 'weekly:other'
+    return kind
 
 
 def is_decision(problem):
@@ -3480,7 +3705,7 @@ def finish_overview(overview, problems):
     return overview
 
 
-def build_problems(shifts, signals, focus, favorites, month=None, catalog=None):
+def build_problems(shifts, signals, focus, favorites, month=None, catalog=None, early=None):
     """Одна проблема на опрос: сдвиги и сигналы одного опроса объединяются."""
     by_key = {}
     for shift in shifts:
@@ -3490,6 +3715,17 @@ def build_problems(shifts, signals, focus, favorites, month=None, catalog=None):
     for signal in signals:
         key = (signal['channel'], signal['id'])
         by_key.setdefault(key, {'shifts': [], 'signals': [], 'name': signal['name'], 'products': [], 'avgAnswers': None})['signals'].append(signal)
+    # Падение ответов «неделя к неделе» больше не порог −20%: его заменяет накопленное отклонение CUSUM (ранний сигнал).
+    weekly_answers = 'Ответов стало меньше минимум на 20%'
+    for group in by_key.values():
+        group['signals'] = [dict(g, reasons=[r for r in g['reasons'] if r != weekly_answers]) for g in group['signals']]
+        group['signals'] = [g for g in group['signals'] if g['reasons']]
+    early_by = defaultdict(list)
+    for item in early or []:
+        early_by[(item['channel'], item['id'])].append(item)
+    for key, items in early_by.items():
+        if key not in by_key:
+            by_key[key] = {'shifts': [], 'signals': [], 'name': items[0]['name'], 'products': items[0].get('products', []), 'avgAnswers': None}
     month = month or {}
     month_surveys, month_windows_ = month.get('surveys', {}), month.get('windows', {})
     for key, item in month_surveys.items():
@@ -3538,9 +3774,9 @@ def build_problems(shifts, signals, focus, favorites, month=None, catalog=None):
                 since = main['date']
         mtd = month_surveys.get((channel, ident))
         drops = month_drops(mtd) if mtd else []
-        month_severity = ('problem' if drops[0][2] <= MONTH_RULE['problem'] else 'attention') if drops else None
+        month_severity = month_severity_of(drops)
         if not kind and drops:
-            metric, label, rel, prev, cur = drops[0]
+            metric, label, rel, prev, cur, _z = drops[0]
             score, kind = (60 if month_severity == 'problem' else 35) + min(-rel, 100) / 10, 'month'
             cur_w, prev_w = month_windows_.get('mtd'), month_windows_.get('prevMtd')
             line = (label + ' с начала месяца ' + short_pct(rel) + ' (' + compact(prev) + ' → ' + compact(cur)
@@ -3548,10 +3784,20 @@ def build_problems(shifts, signals, focus, favorites, month=None, catalog=None):
             since = cur_w[0] if cur_w else None
             hint = ('Меньше, чем за те же дни прошлого месяца: проверьте аудиторию, триггер и частоту коммуникаций.' if metric == 'sends'
                     else 'Ответов меньше, чем за те же дни прошлого месяца: проверьте отправки и отклик.')
+        cusum = sorted(early_by.get((channel, ident), []), key=lambda e: (e['metric'] != 'answers', -e['level']))
+        if not kind and cusum:
+            first = cusum[0]
+            score, kind = 45 + min(first['level'], 20), 'early'
+            line = (first['label'] + ' за ' + str(first['days']) + ' ' + plural(first['days'], 'день', 'дня', 'дней') + ': ' + compact(first['actual'])
+                    + ' при ожидаемых ' + compact(first['expected']) + ' (' + short_pct(first['relative'] or 0) + ')')
+            since = first['start']
+            hint = 'Накопленное отклонение вниз: ' + first['label'].lower() + ' несколько дней подряд ниже обычного для своего дня недели. Проверьте, не начался ли сдвиг.'
         if not kind and group['signals']:
             score, kind = 40, 'weekly'
             line = group['signals'][0]['reasons'][0]
             hint = 'Свежее изменение за неделю: посмотрите динамику по дням.'
+        if not kind and not group['shifts']:
+            continue
         if not kind:
             up = group['shifts'][0]
             score, kind = 5, 'growth'
@@ -3561,7 +3807,8 @@ def build_problems(shifts, signals, focus, favorites, month=None, catalog=None):
         low = avg is not None and avg < MIN_FOCUS_ANSWERS and kind != 'urgent'
         output.append({'key': 'problem:' + channel + ':' + str(ident), 'channel': channel, 'channelLabel': CHANNEL_LABELS[channel], 'id': ident,
                        'name': group['name'], 'title': '#' + str(ident) + ' · ' + group['name'], 'products': group['products'],
-                       'kind': kind, 'kindLabel': {'urgent': 'срочно', 'shift': 'устойчивый сдвиг', 'weekly': 'изменение недели', 'month': 'месяц к месяцу', 'growth': 'рост'}[kind],
+                       'kind': kind, 'kindLabel': {'urgent': 'срочно', 'shift': 'устойчивый сдвиг', 'weekly': 'изменение недели', 'month': 'месяц к месяцу', 'early': 'ранний сигнал', 'growth': 'рост'}[kind],
+                       'rule': rule_key(kind, main, month_severity, group, drops, cusum), 'early': cusum[:2] if cusum else None,
                        'rootCause': root,
                        'month': dict(mtd, windows=[month_windows_.get('prevMtd'), month_windows_.get('mtd')]) if mtd else None, 'monthSeverity': month_severity,
                        'score': round(score, 1), 'line': line, 'since': since, 'hint': hint,

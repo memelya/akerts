@@ -162,6 +162,7 @@ class AnalyticsStore:
                 SUM(CASE WHEN channel='communication' THEN sends WHEN UPPER(status)='SENDED' THEN events ELSE 0 END) sends,
                 SUM(CASE WHEN csi BETWEEN 1 AND 5 THEN events ELSE 0 END) csiSample,
                 SUM(CASE WHEN csi BETWEEN 1 AND 5 THEN events*csi ELSE 0 END) csiWeight,
+                SUM(CASE WHEN csi BETWEEN 1 AND 5 THEN events*csi*csi ELSE 0 END) csiSquare,
                 SUM(CASE WHEN channel='communication' AND status='1002' THEN events END) stop,
                 SUM(CASE WHEN channel='communication' AND status IN ({policy_codes}) THEN events END) contactPolicy
                 FROM records WHERE {where} AND grain='day' GROUP BY channel,survey_id,date"""
