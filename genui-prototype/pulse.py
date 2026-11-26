@@ -18,7 +18,7 @@ from pathlib import Path
 
 from metric_registry import POLICY
 
-VERSION = '5'
+VERSION = '6'
 WINDOW_DAYS = 56
 MIN_SIDE = 7
 LOOSEST = 0.6   # кандидаты сдвигов ищутся при самом мягком пороге; отбор по чувствительности — в apply_sensitivity
@@ -140,7 +140,9 @@ def shrink(value, n, prior, weight=20):
     return (value * n + prior * weight) / (n + weight)
 
 
-CUSUM = {'k': .5, 'h': 7.0, 'recent': 14, 'baseline': 28, 'min_effect': -15}
+CUSUM = {'k': .5, 'h': 7.0, 'recent': 14, 'baseline': 28, 'min_base_days': 12,
+         # Минимальный эффект за дни сигнала: у событий объём стабилен, и −5% — уже заметная потеря потока.
+         'min_effect': {'events': -5, 'sends': -10, 'answers': -15}}
 
 
 def cusum_signal(days, metric, end):
@@ -154,7 +156,8 @@ def cusum_signal(days, metric, end):
         series.append((date, float(row.get(metric) or 0) if row else None))
     base, recent = series[:CUSUM['baseline']], series[CUSUM['baseline']:]
     known = [(d, v) for d, v in base if v is not None]
-    if len(known) < 21 or sum(1 for _, v in recent if v is not None) < 7:
+    # Опросы со строками только по будням (≈19 дней из 28) тоже проверяются: важны дни с данными, а не календарные.
+    if len(known) < CUSUM['min_base_days'] or sum(1 for _, v in recent if v is not None) < 2:
         return None
     profile = defaultdict(list)
     for d, v in known:
@@ -167,11 +170,12 @@ def cusum_signal(days, metric, end):
     # Поправка на то, что среднее каждого дня недели оценено по ~4 точкам: остатки от него систематически меньше настоящего разброса.
     correction = mean([len(v) / (len(v) - 1) for v in profile.values() if len(v) > 1]) or 1.0
     phi = max(1.0, correction * mean([(v - mu(d)) ** 2 / mu(d) for d, v in known]))
-    level, start, alarm = 0.0, None, None
+    level, start, alarm, scored = 0.0, None, None, []
     for d, v in recent:
         if v is None:
             continue
         z = (v - mu(d)) / math.sqrt(phi * mu(d))
+        scored.append((d, v, z))
         level = max(0.0, level - z - CUSUM['k'])
         if level == 0:
             start = None
@@ -179,14 +183,27 @@ def cusum_signal(days, metric, end):
             start = d
         if level >= CUSUM['h'] and alarm is None:
             alarm = d
-    if alarm is None or level < CUSUM['h'] or start is None:
+    # Хвост: последние дни подряд заметно ниже нормы (z ≤ −2). По нему считается эффект — иначе
+    # нормальные дни в начале серии размывают свежее падение.
+    tail = []
+    for d, v, z in reversed(scored):
+        if z > -2:
+            break
+        tail.insert(0, (d, v, z))
+    strong = [x for x in tail if x[2] <= -2.5]
+    # Правило серий: два и больше дня подряд за 2,5σ — сигнал, даже если накопление ещё не дошло до порога.
+    run_rule = len(tail) >= 2 and len(strong) >= 2
+    if not (level >= CUSUM['h'] or run_rule):
         return None
-    run = [(d, v) for d, v in recent if v is not None and d >= start]
-    expected, actual = sum(mu(d) for d, _ in run), sum(v for _, v in run)
-    if not expected or (actual - expected) / expected * 100 > CUSUM['min_effect']:
+    window = [(d, v) for d, v, _ in tail] if tail else [(d, v) for d, v, _ in scored if start and d >= start]
+    if not window:
+        return None
+    expected, actual = sum(mu(d) for d, _ in window), sum(v for _, v in window)
+    if not expected or (actual - expected) / expected * 100 > CUSUM['min_effect'].get(metric, -15):
         return None   # статистически заметно, но слишком мало, чтобы отвлекать руководителя
-    return {'metric': metric, 'label': spec['label'], 'start': start.isoformat(), 'alarm': alarm.isoformat(), 'days': len(run),
-            'level': round(level, 1), 'expected': round(expected), 'actual': round(actual),
+    return {'metric': metric, 'label': spec['label'], 'start': window[0][0].isoformat(), 'alarm': (alarm or window[-1][0]).isoformat(),
+            'days': len(window), 'level': round(level, 1), 'rule': 'cusum' if level >= CUSUM['h'] else 'run',
+            'expected': round(expected), 'actual': round(actual),
             'relative': round((actual - expected) / expected * 100, 1) if expected else None}
 
 
@@ -465,7 +482,7 @@ class Pulse:
             for (ch, sid), days in grouped.items():
                 if early is not None:
                     info = meta.get(sid, {})
-                    for metric in ('answers', 'sends'):
+                    for metric in ('answers', 'sends', 'events'):
                         signal = cusum_signal(days, metric, end)
                         if signal:
                             signal.update(channel=ch, id=sid, name=info.get('name', 'Опрос ' + str(sid)), products=info.get('products', []), through=latest)
@@ -3670,7 +3687,7 @@ def month_rule(prev, cur, days, expected=None, z=None):
 
 RULE_LABELS = {'urgent': 'Срочно: нет отправок с начала месяца', 'shift:sends': 'Устойчивый сдвиг · отправки', 'shift:answers': 'Устойчивый сдвиг · ответы',
                'shift:csi': 'Устойчивый сдвиг · CSI', 'month:sends': 'Месяц к месяцу · отправки', 'month:answers': 'Месяц к месяцу · ответы',
-               'early:answers': 'Ранний сигнал CUSUM · ответы', 'early:sends': 'Ранний сигнал CUSUM · отправки',
+               'early:answers': 'Ранний сигнал CUSUM · ответы', 'early:sends': 'Ранний сигнал CUSUM · отправки', 'early:events': 'Ранний сигнал CUSUM · события',
                'weekly:sendShare': 'Изменение недели · доля отправок', 'weekly:csi': 'Изменение недели · CSI', 'weekly:other': 'Изменение недели · прочее'}
 
 
@@ -3784,7 +3801,7 @@ def build_problems(shifts, signals, focus, favorites, month=None, catalog=None, 
             since = cur_w[0] if cur_w else None
             hint = ('Меньше, чем за те же дни прошлого месяца: проверьте аудиторию, триггер и частоту коммуникаций.' if metric == 'sends'
                     else 'Ответов меньше, чем за те же дни прошлого месяца: проверьте отправки и отклик.')
-        cusum = sorted(early_by.get((channel, ident), []), key=lambda e: (e['metric'] != 'answers', -e['level']))
+        cusum = sorted(early_by.get((channel, ident), []), key=lambda e: ({'answers': 0, 'sends': 1, 'events': 2}[e['metric']], -e['level']))
         if not kind and cusum:
             first = cusum[0]
             score, kind = 45 + min(first['level'], 20), 'early'

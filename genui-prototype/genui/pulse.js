@@ -1019,7 +1019,7 @@ function create(main){
  function problemType(p){
   const sh=shiftsOf(p),main=sh[0];
   if(p.kind==='month')return p.line.startsWith('Ответы')?'меньше ответов, чем месяц назад':'меньше отправок, чем месяц назад';
-  if(p.kind==='early')return 'ранний сигнал: '+(p.early?.[0]?.metric==='sends'?'отправки':'ответы')+' ниже обычного';
+  if(p.kind==='early')return 'ранний сигнал: '+({sends:'отправки',events:'события',answers:'ответы'}[p.early?.[0]?.metric]||'ответы')+' ниже обычного';
   if(sh.some(x=>x.direction==='down'&&x.before>0&&x.after<=x.before*.05))return sh.some(x=>x.metric==='sends'&&x.after<=x.before*.05)?'остановились отправки':'пропали ответы';
   if(!main)return p.kind==='urgent'?'срочный сигнал':'сигнал мониторинга';
   return {answers:'падают ответы',sends:'падают отправки',csi:'снижается CSI',responseRate:'падает отклик',conversion:'падает отклик'}[main.metric]||'снижение '+main.label.toLowerCase();
@@ -1166,7 +1166,7 @@ function create(main){
  function earlyMetrics(p){
   return (p.early||[]).map(e=>({label:e.label+' за '+e.days+' '+plural(e.days,'день','дня','дней')+' с '+dateLabel(e.start),before:e.expected,after:e.actual,show:bigNum,
    delta:df.format(Math.abs(e.relative||0))+'%',sign:Math.sign(e.relative||0),prevLabel:'ожидалось',nowLabel:'факт',
-   hint:'накопленное отклонение '+df.format(e.level)+' при пороге 7 · ожидание — по тем же дням недели за 4 прошлые недели'}));
+   hint:(e.rule==='run'?'дни подряд ниже обычного более чем на 2,5σ':'накопленное отклонение '+df.format(e.level)+' при пороге 7')+' · ожидание — по тем же дням недели за 4 прошлые недели'}));
  }
  function monthMetrics(p){
   const out=[],[prevW,curW]=p.month?.windows||[];
