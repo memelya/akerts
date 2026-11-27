@@ -1010,58 +1010,68 @@ function create(main){
   const b=button(on?'★':'☆',e=>{e.stopPropagation();busy(b,status,async()=>{const r=await post({action:'focus-toggle',channel,id});b.textContent=r.favorite?'★':'☆';b.setAttribute('aria-pressed',String(r.favorite));status.textContent=r.favorite?'Опрос #'+id+' добавлен в избранное и в ваш фокус.':'Опрос #'+id+' убран из избранного.';brief=await post({action:'brief'});renderBrief();if(tab==='portfolio')renderPortfolio();});},'pulse-star');
   b.setAttribute('aria-label',(on?'Убрать из избранного':'Добавить в избранное')+' опрос #'+id);b.setAttribute('aria-pressed',String(on));b.title=on?'В избранном и в фокусе':'Добавить в избранное';return b;
  }
- const isDecision=p=>p.kind==='urgent'||p.kind==='shift'||(p.kind==='month'&&p.monthSeverity==='problem');
+ const isDecision=p=>p.kind==='urgent'||p.kind==='shift'||p.kind==='fresh'||(p.kind==='month'&&p.monthSeverity==='problem');
  const decisionProblems=()=>(brief.problems||[]).filter(p=>p.inFocus&&!p.lowVolume&&isDecision(p));
  // Сигналы недели — ранние, неподтверждённые изменения: отдельный блок «На контроле», а не «Требует решения».
  const watchProblems=()=>(brief.problems||[]).filter(p=>p.inFocus&&!p.lowVolume&&p.kind!=='growth'&&!isDecision(p));
- const shiftsOf=p=>{const all=[...(brief.candidates||[]),...(brief.shifts||[])];return p.shiftKeys.map(k=>all.find(x=>x.key===k)).filter(Boolean);};
+ const shiftsOf=p=>{const all=[...(brief.candidates||[]),...(brief.shifts||[])],found=p.shiftKeys.map(k=>all.find(x=>x.key===k)).filter(Boolean);
+  // Свежее падение без устойчивого сдвига: метрики и мини-график строятся по раннему сигналу (ожидалось → факт в день).
+  if(found.length||!(p.kind==='fresh'||p.kind==='early'))return found;
+  return (p.early||[]).filter(e=>e.series?.length).map(e=>({key:'early:'+e.metric,metric:e.metric,label:e.label,unit:'в день',before:e.expected/e.days,after:e.actual/e.days,relative:e.relative,delta:null,direction:'down',date:e.start,series:e.series}));};
  // Тип проблемы для сводки: считается по сдвигам платформы, без модели.
  function problemType(p){
   const sh=shiftsOf(p),main=sh[0];
   if(p.kind==='month')return p.line.startsWith('Ответы')?'меньше ответов, чем месяц назад':'меньше отправок, чем месяц назад';
+  if(p.kind==='fresh')return 'резко упали '+({sends:'отправки',events:'события',answers:'ответы'}[p.early?.[0]?.metric]||'ответы')+' за последние дни';
   if(p.kind==='early')return 'ранний сигнал: '+({sends:'отправки',events:'события',answers:'ответы'}[p.early?.[0]?.metric]||'ответы')+' ниже обычного';
   if(sh.some(x=>x.direction==='down'&&x.before>0&&x.after<=x.before*.05))return sh.some(x=>x.metric==='sends'&&x.after<=x.before*.05)?'остановились отправки':'пропали ответы';
   if(!main)return p.kind==='urgent'?'срочный сигнал':'сигнал мониторинга';
   return {answers:'падают ответы',sends:'падают отправки',csi:'снижается CSI',responseRate:'падает отклик',conversion:'падает отклик'}[main.metric]||'снижение '+main.label.toLowerCase();
  }
  // Объём проверки и короткие воронки по каналам: где всё штатно, а где просело. Все числа — суммы платформы.
+ // Сводка по каналам простым языком: сколько опросов в каком состоянии, неделя и месяц в одной таблице,
+ // изменение — стрелкой и цветом. Все числа — суммы платформы; месяц сравнивается с поправкой на дни недели.
+ function changeBadge(pct,kind='count'){
+  if(pct==null||!Number.isFinite(pct))return el('span','ov-chg is-none','нет сравнения');
+  const flat=kind==='csi'?Math.abs(pct)<.05:Math.abs(pct)<5,bad=kind==='csi'?pct<=-.1:pct<=-15,warn=kind==='csi'?pct<=-.05:pct<=-5;
+  const cls=flat?'is-flat':pct>0?'is-up':bad?'is-bad':warn?'is-warn':'is-flat';
+  const text=flat?'≈ без изменений':(pct>0?'▲ ':'▼ ')+(kind==='csi'?cf.format(Math.abs(pct)):df.format(Math.abs(pct))+(kind==='rate'?' п.п.':'%'));
+  return el('span','ov-chg '+cls,text);
+ }
  function overviewBlock(list){
-  const wrap=el('div','po-wrap'),total=list.reduce((a,c)=>({surveys:a.surveys+c.surveys,ok:a.ok+c.ok,decide:a.decide+c.decide,watch:a.watch+c.watch}),{surveys:0,ok:0,decide:0,watch:0});
-  const head=el('p','po-total');
-  head.append(document.createTextNode('Проверено '),el('b','',nf.format(total.surveys)),document.createTextNode(' '+plural(total.surveys,'опрос','опроса','опросов')+' с данными за 14 дней · '),
-   el('b','po-ok',nf.format(total.ok)),document.createTextNode(' работают штатно'+(total.surveys?' ('+Math.round(total.ok/total.surveys*100)+'%)':'')+' · '),
-   el('b','po-bad',nf.format(total.decide)),document.createTextNode(' требуют решения · '),el('b','po-warn',nf.format(total.watch)),document.createTextNode(' на контроле'));
-  const grid=el('div','po-grid');
+  const wrap=el('div','ov-wrap'),total=list.reduce((a,c)=>({surveys:a.surveys+c.surveys,ok:a.ok+c.ok,decide:a.decide+c.decide,watch:a.watch+c.watch}),{surveys:0,ok:0,decide:0,watch:0});
+  const head=el('div','ov-total');
+  head.append(el('span','ov-total-title','Все опросы с данными за 14 дней · '+nf.format(total.surveys)));
+  const chips=el('div','ov-states');
+  for(const [cls,label,n] of [['ok','работают штатно',total.ok],['decide','требуют решения',total.decide],['watch','на контроле',total.watch]]){const c=el('span','ov-state is-'+cls);c.append(el('b','',nf.format(n)),document.createTextNode(' '+label));chips.append(c);}
+  head.append(chips,el('p','ov-note','Здесь все опросы. В заголовке выше — только ваш фокус.'));
+  const grid=el('div','ov-grid');
   for(const c of list){
-   const card=el('section','po-channel'),w=c.windows,screen=c.channel==='success_screen';
-   const top=el('div','po-head');top.append(el('h3','',c.label),el('span','po-count',nf.format(c.surveys)+' '+plural(c.surveys,'опрос','опроса','опросов')));card.append(top);
-   const bar=el('div','po-health');bar.setAttribute('role','img');bar.setAttribute('aria-label','Штатно '+c.ok+', требуют решения '+c.decide+', на контроле '+c.watch);
-   for(const [cls,n] of [['ok',c.ok],['decide',c.decide],['watch',c.watch]])if(n){const i=el('i','po-'+cls);i.style.flexGrow=String(n);bar.append(i);}
-   const legend=el('p','po-legend');for(const [cls,label,n] of [['ok','штатно',c.ok],['decide','решение',c.decide],['watch','контроль',c.watch]]){const s=el('span','po-key po-key-'+cls);s.append(el('i'),document.createTextNode(label+' '+nf.format(n)));legend.append(s);}
-   card.append(bar,legend);
-   const k=c.week,p=c.prevWeek;
-   card.append(el('p','po-caption','Воронка недели '+spanLabel(w.week[0],w.week[1])+' · к '+spanLabel(w.prevWeek[0],w.prevWeek[1])));
-   const stages=screen?[['Показы',k.sends,p.sends,null],['Ответы',k.answers,p.answers,k.sends?k.answers/k.sends*100:null,'от показов']]
-    :[['События',k.events,p.events,null],['Отправки',k.sends,p.sends,k.events?k.sends/k.events*100:null,'от событий'],['Ответы',k.answers,p.answers,k.sends?k.answers/k.sends*100:null,'от отправок']];
-   const base=stages[0][1]||1,funnel=el('div','po-funnel');
-   for(const [name,now,before,share,shareLabel] of stages){
-    const ch=pctOf(now,before),tone=ch==null?'':ch<=-15?'bad':ch<=-5?'warn':'ok';
-    const row=el('div','po-stage'),track=el('span','po-track'),fill=el('i');fill.style.width=Math.max(1.5,Math.min(100,now/base*100))+'%';track.append(fill);
-    row.title=name+': '+nf.format(now)+' (прошлая неделя: '+nf.format(before)+')';
-    row.append(el('span','po-stage-name',name),track,el('b','',bigNum(now)),el('span','po-share',share==null?'':df.format(share)+'% '+shareLabel),el('span','po-delta '+tone,ch==null?'—':(ch>0?'+':ch<0?'−':'')+df.format(Math.abs(ch))+'%'));
-    funnel.append(row);}
-   card.append(funnel);
-   const csi=k.csiSample?k.csiWeight/k.csiSample:null,csiPrev=p.csiSample?p.csiWeight/p.csiSample:null,foot=el('p','po-foot');
-   if(csi!=null){foot.append(document.createTextNode('CSI '),el('b','',cf.format(csi)));if(csiPrev!=null){const d=csi-csiPrev;foot.append(el('span','po-delta '+(d<=-.1?'bad':d<=-.05?'warn':'ok'),' '+(d>=.005?'+':d<=-.005?'−':'±')+cf.format(Math.abs(d))));}foot.append(document.createTextNode(' · оценок '+bigNum(k.csiSample)));}
-   card.append(foot);
-   const m=c.mtd,pm=c.prevMtd,mm=el('p','po-month');
-   mm.append(el('span','po-month-label','С начала месяца '+spanLabel(w.mtd[0],w.mtd[1])+' к '+spanLabel(w.prevMtd[0],w.prevMtd[1])+(c.expectedMtd?' · с поправкой на дни недели и праздники':'')));
-   const ex=c.expectedMtd||{};
-   for(const [name,now,before,exp] of [[screen?'показы':'отправки',m.sends,pm.sends,ex.sends],['ответы',m.answers,pm.answers,ex.answers]]){const ch=pctOf(now,before),adj=exp?pctOf(now,exp):null;const it=el('span','po-month-item');it.title=name+': '+nf.format(now)+' против '+nf.format(before)+(exp?' · ожидалось '+nf.format(Math.round(exp))+' с поправкой на дни недели и праздники':'');
-    const sig=v=>(v>0?'+':v<0?'−':'')+df.format(Math.abs(v))+'%',tone=v=>v==null?'':v<=-15?'bad':v<=-5?'warn':'ok',main=adj??ch;
-    it.append(document.createTextNode(name+' '),el('b','',bigNum(now)),el('span','po-delta '+tone(main),' '+(main==null?'—':sig(main))));
-    if(adj!=null&&ch!=null)it.append(el('small','po-raw',' (без поправки '+sig(ch)+')'));mm.append(it);}
-   card.append(mm);grid.append(card);}
+   const screen=c.channel==='success_screen',w=c.windows,k=c.week,p=c.prevWeek,m=c.mtd,pm=c.prevMtd,ex=c.expectedMtd||{};
+   const card=el('section','ov-card'),top=el('div','ov-head');top.append(el('h3','',c.label),el('span','ov-count',nf.format(c.surveys)+' '+plural(c.surveys,'опрос','опроса','опросов')));card.append(top);
+   const bar=el('div','ov-bar');bar.setAttribute('role','img');bar.setAttribute('aria-label','Штатно '+c.ok+', требуют решения '+c.decide+', на контроле '+c.watch);
+   for(const [cls,n] of [['ok',c.ok],['decide',c.decide],['watch',c.watch]])if(n){const i=el('i','is-'+cls);i.style.flexGrow=String(n);i.title=n+' · '+({ok:'штатно',decide:'требуют решения',watch:'на контроле'}[cls]);bar.append(i);}
+   const states=el('p','ov-legend');for(const [cls,label,n] of [['ok','штатно',c.ok],['decide','решение',c.decide],['watch','контроль',c.watch]]){const x=el('span','ov-key is-'+cls);x.append(el('i'),document.createTextNode(nf.format(n)+' '+label));states.append(x);}
+   card.append(bar,states);
+   const sendsName=screen?'Показы':'Отправки';
+   const conv=(a,s)=>s?a/s*100:null,csi=x=>x.csiSample?x.csiWeight/x.csiSample:null;
+   const rows=[
+    [sendsName,bigNum(k.sends),pctOf(k.sends,p.sends),'count',bigNum(m.sends),pctOf(m.sends,ex.sends||pm.sends),'count'],
+    ['Ответы',bigNum(k.answers),pctOf(k.answers,p.answers),'count',bigNum(m.answers),pctOf(m.answers,ex.answers||pm.answers),'count'],
+    ['Конверсия',conv(k.answers,k.sends)==null?'—':df.format(conv(k.answers,k.sends))+'%',conv(k.answers,k.sends)!=null&&conv(p.answers,p.sends)!=null?conv(k.answers,k.sends)-conv(p.answers,p.sends):null,'rate',
+     conv(m.answers,m.sends)==null?'—':df.format(conv(m.answers,m.sends))+'%',conv(m.answers,m.sends)!=null&&conv(pm.answers,pm.sends)!=null?conv(m.answers,m.sends)-conv(pm.answers,pm.sends):null,'rate'],
+    ['CSI',csi(k)==null?'—':cf.format(csi(k)),csi(k)!=null&&csi(p)!=null?csi(k)-csi(p):null,'csi',csi(m)==null?'—':cf.format(csi(m)),csi(m)!=null&&csi(pm)!=null?csi(m)-csi(pm):null,'csi']];
+   // Вывод одной фразой: что заметно изменилось за неделю и за месяц.
+   const moved=(i,kind)=>rows.filter(r=>r[i]!=null&&(r[kind]==='csi'?Math.abs(r[i])>=.05:Math.abs(r[i])>=5));
+   const phrase=(list,i,kind,period)=>list.length?list.map(r=>r[0].toLowerCase()+' '+(r[i]>0?'выше':'ниже')+' на '+(r[kind]==='csi'?cf.format(Math.abs(r[i])):df.format(Math.abs(r[i]))+(r[kind]==='rate'?' п.п.':'%'))).join(', ')+' '+period:'';
+   const wk=phrase(moved(2,3),2,3,'к прошлой неделе'),mo=phrase(moved(5,6),5,6,'к тем же дням прошлого месяца');
+   card.append(el('p','ov-summary',wk||mo?[wk,mo].filter(Boolean).join('; ').replace(/^./,x=>x.toUpperCase())+'.':'Без существенных изменений ни за неделю, ни с начала месяца.'));
+   const table=el('table','ov-table'),thead=el('tr');
+   thead.append(el('th',''),(()=>{const th=el('th');th.append(el('span','','Эта неделя'),el('small','',spanLabel(w.week[0],w.week[1])));return th;})(),(()=>{const th=el('th');th.append(el('span','','С начала месяца'),el('small','',spanLabel(w.mtd[0],w.mtd[1])));return th;})());
+   table.append(thead);
+   for(const r of rows){const tr=el('tr');tr.append(el('th','',r[0]));for(const [v,ch,kind] of [[r[1],r[2],r[3]],[r[4],r[5],r[6]]]){const td=el('td');td.append(el('b','',v),changeBadge(ch,kind));tr.append(td);}table.append(tr);}
+   card.append(table,el('p','ov-foot','Неделя сравнивается с '+spanLabel(w.prevWeek[0],w.prevWeek[1])+', месяц — с '+spanLabel(w.prevMtd[0],w.prevMtd[1])+' с поправкой на дни недели и праздники.'));
+   grid.append(card);}
   wrap.append(head,grid);return wrap;
  }
  function statusCard(){
@@ -1082,7 +1092,7 @@ function create(main){
  // Мини-график для карточки: 4 недели метрики, после даты сдвига — цвет проблемы.
  function sparkline(sh){
   const pts=sh.series.slice(-42);if(pts.length<2)return null;
-  const W=168,H=44,vals=pts.map(x=>x[1]),max=Math.max(...vals,1e-9),min=Math.min(0,...vals);
+  const W=168,H=44,vals=pts.map(x=>x[1]),max=Math.max(...vals,1e-9),low=Math.min(...vals),min=low>max*.3?low-(max-low)*.15:Math.min(0,low);   // стабильный крупный ряд: шкала от минимума, чтобы просадка была видна
   const X=i=>2+i*(W-4)/(pts.length-1),Y=v=>H-3-(v-min)/(max-min||1)*(H-8);
   const path=pts.map((x,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(x[1]).toFixed(1)).join('');
   const cut=pts.findIndex(x=>x[0]>=sh.date),NS='http://www.w3.org/2000/svg',svg=document.createElementNS(NS,'svg');

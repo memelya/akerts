@@ -18,7 +18,7 @@ from pathlib import Path
 
 from metric_registry import POLICY
 
-VERSION = '7'
+VERSION = '8'
 WINDOW_DAYS = 56
 MIN_SIDE = 7
 LOOSEST = 0.6   # кандидаты сдвигов ищутся при самом мягком пороге; отбор по чувствительности — в apply_sensitivity
@@ -145,10 +145,14 @@ CUSUM = {'k': .5, 'h': 7.0, 'recent': 14, 'baseline': 28, 'min_base_days': 12, '
          'min_effect': {'events': -5, 'sends': -10, 'answers': -15}}
 
 
-def cusum_signal(days, metric, end, since=None):
-    """Ранний сигнал CUSUM: накопленное отклонение вниз от ожидаемого по профилю дней недели.
-    База — 28 дней перед последними 14; срабатывает, когда сумма стандартизованных недостач превышает h."""
+CUSUM_STRONG = {'level': 14.0, 'run': -8.0, 'effect': {'events': -5, 'sends': -15, 'answers': -15}}
+
+
+def cusum_detail(days, metric, end, since=None):
+    """Ранний сигнал по одной метрике с полным расчётом: ожидание по профилю дней недели, z по дням,
+    накопленное отклонение, правило серий и итог. Возвращает словарь всегда — с причиной, если сигнала нет."""
     spec = METRICS[metric]
+    out = {'metric': metric, 'label': spec['label'], 'alarm': False, 'strong': False, 'reason': '', 'days': []}
     series = []
     for offset in range(CUSUM['baseline'] + CUSUM['recent'] - 1, -1, -1):
         date = end - dt.timedelta(days=offset)
@@ -161,21 +165,26 @@ def cusum_signal(days, metric, end, since=None):
         # занижает ожидание и раздувает разброс, и свежее падение не видно.
         base = [(d, v) for d, v in base if d >= since]
         minimum = CUSUM['min_base_after_shift']
+        out['baseSince'] = since.isoformat()
     known = [(d, v) for d, v in base if v is not None]
+    out['baseFrom'], out['baseTo'], out['baseDays'] = (known[0][0].isoformat() if known else None), (known[-1][0].isoformat() if known else None), len(known)
     # Опросы со строками только по будням (≈19 дней из 28) тоже проверяются: важны дни с данными, а не календарные.
     if len(known) < minimum or sum(1 for _, v in recent if v is not None) < 2:
-        return None
+        out['reason'] = 'мало дней с данными для нормы: ' + str(len(known)) + ' (нужно ' + str(minimum) + ')'
+        return out
     profile = defaultdict(list)
     for d, v in known:
         profile[day_type(d)].append(v)
     overall = mean([v for _, v in known])
     if overall < spec['floor']:
-        return None
+        out['reason'] = 'малый объём: в среднем ' + compact(overall) + ' в день'
+        return out
     expect = {t: mean(v) for t, v in profile.items()}
     mu = lambda d: max(expect.get(day_type(d), overall), 1e-9)
     # Поправка на то, что среднее каждого дня недели оценено по ~4 точкам: остатки от него систематически меньше настоящего разброса.
     correction = mean([len(v) / (len(v) - 1) for v in profile.values() if len(v) > 1]) or 1.0
     phi = max(1.0, correction * mean([(v - mu(d)) ** 2 / mu(d) for d, v in known]))
+    out['band'] = round(2 * math.sqrt(phi * overall) / overall * 100, 1)   # обычные колебания одного дня, ±%
     level, start, alarm, scored = 0.0, None, None, []
     for d, v in recent:
         if v is None:
@@ -189,6 +198,8 @@ def cusum_signal(days, metric, end, since=None):
             start = d
         if level >= CUSUM['h'] and alarm is None:
             alarm = d
+    out['days'] = [{'date': d.isoformat(), 'actual': round(v), 'expected': round(mu(d)), 'z': round(z, 1)} for d, v, z in scored[-5:]]
+    out['level'] = round(level, 1)
     # Хвост: последние дни подряд заметно ниже нормы (z ≤ −2). По нему считается эффект — иначе
     # нормальные дни в начале серии размывают свежее падение.
     tail = []
@@ -196,21 +207,39 @@ def cusum_signal(days, metric, end, since=None):
         if z > -2:
             break
         tail.insert(0, (d, v, z))
+    tail_sum = sum(x[2] for x in tail)
     # Правило серий: два и больше дня подряд ниже −2σ с суммарным отклонением от 5,5σ — сигнал,
-    # даже если накопленная сумма ещё не дошла до порога (вероятность на шуме ~1 к 10 000).
-    run_rule = len(tail) >= 2 and sum(x[2] for x in tail) <= -5.5
-    if not (level >= CUSUM['h'] or run_rule):
-        return None
+    # даже если накопленная сумма ещё не дошла до порога.
+    run_rule = len(tail) >= 2 and tail_sum <= -5.5
     window = [(d, v) for d, v, _ in tail] if tail else [(d, v) for d, v, _ in scored if start and d >= start]
-    if not window:
+    expected, actual = (sum(mu(d) for d, _ in window), sum(v for _, v in window)) if window else (0, 0)
+    relative = round((actual - expected) / expected * 100, 1) if expected else None
+    out.update(expected=round(expected), actual=round(actual), relative=relative,
+               start=window[0][0].isoformat() if window else None, end=window[-1][0].isoformat() if window else None, windowDays=len(window))
+    if not (level >= CUSUM['h'] or run_rule):
+        out['reason'] = ('последние дни в пределах обычных колебаний' if not tail else
+                         'отклонение есть, но ещё слабое: накопление ' + str(round(level, 1)) + ' при пороге ' + str(round(CUSUM['h'])))
+        return out
+    if relative is None or relative > CUSUM['min_effect'].get(metric, -15):
+        out['reason'] = 'статистически заметно, но эффект мал: ' + (short_pct(relative) if relative is not None else '—')
+        return out
+    out.update(alarm=True, rule='cusum' if level >= CUSUM['h'] else 'run',
+               alarmDate=(alarm or window[-1][0]).isoformat(), reason='сигнал')
+    # Сильное свежее падение — сразу в «Требует решения»: далеко за пределами колебаний и заметное по объёму.
+    out['strong'] = (level >= CUSUM_STRONG['level'] or (len(tail) >= 2 and tail_sum <= CUSUM_STRONG['run'])) \
+        and relative <= CUSUM_STRONG['effect'].get(metric, -15)
+    out['series'] = [[d.isoformat(), v] for d, v in series if v is not None]
+    return out
+
+
+def cusum_signal(days, metric, end, since=None):
+    """Ранний сигнал в формате брифинга или None."""
+    d = cusum_detail(days, metric, end, since)
+    if not d['alarm']:
         return None
-    expected, actual = sum(mu(d) for d, _ in window), sum(v for _, v in window)
-    if not expected or (actual - expected) / expected * 100 > CUSUM['min_effect'].get(metric, -15):
-        return None   # статистически заметно, но слишком мало, чтобы отвлекать руководителя
-    return {'metric': metric, 'label': spec['label'], 'start': window[0][0].isoformat(), 'alarm': (alarm or window[-1][0]).isoformat(),
-            'days': len(window), 'level': round(level, 1), 'rule': 'cusum' if level >= CUSUM['h'] else 'run',
-            'expected': round(expected), 'actual': round(actual),
-            'relative': round((actual - expected) / expected * 100, 1) if expected else None}
+    return {'metric': metric, 'label': d['label'], 'start': d['start'], 'alarm': d['alarmDate'], 'days': d['windowDays'],
+            'level': d['level'], 'rule': d['rule'], 'strong': d['strong'], 'expected': d['expected'], 'actual': d['actual'],
+            'relative': d['relative'], 'series': d['series'][-42:], 'band': d.get('band')}
 
 
 def weekday_adjusted(points):
@@ -2240,7 +2269,7 @@ class Pulse:
         end = dt.date.fromisoformat(latest)
         start = end - dt.timedelta(days=27)
         windows = month_windows(end)
-        rows = self.daily(revision, keys, min(start, windows['prev'][0]).isoformat(), latest)
+        rows = self.daily(revision, keys, min(start, windows['prev'][0], end - dt.timedelta(days=WINDOW_DAYS - 1)).isoformat(), latest)
         by_date = defaultdict(list)
         for row in rows:
             by_date[row['date']].append(row)
@@ -2254,6 +2283,16 @@ class Pulse:
                          'csi': csi, 'csiSample': sample, 'csiWeight': sum(r.get('csiWeight') or 0 for r in items),
                          'csiSquare': sum(r.get('csiSquare') or 0 for r in items)})
         checks, counts, now_, before = self.evaluate_checks(days, channel)
+        # Свежее падение: тот же расчёт, что у раннего сигнала в брифинге, с цифрами по последним дням.
+        fresh_days = {d: {f: sum(r.get(f) or 0 for r in items) for f in ('events', 'sends', 'answers')}
+                      for d, items in by_date.items() if d >= (end - dt.timedelta(days=WINDOW_DAYS - 1)).isoformat()}
+        fresh = []
+        for metric in ('answers', 'sends', 'events'):
+            step = detect_shift(fresh_days, metric)
+            fresh.append(cusum_detail(fresh_days, metric, end, dt.date.fromisoformat(step['date']) if step else None))
+        fresh_check = fresh_rule(fresh, channel)
+        checks.insert(0, fresh_check)
+        counts[fresh_check['status']] = counts.get(fresh_check['status'], 0) + 1
         # Календарь текущего месяца: по каждому дню — были ли строки, отправки, ответы.
         calendar_days = []
         day = windows['cur'][0]
@@ -3670,6 +3709,32 @@ def month_severity_of(drops):
     return 'problem' if rel <= MONTH_RULE['problem'] and (z is None or z <= -2.5) else 'attention'
 
 
+def fresh_rule(details, channel):
+    """Проверка «Свежее падение» для разбора опроса: факт по каждой метрике и дни с отклонением."""
+    names = {'answers': 'ответы', 'sends': 'показы' if channel == 'success_screen' else 'отправки', 'events': 'события'}
+    rule = ('Последние дни против нормы того же дня недели за 4 прошлые недели (после последнего сдвига, если он был). '
+            'Сигнал — накопленное отклонение от 7σ или 2+ дня подряд ниже −2σ (сумма от 5,5σ) при эффекте не меньше: события −5%, '
+            'отправки −10%, ответы −15%. Сильный сигнал (от 14σ или серия от 8σ) — проблема.')
+    parts, dates, computed = [], [], 0
+    for d in details:
+        name = names[d['metric']]
+        if not d.get('days'):
+            parts.append(name + ': не проверено — ' + d['reason'])
+            continue
+        computed += 1
+        if d['alarm']:
+            parts.append(name + ' ' + span_label(d['start'], d['end']) + ': ' + compact(d['actual']) + ' при ожидаемых ' + compact(d['expected'])
+                         + ' (' + short_pct(d['relative']) + ')' + (' — сильный сигнал' if d['strong'] else ' — сигнал'))
+        else:
+            parts.append(name + ': ' + d['reason'] + (' (обычные колебания дня ±' + str(round(d['band'])) + '%)' if d.get('band') else ''))
+        for x in d['days']:
+            if x['z'] <= -2:
+                dates.append(human_date(x['date']) + ': ' + name + ' ' + compact(x['actual']) + ' при норме ' + compact(x['expected'])
+                             + ' (' + ('{:.1f}'.format(x['z'])).replace('.', ',').replace('-', '−') + 'σ)')
+    status = 'na' if not computed else 'problem' if any(d['strong'] for d in details) else 'attention' if any(d['alarm'] for d in details) else 'ok'
+    return {'key': 'fresh_drop', 'title': 'Свежее падение (последние дни)', 'rule': rule, 'fact': '; '.join(parts) + '.', 'status': status, 'dates': sorted(set(dates))}
+
+
 def month_rule(prev, cur, days, expected=None, z=None):
     """Проверка опроса «месяц к прошлому месяцу» в формате остальных проверок."""
     rule = ('Отправки или ответы с начала месяца к ожиданию по тем же дням прошлого месяца с поправкой на состав дней недели '
@@ -3694,6 +3759,7 @@ def month_rule(prev, cur, days, expected=None, z=None):
 
 RULE_LABELS = {'urgent': 'Срочно: нет отправок с начала месяца', 'shift:sends': 'Устойчивый сдвиг · отправки', 'shift:answers': 'Устойчивый сдвиг · ответы',
                'shift:csi': 'Устойчивый сдвиг · CSI', 'month:sends': 'Месяц к месяцу · отправки', 'month:answers': 'Месяц к месяцу · ответы',
+               'fresh:answers': 'Свежее падение · ответы', 'fresh:sends': 'Свежее падение · отправки', 'fresh:events': 'Свежее падение · события',
                'early:answers': 'Ранний сигнал CUSUM · ответы', 'early:sends': 'Ранний сигнал CUSUM · отправки', 'early:events': 'Ранний сигнал CUSUM · события',
                'weekly:sendShare': 'Изменение недели · доля отправок', 'weekly:csi': 'Изменение недели · CSI', 'weekly:other': 'Изменение недели · прочее'}
 
@@ -3706,8 +3772,8 @@ def rule_key(kind, main, month_severity, group, drops, cusum):
         return 'shift:' + main['metric']
     if kind == 'month' and drops:
         return 'month:' + drops[0][0]
-    if kind == 'early' and cusum:
-        return 'early:' + cusum[0]['metric']
+    if kind in ('early', 'fresh') and cusum:
+        return kind + ':' + cusum[0]['metric']
     if kind == 'weekly':
         reason = ' '.join(group['signals'][0]['reasons']) if group['signals'] else ''
         return 'weekly:sendShare' if 'Доля отправок' in reason else 'weekly:csi' if 'CSI' in reason else 'weekly:other'
@@ -3716,7 +3782,7 @@ def rule_key(kind, main, month_severity, group, drops, cusum):
 
 def is_decision(problem):
     """«Требует решения»: срочно, устойчивый сдвиг или сильное падение месяца к месяцу. Остальное — «на контроле»."""
-    return problem['kind'] in ('urgent', 'shift') or (problem['kind'] == 'month' and problem.get('monthSeverity') == 'problem')
+    return problem['kind'] in ('urgent', 'shift', 'fresh') or (problem['kind'] == 'month' and problem.get('monthSeverity') == 'problem')
 
 
 def finish_overview(overview, problems):
@@ -3796,6 +3862,14 @@ def build_problems(shifts, signals, focus, favorites, month=None, catalog=None, 
             else:
                 line += ' · ' + shift_line
                 since = main['date']
+        cusum = sorted(early_by.get((channel, ident), []), key=lambda e: (not e.get('strong'), {'answers': 0, 'sends': 1, 'events': 2}[e['metric']], -e['level']))
+        if not kind and cusum and cusum[0].get('strong'):
+            first = cusum[0]
+            score, kind = 75 + min(first['level'], 20), 'fresh'
+            line = (first['label'] + ' за ' + str(first['days']) + ' ' + plural(first['days'], 'день', 'дня', 'дней') + ': ' + compact(first['actual'])
+                    + ' при ожидаемых ' + compact(first['expected']) + ' (' + short_pct(first['relative'] or 0) + ')')
+            since = first['start']
+            hint = 'Свежее резкое падение — далеко за пределами обычных колебаний опроса. Проверьте выгрузку за эти дни, запуск коммуникаций и входящий поток событий.'
         mtd = month_surveys.get((channel, ident))
         drops = month_drops(mtd) if mtd else []
         month_severity = month_severity_of(drops)
@@ -3808,7 +3882,6 @@ def build_problems(shifts, signals, focus, favorites, month=None, catalog=None, 
             since = cur_w[0] if cur_w else None
             hint = ('Меньше, чем за те же дни прошлого месяца: проверьте аудиторию, триггер и частоту коммуникаций.' if metric == 'sends'
                     else 'Ответов меньше, чем за те же дни прошлого месяца: проверьте отправки и отклик.')
-        cusum = sorted(early_by.get((channel, ident), []), key=lambda e: ({'answers': 0, 'sends': 1, 'events': 2}[e['metric']], -e['level']))
         if not kind and cusum:
             first = cusum[0]
             score, kind = 45 + min(first['level'], 20), 'early'
@@ -3831,7 +3904,7 @@ def build_problems(shifts, signals, focus, favorites, month=None, catalog=None, 
         low = avg is not None and avg < MIN_FOCUS_ANSWERS and kind != 'urgent'
         output.append({'key': 'problem:' + channel + ':' + str(ident), 'channel': channel, 'channelLabel': CHANNEL_LABELS[channel], 'id': ident,
                        'name': group['name'], 'title': '#' + str(ident) + ' · ' + group['name'], 'products': group['products'],
-                       'kind': kind, 'kindLabel': {'urgent': 'срочно', 'shift': 'устойчивый сдвиг', 'weekly': 'изменение недели', 'month': 'месяц к месяцу', 'early': 'ранний сигнал', 'growth': 'рост'}[kind],
+                       'kind': kind, 'kindLabel': {'urgent': 'срочно', 'shift': 'устойчивый сдвиг', 'fresh': 'свежее падение', 'weekly': 'изменение недели', 'month': 'месяц к месяцу', 'early': 'ранний сигнал', 'growth': 'рост'}[kind],
                        'rule': rule_key(kind, main, month_severity, group, drops, cusum), 'early': cusum[:2] if cusum else None,
                        'rootCause': root,
                        'month': dict(mtd, windows=[month_windows_.get('prevMtd'), month_windows_.get('mtd')]) if mtd else None, 'monthSeverity': month_severity,
