@@ -938,6 +938,34 @@ function create(main){
  }
  /* --- проверки опроса: правило, факт и итог по отправкам, ответам, конверсии и CSI --- */
  const CHECK_STATUS={problem:['Проблема','bad'],attention:['Внимание','warn'],ok:['Норма','good'],na:['Неприменимо',''],consequence:['Следствие','']};
+ // Неделя к неделе по дням: 7 колонок (пн…вс), в каждой столбики прошлой и этой недели с числами,
+ // под ними даты и изменение. Дни без строк в выгрузке заштрихованы.
+ function weekCompare(d,key,title,prevSpan,nowSpan){
+  const now=d.days.slice(-7),prev=d.days.slice(-14,-7),box=el('section','wc-box');
+  const sum=a=>a.reduce((t,x)=>t+(x[key]||0),0),sNow=sum(now),sPrev=sum(prev),ch=pctOf(sNow,sPrev);
+  const head=el('div','wc-head');head.append(el('h4','pc-chart-title',title+' по дням недели'));
+  const total=el('p','wc-total');total.append(el('span','wc-k wc-prev'),document.createTextNode('прошлая '+nf.format(sPrev)+'  '),el('span','wc-k wc-now'),document.createTextNode('эта '+nf.format(sNow)+' '));
+  total.append(el('b','wc-chg '+(ch==null?'':ch<=-5?'is-bad':ch>=5?'is-good':'is-flat'),ch==null?'нет сравнения':Math.abs(ch)<.5?'≈ без изменений':(ch>0?'▲ ':'▼ ')+df.format(Math.abs(ch))+'%'));
+  head.append(total);box.append(head);
+  const max=Math.max(1,...now.map(x=>x[key]||0),...prev.map(x=>x[key]||0)),cols=el('div','wc-cols');
+  const dow=['пн','вт','ср','чт','пт','сб','вс'];
+  for(let i=0;i<7;i++){
+   const a=prev[i],b=now[i],col=el('div','wc-col'+(b&&b.weekday>=5?' is-weekend':''));
+   const bars=el('div','wc-bars');
+   for(const [x,cls,label] of [[a,'wc-prev',prevSpan],[b,'wc-now',nowSpan]]){
+    const bar=el('div','wc-bar '+cls+(x&&!x.hasRows?' is-none':'')),v=x?x[key]||0:0;
+    const fill=el('i');fill.style.height=(x&&x.hasRows?Math.max(v?3:0,v/max*100):100)+'%';bar.append(fill);
+    bar.title=(cls==='wc-now'?'Эта неделя':'Прошлая неделя')+', '+dateLabel(x.date)+': '+(x.hasRows?nf.format(v):'нет строк в выгрузке');bars.append(bar);}
+   const dc=a&&b&&a.hasRows&&b.hasRows?pctOf(b[key]||0,a[key]||0):null;
+   const delta=el('span','wc-delta '+(dc==null?'':dc<=-15?'is-bad':dc<=-5?'is-warn':dc>=5?'is-good':'is-flat'),
+    dc==null?(a&&b&&(a[key]||0)===0&&(b[key]||0)>0?'было 0':'—'):Math.abs(dc)<.5?'≈':(dc>0?'▲ ':'▼ ')+df.format(Math.abs(dc))+'%');
+   const vals=el('span','wc-vals'),show=x=>!x?'—':!x.hasRows?'нет':bigNum(x[key]||0);
+   vals.append(el('span','wc-v-prev',show(a)),el('span','wc-v-now',show(b)));
+   vals.title='Прошлая неделя, '+(a?dateLabel(a.date):'—')+': '+show(a)+' · эта неделя, '+(b?dateLabel(b.date):'—')+': '+show(b);
+   col.append(bars,el('span','wc-dow',dow[b?b.weekday:i]),el('span','wc-dates',b?b.date.slice(8,10)+'.'+b.date.slice(5,7):''),vals,delta);
+   cols.append(col);}
+  box.append(cols);return box;
+ }
  async function surveyCheck(host,channel,id,extra){
   const box=el('section','pulse-check-card');box.append(el('p','pulse-muted','Проверяем опрос…'));host.append(box);
   let d;try{d=await post({action:'survey-check',channel,id});}catch(error){box.replaceChildren(el('p','pulse-status is-error',error.message));return;}
@@ -973,9 +1001,15 @@ function create(main){
   const bands=[{from:b.from,to:b.to,label:'прошлая · '+prevSpan,cls:'prev'},{from:w.from,to:w.to,label:'эта · '+nowSpan,cls:'now'}];
   const zero=d.channel==='communication'?d.days.filter(x=>x.weekday<5&&x.sends===0&&x.date>=b.from).map(x=>({date:x.date,label:dateLabel(x.date)+': будний день без отправок'})):[];
   const silent=d.days.filter(x=>x.sends>0&&x.answers===0&&x.date>=b.from).map(x=>({date:x.date,label:dateLabel(x.date)+': '+nf.format(x.sends)+' отправок, 0 ответов'}));
-  const grid=el('div','pulse-check-charts');
-  for(const [title,key,marks] of [['Отправки по дням','sends',zero],['Ответы по дням','answers',silent]]){const cell=el('div');cell.append(el('h4','pc-chart-title',title));chartHostWidth=Math.max(300,(host.clientWidth||900)/2)+24;cell.append(lineChart({series:[{points:d.days.map(x=>[x.date,x[key]]),cls:'primary'}],height:120,bands,marks,label:title+' за 4 недели'}));chartHostWidth=null;grid.append(cell);}
-  box.append(grid);
+  // Сравнение недель по дням: тот же день недели прошлой и этой недели рядом, изменение — стрелкой и цветом.
+  const screen=d.channel==='success_screen';
+  const compare=el('div','wc-grid');
+  for(const [title,key] of [[screen?'Показы':'Отправки','sends'],['Ответы','answers']])compare.append(weekCompare(d,key,title,prevSpan,nowSpan));
+  box.append(compare);
+  const grid=el('div','pulse-check-charts'),lines=el('details','pc-how');lines.append(el('summary','','Динамика за 4 недели линией'));
+  lines.addEventListener('toggle',()=>{if(!lines.open||grid.childElementCount)return;
+   for(const [title,key,marks] of [[(screen?'Показы':'Отправки')+' по дням','sends',zero],['Ответы по дням','answers',silent]]){const cell=el('div');cell.append(el('h4','pc-chart-title',title));chartHostWidth=Math.max(300,(host.clientWidth||900)/2)+24;cell.append(lineChart({series:[{points:d.days.map(x=>[x.date,x[key]]),cls:'primary'}],height:140,bands,marks,label:title+' за 4 недели'}));chartHostWidth=null;grid.append(cell);}});
+  lines.append(grid);box.append(lines);
   const how=el('details','pc-how');how.append(el('summary','','Как считается'),el('p','pulse-muted',d.method));box.append(how);
   if(extra)box.append(extra);
  }
