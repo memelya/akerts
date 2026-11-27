@@ -831,3 +831,26 @@ input.sa-switch:focus-visible{outline:2px solid var(--accent);outline-offset:2px
 @media (max-width:560px){.ov-table td b{display:block;min-width:0}.ov-chg{margin-left:0}}
 .ov-table{table-layout:fixed}
 @media (max-width:560px){.ov-card{padding:14px 12px}.ov-table tbody th,.ov-table tr th:first-child{width:76px;font-size:12px}.ov-table th,.ov-table td{padding:6px 4px}.ov-table td b{font-size:14px}.ov-chg{white-space:normal;font-size:11px}}
+
+/* --- полоска дней месяца на карточке и календари трёх месяцев --- */
+.pm-cal{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-top:6px}
+.pm-label{font-size:12px;color:var(--muted);min-width:86px}
+.pm-strip{display:flex;flex-wrap:wrap;gap:3px}
+.pm-day{display:grid;place-items:center;width:20px;height:20px;border-radius:4px;font-size:9px;line-height:1;color:var(--text);font-variant-numeric:tabular-nums;cursor:default;box-sizing:border-box}
+.pm-day.is-week{margin-left:5px}
+.pm-day.is-weekend{opacity:.85}
+.pm-day.is-ok{background:color-mix(in srgb,var(--positive) 55%,transparent)}
+.pm-day.is-silent{background:color-mix(in srgb,var(--negative) 75%,transparent)}
+.pm-day.is-quiet{background:color-mix(in srgb,#d5a53f 70%,transparent)}
+.pm-day.is-none{background:repeating-linear-gradient(135deg,var(--line) 0 3px,transparent 3px 6px);border:1px solid var(--line-strong);color:var(--muted)}
+.pm-day.is-future{border:1px dashed var(--line);color:var(--muted)}
+.pm-legend{display:inline-flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--text-secondary);font-variant-numeric:tabular-nums}
+.pm-key{display:inline-flex;align-items:center;gap:5px}
+.pm-key .pc-cal-swatch{width:10px;height:10px}
+.pc-cal-months{display:flex;flex-wrap:wrap;gap:20px 28px;align-items:flex-start}
+.pc-cal-month{display:flex;flex-direction:column;gap:6px}
+.pc-cal-mname{font-size:13px;font-weight:600;color:var(--text-secondary)}
+.pc-cal-mcount{font-size:11px;color:var(--muted);max-width:230px}
+.pc-cal-months .pc-cal-grid{grid-template-columns:repeat(7,28px)}
+.pc-cal-months .pc-cal-day{height:28px}
+@media (max-width:560px){.pm-day{width:18px;height:18px}.pm-day.is-week{margin-left:3px}.pc-cal-months .pc-cal-grid{grid-template-columns:repeat(7,1fr)}}

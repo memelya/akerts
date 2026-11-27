@@ -18,7 +18,7 @@ from pathlib import Path
 
 from metric_registry import POLICY
 
-VERSION = '8'
+VERSION = '9'
 WINDOW_DAYS = 56
 MIN_SIDE = 7
 LOOSEST = 0.6   # кандидаты сдвигов ищутся при самом мягком пороге; отбор по чувствительности — в apply_sensitivity
@@ -652,6 +652,7 @@ class Pulse:
         brief['problems'] = build_problems(shifts, signals, focus, favorites, month, {(s['meta']['channel'], s['event']['id']): s for s in state['surveys']}, early)
         brief['overview'] = finish_overview(overview, brief['problems'])
         brief['dataNotice'] = self.completeness(revision)
+        brief['calendarMonth'] = month.get('calendarMonth')
         brief['focus'] = {'total': len(focus), 'top': sum(1 for s in state['surveys'] if s['event'].get('isTop')),
                           'favorites': len(favorites), 'minAnswers': MIN_FOCUS_ANSWERS}
         brief['bank'] = self.bank_status(state, revision)
@@ -2209,6 +2210,7 @@ class Pulse:
                                    'prevType': {'sends': defaultdict(float), 'answers': defaultdict(float)},
                                    'prevDaily': {'sends': defaultdict(float), 'answers': defaultdict(float)}})
         channel_type = {c: {'sends': defaultdict(float), 'answers': defaultdict(float)} for c in CHANNELS}
+        cur_daily = defaultdict(lambda: defaultdict(lambda: [0, 0]))   # (channel, id) -> date -> [отправки, ответы] текущего месяца
         spans = {'week': week, 'prevWeek': prev_week, 'mtd': windows['cur'], 'prevMtd': windows['prev']}
         for row in rows:
             channel = row['channel']
@@ -2232,6 +2234,10 @@ class Pulse:
                             per[key]['prevDaily'][f][day] += row.get(f) or 0
                             channel_type[channel][f][day_type(day)] += row.get(f) or 0
                     per[key][side + 'Days'].add(row['date'])
+                    if side == 'cur':
+                        cell = cur_daily[key][row['date']]
+                        cell[0] += row.get('sends') or 0
+                        cell[1] += row.get('answers') or 0
         days = {'cur': (windows['cur'][1] - windows['cur'][0]).days + 1, 'prev': (windows['prev'][1] - windows['prev'][0]).days + 1}
         prev_types, cur_types = type_days(*windows['prev']), type_days(*windows['cur'])
         expect = lambda by_type: {f: round(expected_by_days(by_type[f], prev_types, cur_types), 1) for f in ('sends', 'answers')}
@@ -2249,7 +2255,18 @@ class Pulse:
                           'days': days['cur'], 'avgAnswers': item['cur']['answers'] / max(1, days['cur'])}
         label = {name: [a.isoformat(), b.isoformat()] for name, (a, b) in spans.items()}
         overview = [dict(v, surveys=len(v['surveys']), windows=label) for v in channels.values()]
-        return overview, {'windows': label, 'surveys': month}
+        # Мини-календарь текущего месяца для карточек брифинга: состояние каждого дня одной буквой + числа для подсказки.
+        month_start = windows['cur'][0]
+        length = calendar.monthrange(month_start.year, month_start.month)[1]
+        dates = [month_start + dt.timedelta(days=i) for i in range(length)]
+        calendars = {}
+        for key, cells in cur_daily.items():
+            calendars[key] = {'states': ''.join(day_state(d.isoformat() in cells, *(cells.get(d.isoformat()) or (0, 0)), future=d > end) for d in dates),
+                              'sends': [round((cells.get(d.isoformat()) or (0, 0))[0]) for d in dates],
+                              'answers': [round((cells.get(d.isoformat()) or (0, 0))[1]) for d in dates]}
+        meta = {'month': month_start.isoformat()[:7], 'first': month_start.weekday(), 'length': length, 'through': end.isoformat(),
+                'blank': ''.join('f' if d > end else 'n' for d in dates)}
+        return overview, {'windows': label, 'surveys': month, 'calendars': calendars, 'calendarMonth': meta}
 
     def survey_check(self, request):
         """Проверки одного опроса за последние две недели (неделя = 7 дней по последнюю дату выгрузки).
@@ -2269,7 +2286,13 @@ class Pulse:
         end = dt.date.fromisoformat(latest)
         start = end - dt.timedelta(days=27)
         windows = month_windows(end)
-        rows = self.daily(revision, keys, min(start, windows['prev'][0], end - dt.timedelta(days=WINDOW_DAYS - 1)).isoformat(), latest)
+        months = []
+        y, m = end.year, end.month
+        for _ in range(3):
+            months.insert(0, (y, m))
+            y, m = (y, m - 1) if m > 1 else (y - 1, 12)
+        first_day = dt.date(months[0][0], months[0][1], 1)
+        rows = self.daily(revision, keys, min(start, windows['prev'][0], end - dt.timedelta(days=WINDOW_DAYS - 1), first_day).isoformat(), latest)
         by_date = defaultdict(list)
         for row in rows:
             by_date[row['date']].append(row)
@@ -2325,7 +2348,8 @@ class Pulse:
         counts[month_check['status']] = counts.get(month_check['status'], 0) + 1
         return {'channel': channel, 'channelLabel': CHANNEL_LABELS[channel], 'id': ident, 'name': selected[0]['meta']['name'],
                 'through': latest, 'week': now_, 'previous': before, 'days': days, 'checks': checks, 'counts': counts,
-                'calendar': calendar_days, 'monthToDate': totals,
+                'calendar': calendar_days, 'calendars': [{'month': '%04d-%02d' % (y_, m_), 'days': month_days(by_date, y_, m_, end)} for y_, m_ in months],
+                'monthToDate': totals,
                 'verdict': 'problem' if counts['problem'] else 'attention' if counts['attention'] else 'ok', 'rules': self.CHECK_RULES,
                 'method': 'Неделя — 7 дней по ' + latest + ', прошлая — 7 дней перед ней. Отправки и ответы — суммы за неделю; конверсия — ответы / отправки; '
                           'CSI — средневзвешенный по оценкам 1–5. День без строк в выгрузке для правила «Отправки в будни» считается днём без отправок и помечен.'}
@@ -3709,6 +3733,23 @@ def month_severity_of(drops):
     return 'problem' if rel <= MONTH_RULE['problem'] and (z is None or z <= -2.5) else 'attention'
 
 
+def day_state(has_rows, sends, answers, future=False):
+    """Состояние дня для календарей: f — ещё не наступил, n — нет строк, q — строки без отправок, s — отправки без ответов, o — всё есть."""
+    return 'f' if future else 'n' if not has_rows else 'q' if not sends else 's' if not answers else 'o'
+
+
+def month_days(by_date, year, month, end):
+    """Дни месяца для календаря разбора: строки, отправки, ответы; дни после последней даты выгрузки — будущие."""
+    out, day = [], dt.date(year, month, 1)
+    last = dt.date(year, month, calendar.monthrange(year, month)[1])
+    while day <= last:
+        items = by_date.get(day.isoformat(), [])
+        out.append({'date': day.isoformat(), 'weekday': day.weekday(), 'future': day > end, 'hasRows': bool(items),
+                    'sends': sum(r.get('sends') or 0 for r in items), 'answers': sum(r.get('answers') or 0 for r in items)})
+        day += dt.timedelta(days=1)
+    return out
+
+
 def fresh_rule(details, channel):
     """Проверка «Свежее падение» для разбора опроса: факт по каждой метрике и дни с отклонением."""
     names = {'answers': 'ответы', 'sends': 'показы' if channel == 'success_screen' else 'отправки', 'events': 'события'}
@@ -3907,6 +3948,7 @@ def build_problems(shifts, signals, focus, favorites, month=None, catalog=None, 
                        'kind': kind, 'kindLabel': {'urgent': 'срочно', 'shift': 'устойчивый сдвиг', 'fresh': 'свежее падение', 'weekly': 'изменение недели', 'month': 'месяц к месяцу', 'early': 'ранний сигнал', 'growth': 'рост'}[kind],
                        'rule': rule_key(kind, main, month_severity, group, drops, cusum), 'early': cusum[:2] if cusum else None,
                        'rootCause': root,
+                       'calendar': (month.get('calendars') or {}).get((channel, ident)),
                        'month': dict(mtd, windows=[month_windows_.get('prevMtd'), month_windows_.get('mtd')]) if mtd else None, 'monthSeverity': month_severity,
                        'score': round(score, 1), 'line': line, 'since': since, 'hint': hint,
                        'inFocus': (channel, ident) in focus, 'favorite': (channel, ident) in favorites, 'lowVolume': low,

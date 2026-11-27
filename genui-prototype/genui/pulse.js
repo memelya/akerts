@@ -981,26 +981,53 @@ function create(main){
  }
  // Календарь месяца: квадрат на каждый день — есть ли данные, отправки и ответы. Легенда со счётчиками.
  const CAL_STATES={ok:'Отправки и ответы',silent:'Отправки без ответов',quiet:'Данные есть, отправок нет',none:'Нет данных в выгрузке',future:'День ещё не наступил'};
- function monthCalendar(d){
-  const screen=d.channel==='success_screen',word=screen?'показы':'отправки',sec=el('section','pc-cal');
-  const first=d.calendar[0].date,month=new Intl.DateTimeFormat('ru-RU',{month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(first+'T12:00:00Z'));
-  sec.append(el('h4','pc-title','По дням · '+month.replace(' г.','')));
-  const state=x=>x.future?'future':!x.hasRows?'none':!x.sends?'quiet':!x.answers?'silent':'ok';
-  const labels={...CAL_STATES,ok:screen?'Показы и ответы':CAL_STATES.ok,silent:screen?'Показы без ответов':CAL_STATES.silent,quiet:screen?'Данные есть, показов нет':CAL_STATES.quiet};
+ function calendarGrid(days,screen,labels){
   const grid=el('div','pc-cal-grid');grid.setAttribute('role','list');
   for(const n of ['пн','вт','ср','чт','пт','сб','вс'])grid.append(el('span','pc-cal-dow',n));
-  for(let i=0;i<d.calendar[0].weekday;i++)grid.append(el('span','pc-cal-pad'));
-  const counts={};
-  for(const x of d.calendar){const st=state(x);counts[st]=(counts[st]||0)+1;const cell=el('span','pc-cal-day is-'+st+(x.weekday>=5?' is-weekend':''),String(+x.date.slice(8,10)));cell.setAttribute('role','listitem');
+  for(let i=0;i<days[0].weekday;i++)grid.append(el('span','pc-cal-pad'));
+  const counts={},word=screen?'показы':'отправки';
+  for(const x of days){const st=calState(x);counts[st]=(counts[st]||0)+1;const cell=el('span','pc-cal-day is-'+st+(x.weekday>=5?' is-weekend':''),String(+x.date.slice(8,10)));cell.setAttribute('role','listitem');
    cell.title=dateLabel(x.date)+': '+labels[st].toLowerCase()+(x.hasRows?' · '+word+' '+nf.format(x.sends)+', ответы '+nf.format(x.answers):'');cell.setAttribute('aria-label',cell.title);grid.append(cell);}
+  return {grid,counts};
+ }
+ const calState=x=>x.future?'future':!x.hasRows?'none':!x.sends?'quiet':!x.answers?'silent':'ok';
+ const calLabels=screen=>({...CAL_STATES,ok:screen?'Показы и ответы':CAL_STATES.ok,silent:screen?'Показы без ответов':CAL_STATES.silent,quiet:screen?'Данные есть, показов нет':CAL_STATES.quiet});
+ const monthName=iso=>{const t=new Intl.DateTimeFormat('ru-RU',{month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(iso.slice(0,7)+'-15T12:00:00Z')).replace(' г.','');return t[0].toUpperCase()+t.slice(1);};
+ // Календари последних трёх месяцев: квадрат на каждый день, общая легенда со счётчиками по каждому месяцу.
+ function monthCalendar(d){
+  const screen=d.channel==='success_screen',labels=calLabels(screen),sec=el('section','pc-cal');
+  const months=d.calendars?.length?d.calendars:[{month:d.calendar[0].date.slice(0,7),days:d.calendar}];
+  sec.append(el('h4','pc-title','По дням · '+(months.length>1?monthName(months[0].month).split(' ')[0].toLowerCase()+' — '+monthName(months.at(-1).month).toLowerCase():monthName(months[0].month).toLowerCase())));
+  const row=el('div','pc-cal-months'),totals={};
+  for(const m of months){const box=el('div','pc-cal-month'),{grid,counts}=calendarGrid(m.days,screen,labels);
+   for(const [k,v] of Object.entries(counts))totals[k]=(totals[k]||0)+v;
+   const brief_=['ok','silent','quiet','none'].filter(k=>counts[k]).map(k=>counts[k]+' '+({ok:'✓',silent:'без ответов',quiet:'без отправок',none:'нет данных'}[k])).join(' · ');
+   box.append(el('div','pc-cal-mname',monthName(m.month)),grid,el('div','pc-cal-mcount',brief_));row.append(box);}
+  const mtd=d.monthToDate;
+  if(mtd){const sum=el('div','pc-cal-sum');
+   for(const [name,key] of [[screen?'Показы':'Отправки','sends'],['Ответы','answers']]){const exp=mtd.expected?.[key],ch=pctOf(mtd.cur[key],exp||mtd.prev[key]),r=el('div','pc-cal-sumrow'),sig=v=>(v>0?'+':v<0?'−':'')+df.format(Math.abs(v))+'%';
+    r.append(el('span','pc-kpi-name',name+' с начала месяца'),el('b','',nf.format(mtd.cur[key])),el('small',ch!=null&&ch<=-15?'bad':'','за '+spanLabel(mtd.prev.from,mtd.prev.to)+': '+nf.format(mtd.prev[key])+(exp?' · ожидалось '+nf.format(Math.round(exp))+' по дням недели':'')+(ch==null?'':' ('+sig(ch)+')')));sum.append(r);}
+   row.append(sum);}
   const legend=el('div','pc-cal-legend');
-  for(const st of ['ok','silent','quiet','none','future']){const k=el('span','pc-cal-key');k.append(el('i','pc-cal-swatch is-'+st),document.createTextNode(labels[st]+' · '+(counts[st]||0)));legend.append(k);}
-  const m=d.monthToDate,body=el('div','pc-cal-body');body.append(grid);
-  if(m){const sum=el('div','pc-cal-sum');
-   for(const [name,key] of [[screen?'Показы':'Отправки','sends'],['Ответы','answers']]){const exp=m.expected?.[key],ch=pctOf(m.cur[key],exp||m.prev[key]),row=el('div','pc-cal-sumrow'),sig=v=>(v>0?'+':v<0?'−':'')+df.format(Math.abs(v))+'%';
-    row.append(el('span','pc-kpi-name',name+' с начала месяца'),el('b','',nf.format(m.cur[key])),el('small',ch!=null&&ch<=-15?'bad':'','за '+spanLabel(m.prev.from,m.prev.to)+': '+nf.format(m.prev[key])+(exp?' · ожидалось '+nf.format(Math.round(exp))+' по дням недели':'')+(ch==null?'':' ('+sig(ch)+')')));sum.append(row);}
-   body.append(sum);}
-  sec.append(body,legend);return sec;
+  for(const st of ['ok','silent','quiet','none','future']){const k=el('span','pc-cal-key');k.append(el('i','pc-cal-swatch is-'+st),document.createTextNode(labels[st]+' · '+(totals[st]||0)));legend.append(k);}
+  sec.append(row,legend);return sec;
+ }
+ // Полоска дней текущего месяца на карточке — видна без раскрытия «Разобрать».
+ function miniCalendar(p){
+  const meta=brief.calendarMonth;if(!meta)return null;
+  const screen=p.channel==='success_screen',labels=calLabels(screen),cal=p.calendar||{states:meta.blank,sends:[],answers:[]};
+  const map={o:'ok',s:'silent',q:'quiet',n:'none',f:'future'},box=el('div','pm-cal'),strip=el('div','pm-strip'),counts={};
+  strip.setAttribute('role','img');
+  [...cal.states].forEach((c,i)=>{const st=map[c],date=meta.month+'-'+String(i+1).padStart(2,'0'),wd=(meta.first+i)%7;counts[st]=(counts[st]||0)+1;
+   const cell=el('span','pm-day is-'+st+(wd>=5?' is-weekend':'')+(wd===0&&i?' is-week':''),String(i+1));
+   cell.title=dateLabel(date)+': '+labels[st].toLowerCase()+(st!=='none'&&st!=='future'?' · '+(screen?'показы':'отправки')+' '+nf.format(cal.sends[i]||0)+', ответы '+nf.format(cal.answers[i]||0):'');strip.append(cell);});
+  const bad=(counts.silent||0)+(counts.quiet||0)+(counts.none||0);
+  strip.setAttribute('aria-label',monthName(meta.month)+': '+Object.entries(counts).map(([k,v])=>labels[k]+' '+v).join(', '));
+  const legend=el('span','pm-legend');
+  for(const st of ['ok','silent','quiet','none']){if(!counts[st])continue;const k=el('span','pm-key');k.append(el('i','pc-cal-swatch is-'+st),document.createTextNode(counts[st]+' '+({ok:'с ответами',silent:'без ответов',quiet:'без отправок',none:'нет данных'}[st])));legend.append(k);}
+  box.append(el('span','pm-label',monthName(meta.month).split(' ')[0]+' по дням'),strip,legend);
+  if(!bad)box.classList.add('is-clean');
+  return box;
  }
  const checkDialog=el('dialog','pulse-dialog pulse-check-dialog');document.body.append(checkDialog);
  window.PulseCheck=(channel,id)=>openSurveyCheck(channel,id);
@@ -1136,6 +1163,7 @@ function create(main){
   if(metrics.childElementCount)main.append(metrics);
   if(other.length)main.append(el('p','pp-signal',other.join(' · ')));
   if(p.hint){const h=el('p','pp-hint');h.append(el('span','pp-hint-label','Гипотеза'),document.createTextNode(p.hint));main.append(h);}
+  const mini=miniCalendar(p);if(mini)main.append(mini);
   const spark=sh[0]?sparkline(sh[0]):null,side=el('div','pp-side');if(spark){side.append(spark,el('small','pp-spark-label',sh[0].label+' · 6 недель'));}
   const body=el('div','pp-body');body.append(main,side);
   const more=el('div','pp-more');more.hidden=true;
